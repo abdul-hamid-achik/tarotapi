@@ -26,7 +26,6 @@ namespace :deploy do
       "aws_account_id" => "AWS_ACCOUNT_ID",
       "aws_default_region" => "AWS_DEFAULT_REGION",
       "database_url" => "DATABASE_URL",
-      "db_password" => "DB_PASSWORD",
       "domain_name" => "DOMAIN_NAME",
       "hosted_zone_id" => "HOSTED_ZONE_ID",
       "app_name" => "APP_NAME"
@@ -41,7 +40,14 @@ namespace :deploy do
         puts "❌ #{key}: not set"
         missing_envs << key
       else
-        puts "✅ #{key}: #{key.include?('key') || key.include?('secret') || key.include?('password') ? '[HIDDEN]' : value}"
+        sensitive = key.include?('key') || 
+                   key.include?('secret') || 
+                   key.include?('password') ||
+                   key.include?('passphrase') ||
+                   key.include?('account_id') ||
+                   key.include?('zone_id') ||
+                   key.include?('master_key')
+        puts "✅ #{key}: #{sensitive ? '[HIDDEN]' : value}"
       end
     end
 
