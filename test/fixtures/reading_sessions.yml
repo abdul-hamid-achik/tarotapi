@@ -1,0 +1,19 @@
+one:
+  user: one
+  spread: one
+  question: mytext
+  interpretation: mytext
+  reading_date: <%= Time.current %>
+  astrological_context: {}
+  birth_date: <%= Date.current %>
+  name: mytext
+
+two:
+  user: two
+  spread: two
+  question: mytext
+  interpretation: mytext
+  reading_date: <%= Time.current %>
+  astrological_context: {}
+  birth_date: <%= Date.current %>
+  name: mytext 

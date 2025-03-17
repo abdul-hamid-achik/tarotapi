@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  scan_ruby:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      - name: Scan for common Rails security vulnerabilities using static analysis
+        run: bin/brakeman --no-pager
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      - name: Lint code for consistent style
+        run: bin/rubocop -f github
+
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=3
+
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - name: Install packages
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y build-essential git libpq-dev libyaml-dev pkg-config
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      - name: Setup test database
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          bin/rails db:test:prepare
+          bin/rails db:test:load
+
+      - name: Run unit tests (TDD)
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+          REDIS_URL: redis://localhost:6379/0
+        run: bin/rails test
+
+      - name: Run cucumber features (BDD)
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+          REDIS_URL: redis://localhost:6379/0
+        run: bin/cucumber --format progress
+
+  deploy:
+    needs: [scan_ruby, lint, test]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.aws_access_key_id }}
+          aws-secret-access-key: ${{ secrets.aws_secret_access_key }}
+          aws-region: us-west-2
+
+      - name: Install Pulumi CLI
+        uses: pulumi/setup-pulumi@v2
+
+      - name: Login to Pulumi
+        run: pulumi login
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.pulumi_access_token }}
+
+      - name: Setup infrastructure
+        run: |
+          bundle exec rake infrastructure:setup
+          bundle exec rake infrastructure:init[production]
+          bundle exec rake infrastructure:configure
+        env:
+          domain_name: ${{ secrets.domain_name }}
+          hosted_zone_id: ${{ secrets.hosted_zone_id }}
+
+      - name: Deploy infrastructure
+        run: bundle exec rake infrastructure:apply
+
+      - name: Sync secrets
+        run: bundle exec rake infrastructure:secrets:sync
+        env:
+          rails_master_key: ${{ secrets.rails_master_key }}
+
+      - name: Deploy application
+        run: bundle exec rake deploy:app

@@ -1,0 +1,7 @@
+encryptionsalt: ${PULUMI_ENCRYPTION_SALT}
+config:
+  aws:region: ${AWS_DEFAULT_REGION}
+  tarot-api:environment: production
+  tarot-api:db_password: ${DB_PASSWORD}
+  tarot-api:domain_name: ${DOMAIN_NAME}
+  tarot-api:hosted_zone_id: ${HOSTED_ZONE_ID} 

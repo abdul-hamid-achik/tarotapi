@@ -1,0 +1,39 @@
+- name: celtic cross
+  description: a complex spread that gives a comprehensive view of the situation
+  positions:
+    - name: present
+      description: the current situation
+    - name: challenge
+      description: what crosses you
+    - name: foundation
+      description: the basis of the situation
+    - name: past
+      description: recent past influences
+    - name: crown
+      description: possible outcome
+    - name: future
+      description: immediate future
+    - name: self
+      description: your role
+    - name: environment
+      description: external influences
+    - name: hopes_fears
+      description: hopes and fears
+    - name: outcome
+      description: final outcome
+
+- name: three card
+  description: a simple spread for past, present, and future
+  positions:
+    - name: past
+      description: past influences
+    - name: present
+      description: current situation
+    - name: future
+      description: future outcome
+
+- name: daily draw
+  description: a single card draw for daily guidance
+  positions:
+    - name: daily
+      description: guidance for the day 

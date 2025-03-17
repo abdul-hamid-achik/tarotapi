@@ -1,0 +1,85 @@
+---
+openapi: 3.0.1
+info:
+  title: tarot api
+  description: |
+    tarot api provides access to tarot card information, spreads, and readings.
+    the api follows json:api specification for consistent and predictable responses.
+  version: v1
+  contact:
+    name: api support
+    url: https://github.com/yourusername/tarot_api
+paths:
+  "/cards/{id}":
+    get:
+      summary: retrieves a card
+      tags:
+      - cards
+      parameters:
+      - name: id
+        in: path
+        description: id of the card
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: card found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      type:
+                        type: string
+                      attributes:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                            description: name of the tarot card
+                          description:
+                            type: string
+                            description: detailed description of the card's meaning
+                          image_url:
+                            type: string
+                            nullable: true
+                            description: url to the card's image if available
+                          created_at:
+                            type: string
+                            format: date-time
+                          updated_at:
+                            type: string
+                            format: date-time
+                        required:
+                        - name
+                        - description
+                        - created_at
+                        - updated_at
+                    required:
+                    - id
+                    - type
+                    - attributes
+                required:
+                - data
+        '404':
+          description: card not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+servers:
+- url: http://localhost:3000
+  description: development server
+- url: https://api.tarotapi.dev
+  description: production server

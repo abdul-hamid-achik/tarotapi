@@ -1,0 +1,110 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    image: tarot_api:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgres://tarot_api:password@postgres:5432/tarot_api_${RAILS_ENV:-development}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USERNAME=tarot_api
+      - DB_PASSWORD=password
+      - REDIS_URL=redis://redis:6379/1
+      - RAILS_ENV=${RAILS_ENV:-development}
+      - RAILS_MASTER_KEY=${RAILS_MASTER_KEY}
+      - S3_ENDPOINT=http://minio:9000
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minioadmin}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin}
+      - AWS_BUCKET=${AWS_BUCKET:-tarot-api}
+      - AWS_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+    develop:
+      watch:
+        - action: sync
+          path: .
+          target: /app
+          ignore:
+            - node_modules/
+            - .git/
+            - tmp/
+        - action: rebuild
+          path: Gemfile
+        - action: rebuild
+          path: Gemfile.lock
+    command: bundle exec rails server -b 0.0.0.0
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  postgres:
+    image: postgres:16-bookworm
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=tarot_api
+      - POSTGRES_DB=tarot_api_${RAILS_ENV:-development}
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
+    command: ["postgres", "-c", "superuser_reserved_connections=0"]
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tarot_api"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      default:
+        aliases:
+          - db
+
+  redis:
+    image: redis:7-bookworm
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    command: redis-server --appendonly yes
+
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    environment:
+      - MINIO_ROOT_USER=${AWS_ACCESS_KEY_ID:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${AWS_SECRET_ACCESS_KEY:-minioadmin}
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data: 

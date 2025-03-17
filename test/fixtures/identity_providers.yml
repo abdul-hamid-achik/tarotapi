@@ -1,0 +1,11 @@
+anonymous:
+  name: anonymous
+  description: anonymous users with temporary ids
+
+registered:
+  name: registered
+  description: registered users with permanent accounts
+
+agent:
+  name: agent
+  description: agent users for api integrations 

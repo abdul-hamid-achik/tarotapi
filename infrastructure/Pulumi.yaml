@@ -1,0 +1,371 @@
+---
+name: tarotapi
+runtime: yaml
+description: infrastructure for tarot api application
+
+config:
+  # Core configuration
+  aws:region: us-west-2
+  app_name: tarotapi
+  instance_type: t2.micro
+  db_instance_class: db.t3.micro
+  min_capacity: 1
+  max_capacity: 2
+
+  # Application specific configuration
+  tarot-api:domain_name:
+    type: string
+    default: "tarotapi.com"
+  tarot-api:hosted_zone_id:
+    type: string
+    default: "Z03778532Q1MMADN357WF"
+  tarot-api:environment:
+    type: string
+    default: "production"
+  tarot-api:db_password:
+    type: string
+    secret: true
+
+variables:
+  project_name: tarotapi
+  environment: production
+  domain_name: tarotapi.com
+  hosted_zone_id: Z03778532Q1MMADN357WF
+  db_instance_class: db.t3.micro
+  instance_type: t2.micro
+  db_password: "placeholder-password"
+  domain: ${domain_name}
+  subdomain: "${environment}.api"
+  fqdn: ${subdomain}.${domain}
+  is_production: true
+  tags:
+    app: tarotapi
+    environment: production
+    managed-by: pulumi
+
+resources:
+  # AWS Provider
+  awsProvider:
+    type: pulumi:providers:aws
+    properties:
+      region: us-west-2
+
+  # vpc and networking
+  vpc:
+    type: aws:ec2:Vpc
+    properties:
+      cidrBlock: "10.0.0.0/16"
+      enableDnsHostnames: true
+      enableDnsSupport: true
+      tags: ${tags}
+    options:
+      provider: ${awsProvider}
+
+  publicSubnet1:
+    type: aws:ec2:Subnet
+    properties:
+      vpcId: ${vpc.id}
+      cidrBlock: "10.0.1.0/24"
+      availabilityZone: us-west-2a
+      mapPublicIpOnLaunch: true
+      tags: ${tags}
+    options:
+      provider: ${awsProvider}
+
+  publicSubnet2:
+    type: aws:ec2:Subnet
+    properties:
+      vpcId: ${vpc.id}
+      cidrBlock: "10.0.2.0/24"
+      availabilityZone: us-west-2b
+      mapPublicIpOnLaunch: true
+      tags: ${tags}
+    options:
+      provider: ${awsProvider}
+
+  privateSubnet1:
+    type: aws:ec2:Subnet
+    properties:
+      vpcId: ${vpc.id}
+      cidrBlock: "10.0.3.0/24"
+      availabilityZone: us-west-2a
+      tags: ${tags}
+    options:
+      provider: ${awsProvider}
+
+  privateSubnet2:
+    type: aws:ec2:Subnet
+    properties:
+      vpcId: ${vpc.id}
+      cidrBlock: "10.0.4.0/24"
+      availabilityZone: us-west-2b
+      tags: ${tags}
+    options:
+      provider: ${awsProvider}
+
+  # security groups
+  albSecurityGroup:
+    type: aws:ec2:SecurityGroup
+    properties:
+      vpcId: ${vpc.id}
+      description: security group for application load balancer
+      ingress:
+        - protocol: tcp
+          fromPort: 80
+          toPort: 80
+          cidrBlocks: ["0.0.0.0/0"]
+        - protocol: tcp
+          fromPort: 443
+          toPort: 443
+          cidrBlocks: ["0.0.0.0/0"]
+      tags: ${tags}
+    options:
+      provider: ${awsProvider}
+
+  appSecurityGroup:
+    type: aws:ec2:SecurityGroup
+    properties:
+      vpcId: ${vpc.id}
+      description: security group for application
+      ingress:
+        - protocol: tcp
+          fromPort: 3000
+          toPort: 3000
+          cidrBlocks:
+            - "0.0.0.0/0"
+          securityGroups:
+            - ${albSecurityGroup.id}
+      tags: ${tags}
+    options:
+      provider: ${awsProvider}
+
+  dbSecurityGroup:
+    type: aws:ec2:SecurityGroup
+    properties:
+      vpcId: ${vpc.id}
+      description: security group for database
+      ingress:
+        - protocol: tcp
+          fromPort: 5432
+          toPort: 5432
+          securityGroups:
+            - ${appSecurityGroup.id}
+      tags: ${tags}
+    options:
+      provider: ${awsProvider}
+
+  redisSecurityGroup:
+    type: aws:ec2:SecurityGroup
+    properties:
+      vpcId: ${vpc.id}
+      description: security group for redis
+      ingress:
+        - protocol: tcp
+          fromPort: 6379
+          toPort: 6379
+          securityGroups:
+            - ${appSecurityGroup.id}
+      tags: ${tags}
+    options:
+      provider: ${awsProvider}
+
+  # database
+  dbSubnetGroup:
+    type: aws:rds:SubnetGroup
+    properties:
+      name: ${project_name}-${environment}-db-subnet-group
+      subnetIds:
+        - ${privateSubnet1.id}
+        - ${privateSubnet2.id}
+      tags: ${tags}
+    options:
+      provider: ${awsProvider}
+
+  database:
+    type: aws:rds:Instance
+    properties:
+      engine: postgres
+      instanceClass: ${db_instance_class}
+      allocatedStorage: 20
+      dbName: ${project_name}_${environment}
+      username: ${project_name}
+      password: ${db_password}
+      skipFinalSnapshot: true
+      vpcSecurityGroupIds:
+        - ${dbSecurityGroup.id}
+      dbSubnetGroupName: ${dbSubnetGroup.name}
+      tags: ${tags}
+    options:
+      provider: ${awsProvider}
+
+  # redis
+  redisSubnetGroup:
+    type: aws:elasticache:SubnetGroup
+    properties:
+      subnetIds:
+        - ${privateSubnet1.id}
+        - ${privateSubnet2.id}
+      tags: ${tags}
+    options:
+      provider: ${awsProvider}
+
+  redis:
+    type: aws:elasticache:Cluster
+    properties:
+      engine: redis
+      nodeType: ${instance_type}
+      numCacheNodes: 1
+      port: 6379
+      subnetGroupName: ${redisSubnetGroup.name}
+      securityGroupIds:
+        - ${redisSecurityGroup.id}
+      tags: ${tags}
+    options:
+      provider: ${awsProvider}
+
+  # s3 bucket
+  bucket:
+    type: aws:s3:BucketV2
+    properties:
+      bucket: ${project_name}-${environment}
+      forceDestroy: true
+      tags: ${tags}
+    options:
+      provider: ${awsProvider}
+
+  # load balancer (only in production)
+  loadBalancer:
+    type: aws:lb:LoadBalancer
+    properties:
+      internal: false
+      loadBalancerType: application
+      securityGroups:
+        - ${albSecurityGroup.id}
+      subnets:
+        - ${publicSubnet1.id}
+        - ${publicSubnet2.id}
+      tags: ${tags}
+    options:
+      deleteBeforeReplace: true
+      provider: ${awsProvider}
+
+  targetGroup:
+    type: aws:lb:TargetGroup
+    properties:
+      port: 3000
+      protocol: HTTP
+      vpcId: ${vpc.id}
+      healthCheck:
+        enabled: true
+        path: /health
+        interval: 30
+        timeout: 5
+        healthyThreshold: 2
+        unhealthyThreshold: 2
+      tags: ${tags}
+    options:
+      provider: ${awsProvider}
+
+  httpListener:
+    type: aws:lb:Listener
+    properties:
+      loadBalancerArn: ${loadBalancer.arn}
+      port: 80
+      protocol: HTTP
+      defaultActions:
+        - type: redirect
+          redirect:
+            port: "443"
+            protocol: HTTPS
+            statusCode: HTTP_301
+    options:
+      provider: ${awsProvider}
+
+  httpsListener:
+    type: aws:lb:Listener
+    properties:
+      loadBalancerArn: ${loadBalancer.arn}
+      port: 443
+      protocol: HTTPS
+      sslPolicy: ELBSecurityPolicy-2016-08
+      certificateArn: ${certificate.arn}
+      defaultActions:
+        - type: forward
+          targetGroupArn: ${targetGroup.arn}
+    options:
+      provider: ${awsProvider}
+
+  # certificate (only in production)
+  certificate:
+    type: aws:acm:Certificate
+    options:
+      deleteBeforeReplace: true
+      provider: ${awsProvider}
+    properties:
+      domainName: ${fqdn}
+      subjectAlternativeNames:
+        - "*.${fqdn}"
+      validationMethod: DNS
+      tags: ${tags}
+
+  # dns validation records for certificate
+  certificateValidationRecord:
+    type: aws:route53:Record
+    properties:
+      name: ${certificate.domainValidationOptions[0].resourceRecordName}
+      type: ${certificate.domainValidationOptions[0].resourceRecordType}
+      zoneId: ${hosted_zone_id}
+      records:
+        - ${certificate.domainValidationOptions[0].resourceRecordValue}
+      ttl: 60
+    options:
+      provider: ${awsProvider}
+
+  # wait for certificate validation
+  certificateValidation:
+    type: aws:acm:CertificateValidation
+    properties:
+      certificateArn: ${certificate.arn}
+      validationRecordFqdns:
+        - ${certificateValidationRecord.fqdn}
+    options:
+      provider: ${awsProvider}
+
+  # main api dns record
+  apiDnsRecord:
+    type: aws:route53:Record
+    properties:
+      name: ${fqdn}
+      type: A
+      zoneId: ${hosted_zone_id}
+      aliases:
+        - name: ${loadBalancer.dnsName}
+          zoneId: ${loadBalancer.zoneId}
+          evaluateTargetHealth: true
+    options:
+      provider: ${awsProvider}
+
+  # health check for the api
+  apiHealthCheck:
+    type: aws:route53:HealthCheck
+    properties:
+      fqdn: ${fqdn}
+      port: 443
+      type: HTTPS
+      requestInterval: 30
+      failureThreshold: 3
+      measureLatency: true
+      tags: ${tags}
+    options:
+      provider: ${awsProvider}
+
+outputs:
+  url: https://${fqdn}
+  api_domain: ${fqdn}
+  certificate_arn: ${certificate.arn}
+  load_balancer_dns: ${loadBalancer.dnsName}
+  database_host: ${database.address}
+  database_name: ${database.dbName}
+  database_username: ${database.username}
+  redis_url: redis://${redis.cacheNodes[0].address}:6379/1
+  bucket_name: ${bucket.id}

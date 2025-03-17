@@ -1,0 +1,19 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  name: the fool
+  arcana: major
+  suit: major arcana
+  description: represents new beginnings, innocence, and spontaneity
+  rank: 0
+  symbols: white dog, cliff, knapsack, white rose
+  image_url: https://example.com/fool.jpg
+
+two:
+  name: the magician
+  arcana: major
+  suit: major arcana
+  description: represents manifestation, resourcefulness, and power
+  rank: 1
+  symbols: infinity symbol, red and white flowers, the four elements
+  image_url: https://example.com/magician.jpg

@@ -1,0 +1,31 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Problem Solving Methodology
+
+## Description
+This document outlines the recommended approach for tackling engineering problems in our Tarot API project. Following these steps ensures consistent, high-quality solutions that align with our architectural principles.
+
+## Process
+
+### Assess the Task
+- Determine if the task requires sequential thinking (step-by-step planning) or if it's better to take immediate action (e.g., prototyping, experimenting)
+- Ask: Is this a problem that needs careful planning, or can I start iterating quickly?
+
+### Check for Existing Solutions
+- Before starting, check if there's existing code, tools, or libraries that can solve the problem or part of it
+- Ask: Is there something already built that I can reuse or adapt?
+
+### Coverage Check
+- If you're writing new code, ensure it's covered by tests (BDD or TDD) unless it's a quick experiment or prototype
+- Ask: Is this new code already covered by tests, or do I need to write tests for it?
+
+### Documentation
+- Document decisions, especially when deviating from standard patterns
+- Update related architecture documents when implementing significant changes
+
+### Review
+- Consider getting feedback on approach before extensive implementation
+- Conduct self-review before submitting for team review
