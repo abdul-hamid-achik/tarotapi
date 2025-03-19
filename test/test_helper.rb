@@ -40,7 +40,7 @@ module ActiveRecord
 
           # Update all records that have null session_id
           connection.execute(<<~SQL)
-            UPDATE reading_sessions 
+            UPDATE reading_sessions#{' '}
             SET session_id = 'test-' || id || '-' || md5(random()::text)
             WHERE session_id IS NULL
           SQL
@@ -61,7 +61,7 @@ module ActiveSupport
     fixtures :all
 
     # Add more helper methods to be used by all tests here...
-    
+
     setup do
       # Ensure all ReadingSession records have a session_id
       if defined?(ReadingSession)

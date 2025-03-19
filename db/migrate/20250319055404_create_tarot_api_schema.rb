@@ -9,12 +9,12 @@ class CreateTarotApiSchema < ActiveRecord::Migration[7.0]
       t.timestamps
     end
 
-    add_index :identity_providers, :name, unique: true
+    add_index :identity_providers, :name, unique: true, name: "idx_identity_providers_name_unique"
 
     # Create users table with authentication fields
     create_table :users do |t|
       t.string :external_id
-      t.references :identity_provider, foreign_key: true
+      t.references :identity_provider, foreign_key: true, index: { name: "idx_users_on_identity_provider_id" }
       t.jsonb :metadata, default: {}
       t.string :email, null: false
       t.string :name
@@ -31,9 +31,9 @@ class CreateTarotApiSchema < ActiveRecord::Migration[7.0]
       t.timestamps
     end
 
-    add_index :users, [ :identity_provider_id, :external_id ], unique: true
-    add_index :users, :email, unique: true
-    add_index :users, :api_key, unique: true
+    add_index :users, [ :identity_provider_id, :external_id ], unique: true, name: "idx_users_on_identity_provider_external_id"
+    add_index :users, :email, unique: true, name: "idx_users_on_email_unique"
+    add_index :users, :api_key, unique: true, name: "idx_users_on_api_key_unique"
 
     # Create tarot_cards table
     create_table :tarot_cards do |t|
@@ -48,9 +48,9 @@ class CreateTarotApiSchema < ActiveRecord::Migration[7.0]
       t.timestamps
     end
 
-    add_index :tarot_cards, :name, unique: true
-    add_index :tarot_cards, :rank
-    add_index :tarot_cards, [ :arcana, :suit ]
+    add_index :tarot_cards, :name, unique: true, name: "idx_tarot_cards_on_name_unique"
+    add_index :tarot_cards, :rank, name: "idx_tarot_cards_on_rank"
+    add_index :tarot_cards, [ :arcana, :suit ], name: "idx_tarot_cards_on_arcana_and_suit"
 
     # Create spreads table
     create_table :spreads do |t|
@@ -61,7 +61,7 @@ class CreateTarotApiSchema < ActiveRecord::Migration[7.0]
       t.boolean :is_public
       t.boolean :is_system, default: false
       t.jsonb :astrological_context
-      t.references :user, null: false, foreign_key: true
+      t.references :user, null: false, foreign_key: true, index: { name: "idx_spreads_on_user_id" }
       t.boolean :active, default: true
       t.string :difficulty_level, default: "medium"
       t.string :purpose
@@ -70,14 +70,14 @@ class CreateTarotApiSchema < ActiveRecord::Migration[7.0]
       t.timestamps
     end
 
-    add_index :spreads, :name
-    add_index :spreads, :is_public
-    add_index :spreads, :is_system
+    add_index :spreads, :name, name: "idx_spreads_on_name"
+    add_index :spreads, :is_public, name: "idx_spreads_on_is_public"
+    add_index :spreads, :is_system, name: "idx_spreads_on_is_system"
 
     # Create reading_sessions table
     create_table :reading_sessions do |t|
-      t.references :user, null: false, foreign_key: true
-      t.references :spread, null: false, foreign_key: true
+      t.references :user, null: false, foreign_key: true, index: { name: "idx_reading_sessions_on_user_id" }
+      t.references :spread, null: false, foreign_key: true, index: { name: "idx_reading_sessions_on_spread_id" }
       t.text :question, null: false
       t.text :interpretation
       t.datetime :reading_date, null: false
@@ -90,32 +90,32 @@ class CreateTarotApiSchema < ActiveRecord::Migration[7.0]
       t.timestamps
     end
 
-    add_index :reading_sessions, :session_id, unique: true
-    add_index :reading_sessions, :name
+    add_index :reading_sessions, :session_id, unique: true, name: "idx_reading_sessions_on_session_id_unique"
+    add_index :reading_sessions, :name, name: "idx_reading_sessions_on_name"
 
     # Create card_readings table
     create_table :card_readings do |t|
-      t.references :user, null: false, foreign_key: true
-      t.references :tarot_card, null: false, foreign_key: true
+      t.references :user, null: false, foreign_key: true, index: { name: "idx_card_readings_on_user_id" }
+      t.references :tarot_card, null: false, foreign_key: true, index: { name: "idx_card_readings_on_tarot_card_id" }
       t.integer :position
       t.boolean :is_reversed, default: false
       t.text :notes
-      t.references :spread, foreign_key: true
+      t.references :spread, foreign_key: true, index: { name: "idx_card_readings_on_spread_id" }
       t.text :interpretation
       t.jsonb :spread_position
       t.datetime :reading_date
-      t.references :reading_session, null: false, foreign_key: true
+      t.references :reading_session, null: false, foreign_key: true, index: { name: "idx_card_readings_on_reading_session_id" }
 
       t.timestamps
     end
 
-    add_index :card_readings, [ :user_id, :created_at ]
-    add_index :card_readings, [ :tarot_card_id, :created_at ]
-    add_index :card_readings, [ :user_id, :tarot_card_id, :created_at ], name: 'idx_card_readings_user_tarot_created'
+    add_index :card_readings, [ :user_id, :created_at ], name: "idx_card_readings_on_user_id_and_created_at"
+    add_index :card_readings, [ :tarot_card_id, :created_at ], name: "idx_card_readings_on_tarot_card_id_created_at"
+    add_index :card_readings, [ :user_id, :tarot_card_id, :created_at ], name: "idx_card_readings_user_tarot_created"
 
     # Create subscriptions table
     create_table :subscriptions do |t|
-      t.references :user, null: false, foreign_key: true
+      t.references :user, null: false, foreign_key: true, index: { name: "idx_subscriptions_on_user_id" }
       t.string :stripe_id, null: false
       t.string :stripe_customer_id
       t.string :plan_name, null: false
@@ -127,12 +127,12 @@ class CreateTarotApiSchema < ActiveRecord::Migration[7.0]
       t.timestamps
     end
 
-    add_index :subscriptions, :stripe_id, unique: true
-    add_index :subscriptions, [ :user_id, :status ]
+    add_index :subscriptions, :stripe_id, unique: true, name: "idx_subscriptions_on_stripe_id_unique"
+    add_index :subscriptions, [ :user_id, :status ], name: "idx_subscriptions_on_user_id_and_status"
 
     # User Preferences
     create_table :user_preferences do |t|
-      t.references :user, null: false, foreign_key: true
+      t.belongs_to :user, null: false, foreign_key: true, index: { name: 'idx_user_preferences_on_user_id' }
       t.string :theme, default: "light"
       t.json :notification_settings
       t.json :ui_settings
@@ -143,11 +143,10 @@ class CreateTarotApiSchema < ActiveRecord::Migration[7.0]
 
       t.timestamps
     end
-    add_index :user_preferences, :user_id, unique: true
 
     # Reading Notes
     create_table :reading_notes do |t|
-      t.references :reading_session, null: false, foreign_key: true
+      t.references :reading_session, null: false, foreign_key: true, index: { name: "idx_reading_notes_on_reading_session_id" }
       t.text :content, null: false
       t.datetime :note_date, null: false
       t.boolean :is_private, default: true
@@ -159,7 +158,7 @@ class CreateTarotApiSchema < ActiveRecord::Migration[7.0]
 
     # Feedback
     create_table :feedbacks do |t|
-      t.references :reading_session, null: false, foreign_key: true
+      t.references :reading_session, null: false, foreign_key: true, index: { unique: true, name: "idx_feedbacks_on_reading_session_id" }
       t.integer :accuracy_rating
       t.integer :helpfulness_rating
       t.text :comments
@@ -168,12 +167,11 @@ class CreateTarotApiSchema < ActiveRecord::Migration[7.0]
 
       t.timestamps
     end
-    add_index :feedbacks, :reading_session_id, unique: true
 
     # Saved Readings
     create_table :saved_readings do |t|
-      t.references :user, null: false, foreign_key: true
-      t.references :reading_session, null: false, foreign_key: true
+      t.references :user, null: false, foreign_key: true, index: { name: "idx_saved_readings_on_user_id" }
+      t.references :reading_session, null: false, foreign_key: true, index: { name: "idx_saved_readings_on_reading_session_id" }
       t.string :folder
       t.text :notes
       t.boolean :is_favorite, default: false
@@ -181,6 +179,6 @@ class CreateTarotApiSchema < ActiveRecord::Migration[7.0]
 
       t.timestamps
     end
-    add_index :saved_readings, [:user_id, :reading_session_id], unique: true
+    add_index :saved_readings, [ :user_id, :reading_session_id ], unique: true, name: "idx_saved_readings_on_user_id_reading_session_id"
   end
 end

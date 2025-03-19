@@ -17,6 +17,8 @@ class Api::V1::CardReadingsControllerTest < ActionDispatch::IntegrationTest
 
   test "should create card reading with anonymous user" do
     post api_v1_card_readings_url, params: {
+      external_id: users(:anonymous).external_id,
+      provider: "anonymous",
       tarot_card_id: tarot_cards(:one).id,
       spread_id: spreads(:one).id,
       question: "what's my future?",
@@ -30,7 +32,7 @@ class Api::V1::CardReadingsControllerTest < ActionDispatch::IntegrationTest
 
   test "should create card reading with agent" do
     post api_v1_card_readings_url, params: {
-      external_id: "agent-test",
+      external_id: users(:agent).external_id,
       provider: "agent",
       tarot_card_id: tarot_cards(:one).id,
       spread_id: spreads(:one).id,

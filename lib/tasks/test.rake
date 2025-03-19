@@ -1,4 +1,7 @@
 namespace :test do
+  # Ensure we're always running in test environment
+  ENV["RAILS_ENV"] = "test"
+
   desc "run all tests (rspec and cucumber)"
   task :all do
     puts "running all tests..."
@@ -57,7 +60,7 @@ namespace :test do
     puts "preparing test database..."
 
     # Create and migrate test database
-    if system("RAILS_ENV=test bundle exec rake db:drop db:create db:schema:load")
+    if system("bundle exec rake db:drop db:create db:schema:load")
       puts "test database prepared"
     else
       puts "failed to prepare test database"
@@ -87,11 +90,11 @@ namespace :test do
       Rake::Task["test:all"].invoke
     end
   end
-  
+
   desc "rebuild docker image and run tests"
   task :docker_rebuild do
     puts "rebuilding docker image and running tests..."
-    
+
     if system("docker compose build api")
       puts "docker image rebuilt successfully"
       Rake::Task["test:docker"].invoke

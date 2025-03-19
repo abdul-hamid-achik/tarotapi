@@ -5,4 +5,4 @@ if Rails.env.development? || Rails.env.test?
   rescue LoadError => e
     puts "Warning: ruby_audit gem could not be loaded: #{e.message}"
   end
-end 
+end

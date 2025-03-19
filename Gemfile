@@ -55,7 +55,7 @@ gem "aws-sdk-s3", require: false
 
 # api documentation
 gem "rswag-api"
-gem "rswag-ui"
+gem "redoc-rails"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
@@ -69,7 +69,7 @@ group :development, :test do
 
   # api documentation dependencies for development
   gem "rspec-rails"
-  gem "rswag-specs"
+  gem "rswag-specs", group: [ :development, :test ]
 
   # load environment variables from .env file
   # Using standard dotenv for Rails 8 compatibility

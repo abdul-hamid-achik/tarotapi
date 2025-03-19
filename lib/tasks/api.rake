@@ -1,5 +1,5 @@
 namespace :api do
-  desc "generate swagger documentation"
+  desc "generate api documentation"
   task :docs do
     puts "generating api documentation..."
 
@@ -20,22 +20,63 @@ namespace :api do
       abort "missing required AWS environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_BUCKET)"
     end
 
-    # Upload swagger files to S3
-    swagger_dir = "swagger"
+    # Upload spec files to S3
+    spec_dir = "public/api"
     s3_prefix = "api-docs"
 
-    cmd = "aws s3 sync #{swagger_dir} s3://#{ENV['AWS_S3_BUCKET']}/#{s3_prefix} --acl public-read"
+    cmd = "aws s3 sync #{spec_dir} s3://#{ENV['AWS_S3_BUCKET']}/#{s3_prefix} --acl public-read"
 
     if system(cmd)
       puts "api documentation published to s3://#{ENV['AWS_S3_BUCKET']}/#{s3_prefix}"
 
       # Print URL to documentation
       region = ENV["AWS_DEFAULT_REGION"] || "us-west-2"
-      puts "access documentation at: https://#{ENV['AWS_S3_BUCKET']}.s3.#{region}.amazonaws.com/#{s3_prefix}/v1/swagger.json"
+      puts "access documentation at: https://#{ENV['AWS_S3_BUCKET']}.s3.#{region}.amazonaws.com/#{s3_prefix}/v1/spec.json"
     else
       puts "failed to publish api documentation"
       exit 1
     end
+  end
+
+  desc "setup redoc ui for api documentation"
+  task :setup_redoc do
+    puts "setting up redoc ui for api documentation..."
+
+    # Create public/docs directory if it doesn't exist
+    FileUtils.mkdir_p("public/docs")
+
+    # Create index.html with ReDoc
+    redoc_html = <<~HTML
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>tarot api documentation</title>
+          <meta charset="utf-8"/>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
+          <style>
+            body {
+              margin: 0;
+              padding: 0;
+            }
+          </style>
+        </head>
+        <body>
+          <redoc spec-url="/api-docs/v1/spec.yaml"></redoc>
+          <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+        </body>
+      </html>
+    HTML
+
+    File.write("public/docs/index.html", redoc_html)
+
+    puts "redoc ui setup complete"
+    puts "add the following to your routes.rb to serve the docs:"
+    puts
+    puts "  # redoc api documentation"
+    puts '  get "/api-docs", to: redirect("/docs/index.html")'
+    puts
+    puts "ensure your spec files are available at /api-docs/v1/spec.yaml"
   end
 
   desc "run integration tests against a deployed api"
@@ -56,15 +97,35 @@ namespace :api do
     end
   end
 
-  desc "validate api responses against swagger schema"
-  task validate: :environment do
-    puts "validating api responses against swagger schema..."
+  desc "validate api responses against api schema"
+  task :validate do
+    puts "validating api responses against api schema..."
 
-    # Build the API validation command
+    # Run the RSpec tests with RSwag
     if system("bundle exec rake rswag:specs:swaggerize")
       puts "api schema validation passed"
     else
       puts "api schema validation failed"
+      exit 1
+    end
+  end
+
+  desc "generate api documentation for specific version"
+  task :generate_docs, [ :version ] => :environment do |_, args|
+    version = args[:version] || "v1"
+    spec_dir = "public/api/#{version}"
+    puts "generating api documentation for version #{version}..."
+
+    # Create directory if it doesn't exist
+    FileUtils.mkdir_p(spec_dir)
+
+    # Generate documentation
+    if system("RAILS_ENV=test VERSION=#{version} bundle exec rake rswag:specs:swaggerize")
+      puts "api documentation for version #{version} generated successfully"
+      puts "documentation available in:"
+      puts "  - #{spec_dir}"
+    else
+      puts "failed to generate api documentation for version #{version}"
       exit 1
     end
   end
@@ -79,15 +140,15 @@ namespace :api do
       # Create directory structure
       controllers_dir = "app/controllers/api/#{version}"
       serializers_dir = "app/serializers/api/#{version}"
-      swagger_dir = "swagger/#{version}"
-      spec_dir = "spec/requests/api/#{version}"
+      spec_dir = "public/api/#{version}"
+      test_dir = "spec/requests/api/#{version}"
       route_file = "config/routes/api_#{version}.rb"
 
       # Create directories
       FileUtils.mkdir_p(controllers_dir)
       FileUtils.mkdir_p(serializers_dir)
-      FileUtils.mkdir_p(swagger_dir)
       FileUtils.mkdir_p(spec_dir)
+      FileUtils.mkdir_p(test_dir)
 
       # Create base controller
       base_controller = File.join(controllers_dir, "base_controller.rb")
@@ -126,8 +187,8 @@ namespace :api do
       puts "directories created:"
       puts "  - #{controllers_dir}"
       puts "  - #{serializers_dir}"
-      puts "  - #{swagger_dir}"
       puts "  - #{spec_dir}"
+      puts "  - #{test_dir}"
       puts "files created:"
       puts "  - #{base_controller}"
       puts "  - #{route_file}"

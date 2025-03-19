@@ -61,13 +61,27 @@ end
 
 puts "seeded #{TarotCard.count} tarot cards"
 
-# create admin user first
-admin = User.find_or_create_by!(email: 'admin@tarotapi.cards') do |user|
+# create default admin user for testing
+admin = User.find_or_create_by!(email: "admin@tarotapi.cards") do |user|
   user.name = 'admin'
   user.admin = true
+  user.password = 'password123'
+  user.password_confirmation = 'password123'
 end
 
 puts "created admin user"
+
+# create admin user for development
+if Rails.env.development?
+  admin = User.find_or_create_by!(email: 'admin@tarotapi.cards') do |u|
+    u.name = 'admin'
+    u.admin = true
+    u.password = 'password123'
+    u.password_confirmation = 'password123'
+  end
+
+  puts "admin user created: #{admin.email}"
+end
 
 # seed system spreads (traditional layouts)
 spread_data = load_json_data("spreads.json")
@@ -89,66 +103,48 @@ puts 'seeding system spreads...'
 system_spreads = SpreadService.system_spreads
 puts "created #{system_spreads.count} system spreads"
 
-# create default admin user for testing
-admin = User.find_or_create_by!(email: "admin@tarotapi.cards") do |user|
-  user.name = 'admin'
-  user.admin = true
-end
-
-puts "created admin user"
-
-# create admin user for development
-if Rails.env.development?
-  admin = User.find_or_create_by!(email: 'admin@tarotapi.cards') do |u|
-    u.name = 'admin'
-    u.admin = true
-  end
-
-  puts "admin user created: #{admin.email}"
-end
-
 # create basic spreads
 spreads = [
   {
     name: 'three card',
     description: 'a simple three card spread for quick readings',
     num_cards: 3,
-    positions: {
-      1 => 'past',
-      2 => 'present',
-      3 => 'future'
-    }
+    positions: [
+      { name: 'past', description: 'influences from the past' },
+      { name: 'present', description: 'current situation' },
+      { name: 'future', description: 'likely outcome' }
+    ]
   },
   {
     name: 'celtic cross',
     description: 'a detailed spread that gives insight into many aspects of a situation',
     num_cards: 10,
-    positions: {
-      1 => 'present',
-      2 => 'challenge',
-      3 => 'past',
-      4 => 'future',
-      5 => 'above',
-      6 => 'below',
-      7 => 'advice',
-      8 => 'external influence',
-      9 => 'hopes & fears',
-      10 => 'outcome'
-    }
+    positions: [
+      { name: 'present', description: 'current situation' },
+      { name: 'challenge', description: 'immediate challenge' },
+      { name: 'past', description: 'recent past influences' },
+      { name: 'future', description: 'approaching influences' },
+      { name: 'above', description: 'conscious thoughts and goals' },
+      { name: 'below', description: 'subconscious influences' },
+      { name: 'advice', description: 'recommended approach' },
+      { name: 'external influence', description: 'environmental factors' },
+      { name: 'hopes & fears', description: 'your hopes and fears' },
+      { name: 'outcome', description: 'final outcome' }
+    ]
   },
   {
     name: 'horseshoe',
     description: 'a seven card spread in the shape of a horseshoe for good luck',
     num_cards: 7,
-    positions: {
-      1 => 'past',
-      2 => 'present',
-      3 => 'hidden influences',
-      4 => 'obstacles',
-      5 => 'external influences',
-      6 => 'advice',
-      7 => 'outcome'
-    }
+    positions: [
+      { name: 'past', description: 'recent past influences' },
+      { name: 'present', description: 'current situation' },
+      { name: 'hidden influences', description: 'unseen forces at work' },
+      { name: 'obstacles', description: 'challenges to overcome' },
+      { name: 'external influences', description: 'outside factors affecting you' },
+      { name: 'advice', description: 'guidance on your path' },
+      { name: 'outcome', description: 'most likely outcome' }
+    ]
   }
 ]
 
@@ -158,7 +154,9 @@ unless admin_user
   admin_user = User.create!(
     email: 'admin@tarotapi.cards',
     name: 'admin',
-    admin: true
+    admin: true,
+    password: 'password123',
+    password_confirmation: 'password123'
   )
 end
 

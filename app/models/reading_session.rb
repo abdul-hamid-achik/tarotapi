@@ -28,9 +28,9 @@ class ReadingSession < ApplicationRecord
     # Only set session_id if not already present - this ensures
     # that fixtures with explicit session_ids are respected
     return if session_id.present?
-    
+
     # For fixtures and tests, use a deterministic UUID based on id if available
-    if id.present? && (Rails.env.test? || ENV['RAILS_ENV'] == 'test')
+    if id.present? && (Rails.env.test? || ENV["RAILS_ENV"] == "test")
       # Create a deterministic UUID based on the record id
       self.session_id = "#{id}1111-1111-1111-111111111111"[0..35]
     else

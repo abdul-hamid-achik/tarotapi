@@ -104,9 +104,59 @@ jobs:
           path: coverage/
           retention-days: 7
 
+  docs:
+    name: API Documentation
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      - name: Setup test database
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+        run: |
+          bundle exec rails db:migrate
+          bundle exec rails db:test:prepare
+
+      - name: Generate API documentation
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+        run: bundle exec rake api:docs
+
+      - name: Validate API against schema
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+        run: bundle exec rake api:validate
+
+      - name: Upload API documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-docs
+          path: swagger/
+          retention-days: 7
+
   ci_completed:
     name: CI Workflow Completed
-    needs: [lint, test]
+    needs: [lint, test, docs]
     runs-on: ubuntu-latest
     steps:
       - name: CI completed successfully

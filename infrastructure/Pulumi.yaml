@@ -45,6 +45,9 @@ variables:
   db_instance_class: db.t3.micro
   redis_node_type: cache.t3.micro
   rails_master_key: ""  # This will be provided at runtime
+  aws:region:
+    type: string
+    default: us-west-2
 
 stacks:
   - name: network
@@ -791,6 +794,32 @@ resources:
         targetValue: 70
         scaleInCooldown: 300
         scaleOutCooldown: 60
+
+  # API Service
+  api:
+    type: aws:ecs:Service
+    service:
+      environment:
+        - name: RAILS_ENV
+          value: production
+      healthCheck:
+        path: "/health"
+      routes:
+        - path: "/"
+          priority: 1
+          conditions:
+            - field: "host-header"
+              values: ["api.*"]
+        - path: "/docs*"
+          priority: 2
+          conditions:
+            - field: "host-header"
+              values: ["api.*"]
+        - path: "/api*"
+          priority: 3
+          conditions:
+            - field: "host-header"
+              values: ["api.*"]
 
 outputs:
   ecr_url: ${ecrRepository.repositoryUrl}

@@ -15,7 +15,7 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - .env.local
+      - .env
     environment:
       - RAILS_ENV=development
       - RAILS_MASTER_KEY=${RAILS_MASTER_KEY}
@@ -23,10 +23,17 @@ services:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minioadmin}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin}
       - AWS_BUCKET=${AWS_BUCKET:-tarot-api}
-      - AWS_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+      - AWS_REGION=${AWS_DEFAULT_REGION:-us-west-2}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DB_HOST=postgres
+      - DB_NAME=tarot_api_development
+      - DB_USERNAME=tarot_api
+      - DB_PASSWORD=password
     develop:
       watch:
+        - action: sync+restart
+          path: ./db/migrate
+          target: /app/db/migrate
         - action: sync
           path: .
           target: /app
@@ -58,11 +65,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     env_file:
-      - .env.local
+      - .env
     environment:
       - POSTGRES_PASSWORD=password
       - POSTGRES_USER=tarot_api
-      - POSTGRES_DB=tarot_api_${RAILS_ENV:-development}
+      - POSTGRES_DB=tarot_api_development
       - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
     command: ["postgres", "-c", "superuser_reserved_connections=0"]
     ports:
@@ -85,7 +92,7 @@ services:
     volumes:
       - redis_data:/data
     env_file:
-      - .env.local
+      - .env
     ports:
       - "6379:6379"
     healthcheck:
@@ -109,7 +116,7 @@ services:
     volumes:
       - minio_data:/data
     env_file:
-      - .env.local
+      - .env
     environment:
       - MINIO_ROOT_USER=${AWS_ACCESS_KEY_ID:-minioadmin}
       - MINIO_ROOT_PASSWORD=${AWS_SECRET_ACCESS_KEY:-minioadmin}
