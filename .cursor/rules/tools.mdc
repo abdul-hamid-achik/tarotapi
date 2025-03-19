@@ -1,0 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+always use lib/tasks/*.rake which is basically `rake`
+try to keep it lib/tasks/*.rake organized always 
+this project uses docker extensively

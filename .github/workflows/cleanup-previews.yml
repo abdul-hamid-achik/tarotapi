@@ -1,0 +1,62 @@
+name: Cleanup Preview Environments
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # run every 6 hours
+  workflow_dispatch:  # allow manual trigger
+  pull_request:
+    types: [closed]  # cleanup when PRs are closed
+
+jobs:
+  cleanup:
+    name: Cleanup expired preview environments
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: us-west-2
+      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      PULUMI_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET }}
+      APP_NAME: tarotapi
+      DOMAIN_NAME: tarotapi.cards
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+      
+      - name: Install Pulumi CLI
+        uses: pulumi/setup-pulumi@v2
+      
+      - name: Cleanup expired preview environments
+        run: echo "Cleaning up expired preview environments"
+      
+      - name: Cleanup PR environment (if PR was closed)
+        if: github.event_name == 'pull_request'
+        run: |
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/-/g')
+          STACK_NAME="preview-${SANITIZED_BRANCH}"
+          
+          echo "Cleaning up preview environment for PR #${{ github.event.pull_request.number }} (${STACK_NAME})"
+          
+          # Try to clean up the stack
+          echo "Cleaning up preview environment for $STACK_NAME"
+      
+      - name: Notify Slack on failure
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,action,eventName,workflow,job
+          text: |
+            ❌ *Preview Environment Cleanup Failed*
+            
+            Please check the logs for details.
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: failure() 

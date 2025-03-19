@@ -1,0 +1,233 @@
+name: Preview Environments
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  push:
+    tags:
+      - 'preview-*'  # Only run for tags that start with preview-
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: 'Name for the preview environment'
+        required: true
+        type: string
+
+jobs:
+  check_permissions:
+    name: Check permissions
+    runs-on: ubuntu-latest
+    outputs:
+      allowed: ${{ steps.check.outputs.allowed }}
+    steps:
+      - id: check
+        name: Check if user is allowed
+        run: |
+          if [[ "${{ github.actor }}" == "abdul-hamid-achik" ]]; then
+            echo "allowed=true" >> $GITHUB_OUTPUT
+          else
+            echo "allowed=false" >> $GITHUB_OUTPUT
+          fi
+
+  deploy_pr_preview:
+    name: Deploy PR preview
+    needs: check_permissions
+    if: github.event_name == 'pull_request' && needs.check_permissions.outputs.allowed == 'true'
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: us-west-2
+      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      PULUMI_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET }}
+      RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+      APP_NAME: tarotapi
+      DOMAIN_NAME: tarotapi.cards
+      BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      - name: Install Pulumi CLI
+        uses: pulumi/setup-pulumi@v2
+      
+      - name: Initialize or select the stack for this PR
+        run: |
+          SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/-/g')
+          STACK_NAME="preview-${SANITIZED_BRANCH}"
+          echo "STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
+          
+          # Initialize or select the stack for this PR
+          echo "Initializing preview stack: $STACK_NAME"
+      
+      - name: Deploy preview environment
+        run: bundle exec rake aws:setup_infra
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const url = `https://${{ env.STACK_NAME }}.${{ env.DOMAIN_NAME }}`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🔮 Preview environment deployed: [${url}](${url})\nThis environment will be automatically cleaned up after 24 hours.`
+            })
+
+  deploy_tag_preview:
+    name: Deploy tag preview
+    needs: check_permissions
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/preview-') && needs.check_permissions.outputs.allowed == 'true'
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: us-west-2
+      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      PULUMI_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET }}
+      RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+      APP_NAME: tarotapi
+      DOMAIN_NAME: tarotapi.cards
+      TAG_NAME: ${{ github.ref_name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      - name: Install Pulumi CLI
+        uses: pulumi/setup-pulumi@v2
+      
+      - name: Initialize stack
+        run: |
+          # Tag name is already validated by the trigger condition
+          STACK_NAME="${TAG_NAME}"
+          echo "STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
+          
+          # Initialize stack
+          echo "Initializing stack: $STACK_NAME"
+      
+      - name: Deploy preview environment
+        run: bundle exec rake aws:setup_infra
+
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,action,eventName,workflow,job
+          text: |
+            🔮 *Tag Preview Environment Deployed*
+            
+            *Tag:* ${{ env.TAG_NAME }}
+            *Stack:* ${{ env.STACK_NAME }}
+            *URL:* https://${{ env.STACK_NAME }}.${{ env.DOMAIN_NAME }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: success()
+
+  deploy_manual_preview:
+    name: Deploy manual preview
+    needs: check_permissions
+    if: github.event_name == 'workflow_dispatch' && needs.check_permissions.outputs.allowed == 'true'
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: us-west-2
+      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      PULUMI_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET }}
+      RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+      APP_NAME: tarotapi
+      DOMAIN_NAME: tarotapi.cards
+      ENV_NAME: ${{ github.event.inputs.environment_name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      - name: Install Pulumi CLI
+        uses: pulumi/setup-pulumi@v2
+      
+      - name: Validate environment name
+        run: |
+          if [[ ! "$ENV_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]]; then
+            echo "::error::Environment name must contain only alphanumeric characters and hyphens, and cannot start with a hyphen"
+            exit 1
+          fi
+          
+          STACK_NAME="preview-${ENV_NAME}"
+          echo "STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
+      
+      - name: Initialize stack
+        run: |
+          echo "Initializing stack: $STACK_NAME"
+      
+      - name: Deploy preview environment
+        run: bundle exec rake aws:setup_infra
+
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,action,eventName,workflow,job
+          text: |
+            🔮 *Manual Preview Environment Deployed*
+            
+            *Name:* ${{ env.ENV_NAME }}
+            *Stack:* ${{ env.STACK_NAME }}
+            *URL:* https://${{ env.STACK_NAME }}.${{ env.DOMAIN_NAME }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: success()
+
+  notify_unauthorized:
+    name: Notify unauthorized user
+    needs: check_permissions
+    if: needs.check_permissions.outputs.allowed == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `⚠️ Only @abdul-hamid-achik can create preview environments. Please contact them if you need a preview environment.`
+            })
+            
+      - name: Log unauthorized tag attempt
+        if: github.event_name == 'push'
+        run: |
+          echo "⚠️ Unauthorized user ${{ github.actor }} attempted to create a tag preview environment"
+          exit 1
+            
+      - name: Log unauthorized manual attempt
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "⚠️ Unauthorized user ${{ github.actor }} attempted to create a manual preview environment"
+          exit 1 

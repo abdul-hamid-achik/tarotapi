@@ -1,0 +1,14 @@
+encryptionsalt: v1:pPhA+88Axyc=:v1:K+AfEZagXc9uYgPS:p9gjDhqbnb+NElv3NmUHZ6ZHrTGo+Q==
+config:
+  aws:region: us-west-2
+  tarot-api:app_name: tarotapi
+  tarot-api:db_instance_class: db.t3.micro
+  tarot-api:environment: production
+  tarot-api:domain_name: tarotapi.cards
+  tarot-api:instance_type: t2.micro
+  tarot-api:redis_node_type: cache.t3.micro
+  tarot-api:min_capacity: "1"
+  tarot-api:max_capacity: "2"
+  tarot-api:deployment_color: blue
+  tarot-api:rails_master_key: RAILS_MASTER_KEY_PLACEHOLDER
+  tarotapi:rails_master_key: RAILS_MASTER_KEY_PLACEHOLDER

@@ -1,0 +1,19 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+prioritize bdd (behavior-driven development) with cucumber:
+aim for 80% bdd coverage for the project.
+write cucumber features that describe the expected behavior of the system from the user's perspective.
+use cucumber's gherkin syntax to define scenarios in plain language.
+
+use tdd (test-driven development) with rspec for critical logic:
+aim for 10% tdd coverage for critical or complex logic.
+write rspec unit tests before writing the code to ensure the logic is well-defined and robust.
+
+allow flexibility for non-critical code:
+for the remaining 10%, allow flexibility. this could include:
+quick prototypes or experiments.
+code that doesn't require rigorous testing (e.g., ui tweaks, temporary fixes).
+ask: is this code critical enough to require test coverage, or can it be flexible?

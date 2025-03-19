@@ -1,0 +1,21 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  host: <%= ENV.fetch("DB_HOST") { "localhost" } %>
+  username: <%= ENV.fetch("DB_USERNAME") { "tarot_api" } %>
+  password: <%= ENV.fetch("DB_PASSWORD") { "password" } %>
+  port: <%= ENV.fetch("DB_PORT") { 5432 } %>
+
+development:
+  <<: *default
+  database: <%= ENV.fetch("DB_NAME") { "tarot_api_development" } %>
+
+test:
+  <<: *default
+  database: <%= ENV.fetch("DB_NAME") { "tarot_api_test" } %>
+
+production:
+  <<: *default
+  database: <%= ENV.fetch("DB_NAME") { "tarot_api_production" } %>
+  password: <%= ENV["DB_PASSWORD"] %> 

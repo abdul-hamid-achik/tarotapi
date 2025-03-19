@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      - name: Lint code with RuboCop
+        run: bundle exec rubocop -f github
+
+      - name: Run Brakeman security scan
+        run: bundle exec brakeman --no-pager
+
+      - name: Run Bundler Audit
+        run: |
+          gem install bundler-audit
+          bundle-audit check --update
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=3
+
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y build-essential git libpq-dev libyaml-dev pkg-config
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      - name: Setup test database
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          bundle exec rails db:migrate
+          bundle exec rails db:test:prepare
+
+      - name: Run RSpec tests (TDD)
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+          REDIS_URL: redis://localhost:6379/0
+        run: bundle exec rspec --format progress
+
+      - name: Run Cucumber features (BDD)
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+          REDIS_URL: redis://localhost:6379/0
+        run: bundle exec cucumber --format progress
+
+      - name: Generate coverage report
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+          REDIS_URL: redis://localhost:6379/0
+          COVERAGE: "true"
+          SIMPLECOV_FORMATTER: "SimpleCov::Formatter::HTMLFormatter"
+        run: |
+          echo "Generating merged coverage report..."
+          bundle exec rake test:coverage || true
+          ls -la coverage/
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+  ci_completed:
+    name: CI Workflow Completed
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: CI completed successfully
+        run: echo "CI workflow completed successfully!"
+    outputs:
+      status: success

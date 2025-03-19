@@ -1,0 +1,801 @@
+---
+name: tarotapi
+runtime: yaml
+description: infrastructure for tarot api using aws fargate with blue-green deployment support
+
+config:
+  aws:region: us-west-2
+  domain_name:
+    type: string
+    default: tarotapi.cards
+  environment:
+    type: string
+    default: production
+  deployment_type:
+    type: string
+    default: blue
+  db_username:
+    type: string
+    default: tarot_api
+  db_name:
+    type: string
+    default: tarot_api_production
+  db_instance_class:
+    type: string
+    default: db.t3.micro
+  redis_node_type:
+    type: string
+    default: cache.t3.micro
+  canary_percentage: 0
+  rails_master_key:
+    type: string
+    secret: true
+
+variables:
+  app_name: tarot-api
+  db_port: 5432
+  app_port: 3000
+  health_check_path: /health
+  container_insights: enabled
+  domain: tarotapi.cards
+  env: production
+  deployment_color: blue
+  db_name: tarot_api_production
+  db_username: tarot_api
+  db_instance_class: db.t3.micro
+  redis_node_type: cache.t3.micro
+  rails_master_key: ""  # This will be provided at runtime
+
+stacks:
+  - name: network
+    path: ./stacks/network.yaml
+  - name: database
+    path: ./stacks/database.yaml
+  - name: cache
+    path: ./stacks/cache.yaml
+  - name: storage
+    path: ./stacks/storage.yaml
+  - name: iam
+    path: ./stacks/iam.yaml
+  - name: app
+    path: ./stacks/app.yaml
+  - name: monitoring
+    path: ./stacks/monitoring.yaml
+
+resources:
+  # ECR Repository for storing container images
+  ecrRepository:
+    type: aws:ecr:Repository
+    properties:
+      name: tarot-api
+      imageScanningConfiguration:
+        scanOnPush: true
+      tags:
+        app: ${app_name}
+        environment: ${env}
+        managed-by: pulumi
+
+  # VPC for all resources
+  vpc:
+    type: aws:ec2:Vpc
+    properties:
+      cidrBlock: "10.0.0.0/16"
+      enableDnsHostnames: true
+      enableDnsSupport: true
+      tags:
+        Name: ${app_name}-vpc-${env}
+        environment: ${env}
+
+  # Public Subnets (for load balancer)
+  publicSubnet1:
+    type: aws:ec2:Subnet
+    properties:
+      vpcId: ${vpc.id}
+      cidrBlock: "10.0.1.0/24"
+      availabilityZone: "${aws:region}a"
+      mapPublicIpOnLaunch: true
+      tags:
+        Name: ${app_name}-public-subnet-1-${env}
+        environment: ${env}
+
+  publicSubnet2:
+    type: aws:ec2:Subnet
+    properties:
+      vpcId: ${vpc.id}
+      cidrBlock: "10.0.2.0/24"
+      availabilityZone: "${aws:region}b"
+      mapPublicIpOnLaunch: true
+      tags:
+        Name: ${app_name}-public-subnet-2-${env}
+        environment: ${env}
+
+  # Private Subnets (for database, redis, and app)
+  privateSubnet1:
+    type: aws:ec2:Subnet
+    properties:
+      vpcId: ${vpc.id}
+      cidrBlock: "10.0.3.0/24"
+      availabilityZone: "${aws:region}a"
+      tags:
+        Name: ${app_name}-private-subnet-1-${env}
+        environment: ${env}
+
+  privateSubnet2:
+    type: aws:ec2:Subnet
+    properties:
+      vpcId: ${vpc.id}
+      cidrBlock: "10.0.4.0/24"
+      availabilityZone: "${aws:region}b"
+      tags:
+        Name: ${app_name}-private-subnet-2-${env}
+        environment: ${env}
+
+  # Internet Gateway
+  internetGateway:
+    type: aws:ec2:InternetGateway
+    properties:
+      vpcId: ${vpc.id}
+      tags:
+        Name: ${app_name}-igw-${env}
+        environment: ${env}
+
+  # Route Table for Public Subnets
+  publicRouteTable:
+    type: aws:ec2:RouteTable
+    properties:
+      vpcId: ${vpc.id}
+      tags:
+        Name: ${app_name}-public-rt-${env}
+        environment: ${env}
+
+  # Route to Internet Gateway
+  publicRoute:
+    type: aws:ec2:Route
+    properties:
+      routeTableId: ${publicRouteTable.id}
+      destinationCidrBlock: "0.0.0.0/0"
+      gatewayId: ${internetGateway.id}
+
+  # Associate Route Table with Public Subnets
+  publicRouteTableAssociation1:
+    type: aws:ec2:RouteTableAssociation
+    properties:
+      routeTableId: ${publicRouteTable.id}
+      subnetId: ${publicSubnet1.id}
+
+  publicRouteTableAssociation2:
+    type: aws:ec2:RouteTableAssociation
+    properties:
+      routeTableId: ${publicRouteTable.id}
+      subnetId: ${publicSubnet2.id}
+
+  # NAT Gateway for private subnets
+  natGatewayEip:
+    type: aws:ec2:Eip
+    properties:
+      vpc: true
+      tags:
+        Name: ${app_name}-nat-eip-${env}
+        environment: ${env}
+
+  # NAT Gateway for private subnets - Use a single NAT Gateway to save costs
+  natGateway:
+    type: aws:ec2:NatGateway
+    properties:
+      allocationId: ${natGatewayEip.id}
+      subnetId: ${publicSubnet1.id}
+      tags:
+        Name: ${app_name}-nat-${env}
+        environment: ${env}
+
+  # Route Table for Private Subnets
+  privateRouteTable:
+    type: aws:ec2:RouteTable
+    properties:
+      vpcId: ${vpc.id}
+      tags:
+        Name: ${app_name}-private-rt-${env}
+        environment: ${env}
+
+  # Route to NAT Gateway
+  privateRoute:
+    type: aws:ec2:Route
+    properties:
+      routeTableId: ${privateRouteTable.id}
+      destinationCidrBlock: "0.0.0.0/0"
+      natGatewayId: ${natGateway.id}
+
+  # Associate Route Table with Private Subnets
+  privateRouteTableAssociation1:
+    type: aws:ec2:RouteTableAssociation
+    properties:
+      routeTableId: ${privateRouteTable.id}
+      subnetId: ${privateSubnet1.id}
+
+  privateRouteTableAssociation2:
+    type: aws:ec2:RouteTableAssociation
+    properties:
+      routeTableId: ${privateRouteTable.id}
+      subnetId: ${privateSubnet2.id}
+
+  # Security Group for RDS
+  dbSecurityGroup:
+    type: aws:ec2:SecurityGroup
+    properties:
+      vpcId: ${vpc.id}
+      description: "Allow PostgreSQL access from ECS"
+      ingress:
+        - protocol: "tcp"
+          fromPort: ${db_port}
+          toPort: ${db_port}
+          securityGroups: 
+            - ${appSecurityGroup.id}
+      egress:
+        - protocol: "-1"
+          fromPort: 0
+          toPort: 0
+          cidrBlocks: ["0.0.0.0/0"]
+      tags:
+        Name: ${app_name}-db-sg-${env}
+        environment: ${env}
+
+  # Security Group for Redis
+  redisSecurityGroup:
+    type: aws:ec2:SecurityGroup
+    properties:
+      vpcId: ${vpc.id}
+      description: "Allow Redis access from ECS"
+      ingress:
+        - protocol: "tcp"
+          fromPort: 6379
+          toPort: 6379
+          securityGroups: 
+            - ${appSecurityGroup.id}
+      egress:
+        - protocol: "-1"
+          fromPort: 0
+          toPort: 0
+          cidrBlocks: ["0.0.0.0/0"]
+      tags:
+        Name: ${app_name}-redis-sg-${env}
+        environment: ${env}
+
+  # Security Group for ECS Tasks
+  appSecurityGroup:
+    type: aws:ec2:SecurityGroup
+    properties:
+      vpcId: ${vpc.id}
+      description: "Allow web traffic to ECS tasks"
+      ingress:
+        - protocol: "tcp"
+          fromPort: 3000
+          toPort: 3000
+          securityGroups: 
+            - ${albSecurityGroup.id}
+      egress:
+        - protocol: "-1"
+          fromPort: 0
+          toPort: 0
+          cidrBlocks: ["0.0.0.0/0"]
+      tags:
+        Name: ${app_name}-app-sg-${env}
+        environment: ${env}
+
+  # Security Group for ALB
+  albSecurityGroup:
+    type: aws:ec2:SecurityGroup
+    properties:
+      vpcId: ${vpc.id}
+      description: "Allow HTTP and HTTPS traffic"
+      ingress:
+        - protocol: "tcp"
+          fromPort: 80
+          toPort: 80
+          cidrBlocks: ["0.0.0.0/0"]
+        - protocol: "tcp"
+          fromPort: 443
+          toPort: 443
+          cidrBlocks: ["0.0.0.0/0"]
+      egress:
+        - protocol: "-1"
+          fromPort: 0
+          toPort: 0
+          cidrBlocks: ["0.0.0.0/0"]
+      tags:
+        Name: ${app_name}-alb-sg-${env}
+        environment: ${env}
+
+  # RDS Subnet Group
+  dbSubnetGroup:
+    type: aws:rds:SubnetGroup
+    properties:
+      subnetIds: 
+        - ${privateSubnet1.id}
+        - ${privateSubnet2.id}
+      description: "Subnet group for ${app_name} RDS instances"
+      tags:
+        Name: ${app_name}-db-subnet-group-${env}
+        environment: ${env}
+
+  # RDS Instance for PostgreSQL
+  dbInstance:
+    type: aws:rds:Instance
+    properties:
+      engine: "postgres"
+      engineVersion: "16.0"
+      instanceClass: ${db_instance_class}
+      dbName: ${db_name}
+      username: ${db_username}
+      password: ${dbPassword.result}
+      allocatedStorage: 10
+      maxAllocatedStorage: 50
+      storageType: "gp3"
+      multiAz: false
+      skipFinalSnapshot: false
+      finalSnapshotIdentifier: "${app_name}-final-snapshot-${env}"
+      dbSubnetGroupName: ${dbSubnetGroup.name}
+      vpcSecurityGroupIds: 
+        - ${dbSecurityGroup.id}
+      backupRetentionPeriod: 7
+      deletionProtection: false
+      tags:
+        Name: ${app_name}-db-${env}
+        environment: ${env}
+
+  # Generate random password for RDS
+  dbPassword:
+    type: random:RandomPassword
+    properties:
+      length: 16
+      special: false
+
+  # ElastiCache Subnet Group
+  redisSubnetGroup:
+    type: aws:elasticache:SubnetGroup
+    properties:
+      subnetIds: 
+        - ${privateSubnet1.id}
+        - ${privateSubnet2.id}
+      description: "Subnet group for ${app_name} Redis instances"
+      tags:
+        Name: ${app_name}-redis-subnet-group-${env}
+        environment: ${env}
+
+  # ElastiCache Redis Cluster
+  redisCluster:
+    type: aws:elasticache:Cluster
+    properties:
+      engine: "redis"
+      engineVersion: "7.0"
+      nodeType: "cache.t2.micro"
+      numCacheNodes: 1
+      parameterGroupName: "default.redis7"
+      port: 6379
+      subnetGroupName: ${redisSubnetGroup.name}
+      securityGroupIds: 
+        - ${redisSecurityGroup.id}
+      tags:
+        Name: ${app_name}-redis-${env}
+        environment: ${env}
+
+  # S3 Bucket for file storage
+  s3Bucket:
+    type: aws:s3:Bucket
+    properties:
+      acl: "private"
+      corsRules:
+        - allowedHeaders: ["*"]
+          allowedMethods: ["GET", "HEAD", "PUT", "POST", "DELETE"]
+          allowedOrigins: ["*"]
+          exposeHeaders: ["ETag"]
+          maxAgeSeconds: 3000
+      tags:
+        Name: ${app_name}-storage-${env}
+        environment: ${env}
+
+  # IAM Role for ECS Task Execution
+  ecsTaskExecutionRole:
+    type: aws:iam:Role
+    properties:
+      assumeRolePolicy: |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com"
+              },
+              "Effect": "Allow",
+              "Sid": ""
+            }
+          ]
+        }
+      managedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+      tags:
+        Name: ${app_name}-ecs-execution-role-${env}
+        environment: ${env}
+
+  # IAM Role for ECS Task
+  ecsTaskRole:
+    type: aws:iam:Role
+    properties:
+      assumeRolePolicy: |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com"
+              },
+              "Effect": "Allow",
+              "Sid": ""
+            }
+          ]
+        }
+      tags:
+        Name: ${app_name}-ecs-task-role-${env}
+        environment: ${env}
+
+  # IAM Policy for S3 Access
+  s3AccessPolicy:
+    type: aws:iam:Policy
+    properties:
+      policy: |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:DeleteObject",
+                "s3:ListBucket"
+              ],
+              "Resource": [
+                "${s3Bucket.arn}",
+                "${s3Bucket.arn}/*"
+              ]
+            }
+          ]
+        }
+
+  # Attach S3 Policy to Task Role
+  s3PolicyAttachment:
+    type: aws:iam:RolePolicyAttachment
+    properties:
+      role: ${ecsTaskRole.name}
+      policyArn: ${s3AccessPolicy.arn}
+
+  # ECS Cluster
+  ecsCluster:
+    type: aws:ecs:Cluster
+    properties:
+      name: ${app_name}-cluster-${env}
+      settings:
+        - name: "containerInsights"
+          value: "enabled"
+      tags:
+        Name: ${app_name}-cluster-${env}
+        environment: ${env}
+
+  # ECS Task Definition
+  ecsTaskDefinition:
+    type: aws:ecs:TaskDefinition
+    properties:
+      family: ${app_name}-task-${env}
+      cpu: "512"
+      memory: "1024"
+      networkMode: "awsvpc"
+      requiresCompatibilities: ["FARGATE"]
+      executionRoleArn: ${ecsTaskExecutionRole.arn}
+      taskRoleArn: ${ecsTaskRole.arn}
+      containerDefinitions: |
+        [
+          {
+            "name": "${app_name}-container",
+            "image": "${ecrRepository.repositoryUrl}:latest",
+            "essential": true,
+            "portMappings": [
+              {
+                "containerPort": 3000,
+                "hostPort": 3000,
+                "protocol": "tcp"
+              }
+            ],
+            "environment": [
+              {
+                "name": "RAILS_ENV",
+                "value": "production"
+              },
+              {
+                "name": "DB_HOST",
+                "value": "${dbInstance.address}"
+              },
+              {
+                "name": "DB_PORT",
+                "value": "${db_port}"
+              },
+              {
+                "name": "DB_USERNAME",
+                "value": "${db_username}"
+              },
+              {
+                "name": "DB_NAME",
+                "value": "${db_name}"
+              },
+              {
+                "name": "REDIS_URL",
+                "value": "redis://${redisCluster.cacheNodes[0].address}:6379/1"
+              },
+              {
+                "name": "AWS_BUCKET",
+                "value": "${s3Bucket.id}"
+              },
+              {
+                "name": "AWS_REGION", 
+                "value": "${aws:region}"
+              }
+            ],
+            "secrets": [
+              {
+                "name": "DB_PASSWORD",
+                "valueFrom": "arn:aws:ssm:${aws:region}:123456789012:parameter/${env}/database_password"
+              },
+              {
+                "name": "RAILS_MASTER_KEY",
+                "valueFrom": "arn:aws:ssm:${aws:region}:123456789012:parameter/${env}/rails_master_key"
+              }
+            ],
+            "logConfiguration": {
+              "logDriver": "awslogs",
+              "options": {
+                "awslogs-group": "/ecs/${app_name}-${env}",
+                "awslogs-region": "${aws:region}",
+                "awslogs-stream-prefix": "ecs",
+                "awslogs-create-group": "true"
+              }
+            },
+            "healthCheck": {
+              "command": [
+                "CMD-SHELL",
+                "curl -f http://localhost:3000/health || exit 1"
+              ],
+              "interval": 30,
+              "timeout": 5,
+              "retries": 3,
+              "startPeriod": 60
+            }
+          }
+        ]
+      tags:
+        Name: ${app_name}-task-${env}
+        environment: ${env}
+
+  # Store DB password in SSM Parameter Store
+  dbPasswordParam:
+    type: aws:ssm:Parameter
+    properties:
+      name: "/${env}/database_password"
+      type: "SecureString"
+      value: ${dbPassword.result}
+      description: "Database password for ${app_name}"
+      tier: "Standard"
+      tags:
+        Name: ${app_name}-db-password-${env}
+        environment: ${env}
+
+  # Store Rails master key in SSM Parameter Store
+  railsMasterKeyParam:
+    type: aws:ssm:Parameter
+    properties:
+      name: "/${env}/rails_master_key"
+      type: "SecureString"
+      value: "${rails_master_key}"
+      description: "Rails master key for ${app_name}"
+      tier: "Standard"
+      tags:
+        Name: ${app_name}-rails-master-key-${env}
+        environment: ${env}
+
+  # Application Load Balancer
+  alb:
+    type: aws:lb:LoadBalancer
+    properties:
+      name: ${app_name}-alb-${env}
+      internal: false
+      loadBalancerType: "application"
+      securityGroups: 
+        - ${albSecurityGroup.id}
+      subnets: 
+        - ${publicSubnet1.id}
+        - ${publicSubnet2.id}
+      enableDeletionProtection: true
+      tags:
+        Name: ${app_name}-alb-${env}
+        environment: ${env}
+
+  # HTTP Target Group
+  httpTargetGroup:
+    type: aws:lb:TargetGroup
+    properties:
+      name: ${app_name}-http-tg-${env}
+      port: 3000
+      protocol: "HTTP"
+      targetType: "ip"
+      vpcId: ${vpc.id}
+      healthCheck:
+        enabled: true
+        path: "/health"
+        port: "3000"
+        protocol: "HTTP"
+        healthyThreshold: 3
+        unhealthyThreshold: 3
+        timeout: 5
+        interval: 30
+        matcher: "200"
+      tags:
+        Name: ${app_name}-http-tg-${env}
+        environment: ${env}
+
+  # HTTP Listener (Redirect to HTTPS)
+  httpListener:
+    type: aws:lb:Listener
+    properties:
+      loadBalancerArn: ${alb.arn}
+      port: 80
+      protocol: "HTTP"
+      defaultActions:
+        - type: "redirect"
+          redirect:
+            port: "443"
+            protocol: "HTTPS"
+            statusCode: "HTTP_301"
+
+  # HTTPS Listener (Certificate will be added when domain is registered)
+  httpsListener:
+    type: aws:lb:Listener
+    properties:
+      loadBalancerArn: ${alb.arn}
+      port: 443
+      protocol: "HTTPS"
+      sslPolicy: "ELBSecurityPolicy-TLS13-1-2-2021-06"
+      certificateArn: ${acmCertificate.arn}
+      defaultActions:
+        - type: "forward"
+          targetGroupArn: ${httpTargetGroup.arn}
+
+  # Route 53 Hosted Zone (if not already created)
+  hostedZone:
+    type: aws:route53:Zone
+    properties:
+      name: ${domain}
+      comment: "Managed by Pulumi for ${app_name}"
+      tags:
+        Name: ${app_name}-zone-${env}
+        environment: ${env}
+
+  # DNS Record for Application
+  dnsRecord:
+    type: aws:route53:Record
+    properties:
+      zoneId: ${hostedZone.zoneId}
+      name: ${domain}
+      type: "A"
+      aliases:
+        - name: ${alb.dnsName}
+          zoneId: ${alb.zoneId}
+          evaluateTargetHealth: true
+
+  # ACM Certificate
+  acmCertificate:
+    type: aws:acm:Certificate
+    properties:
+      domainName: ${domain}
+      validationMethod: "DNS"
+      tags:
+        Name: ${app_name}-cert-${env}
+        environment: ${env}
+
+  # Certificate Validation Record
+  acmValidationRecord:
+    type: aws:route53:Record
+    properties:
+      zoneId: ${hostedZone.zoneId}
+      name: ${acmCertificate.domainValidationOptions[0].resourceRecordName}
+      type: ${acmCertificate.domainValidationOptions[0].resourceRecordType}
+      records: 
+        - ${acmCertificate.domainValidationOptions[0].resourceRecordValue}
+      ttl: 60
+
+  # Certificate Validation
+  acmCertificateValidation:
+    type: aws:acm:CertificateValidation
+    properties:
+      certificateArn: ${acmCertificate.arn}
+      validationRecordFqdns: 
+        - ${acmValidationRecord.fqdn}
+
+  # ECS Service
+  ecsService:
+    type: aws:ecs:Service
+    properties:
+      name: ${app_name}-service-${env}
+      cluster: ${ecsCluster.arn}
+      taskDefinition: ${ecsTaskDefinition.arn}
+      desiredCount: 1
+      launchType: "FARGATE"
+      platformVersion: "LATEST"
+      capacityProviderStrategies:
+        - capacityProvider: "FARGATE_SPOT"
+          weight: 1
+      deploymentMaximumPercent: 200
+      deploymentMinimumHealthyPercent: 100
+      networkConfiguration:
+        subnets: 
+          - ${privateSubnet1.id}
+          - ${privateSubnet2.id}
+        securityGroups: 
+          - ${appSecurityGroup.id}
+        assignPublicIp: false
+      loadBalancers:
+        - targetGroupArn: ${httpTargetGroup.arn}
+          containerName: "${app_name}-container"
+          containerPort: 3000
+      healthCheckGracePeriodSeconds: 60
+      tags:
+        Name: ${app_name}-service-${env}
+        environment: ${env}
+
+  # Auto Scaling Target
+  autoScalingTarget:
+    type: aws:appautoscaling:Target
+    properties:
+      maxCapacity: 4
+      minCapacity: 2
+      resourceId: "service/${ecsCluster.name}/${ecsService.name}"
+      scalableDimension: "ecs:service:DesiredCount"
+      serviceNamespace: "ecs"
+
+  # CPU Auto Scaling Policy
+  cpuScalingPolicy:
+    type: aws:appautoscaling:Policy
+    properties:
+      name: ${app_name}-cpu-policy-${env}
+      policyType: "TargetTrackingScaling"
+      resourceId: ${autoScalingTarget.resourceId}
+      scalableDimension: ${autoScalingTarget.scalableDimension}
+      serviceNamespace: ${autoScalingTarget.serviceNamespace}
+      targetTrackingScalingPolicyConfiguration:
+        predefinedMetricSpecification:
+          predefinedMetricType: "ECSServiceAverageCPUUtilization"
+        targetValue: 70
+        scaleInCooldown: 300
+        scaleOutCooldown: 60
+
+  # Memory Auto Scaling Policy
+  memoryScalingPolicy:
+    type: aws:appautoscaling:Policy
+    properties:
+      name: ${app_name}-memory-policy-${env}
+      policyType: "TargetTrackingScaling"
+      resourceId: ${autoScalingTarget.resourceId}
+      scalableDimension: ${autoScalingTarget.scalableDimension}
+      serviceNamespace: ${autoScalingTarget.serviceNamespace}
+      targetTrackingScalingPolicyConfiguration:
+        predefinedMetricSpecification:
+          predefinedMetricType: "ECSServiceAverageMemoryUtilization"
+        targetValue: 70
+        scaleInCooldown: 300
+        scaleOutCooldown: 60
+
+outputs:
+  ecr_url: ${ecrRepository.repositoryUrl}
+  db_url: ${dbInstance.address}
+  redis_url: ${redisCluster.cacheNodes[0].address}
+  bucket_name: ${s3Bucket.id}
+  alb_url: ${alb.dnsName}
+  app_url: "https://${domain}"

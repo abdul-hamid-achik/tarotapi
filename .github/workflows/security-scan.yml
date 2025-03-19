@@ -1,0 +1,107 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * 0' # run weekly on Sunday at midnight
+
+jobs:
+  check-ci-status:
+    name: Check CI Status
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_run' && 
+      github.event.workflow_run.conclusion == 'success' && 
+      (github.event.workflow_run.event == 'push' || 
+       github.event.workflow_run.event == 'pull_request')
+    steps:
+      - name: CI workflow completed successfully
+        run: echo "CI workflow completed successfully, proceeding with security scan"
+
+  security-scan:
+    name: Rails Security Scan
+    needs: [check-ci-status]
+    if: |
+      always() && 
+      (github.event_name != 'workflow_run' || 
+       (github.event_name == 'workflow_run' && needs.check-ci-status.result == 'success'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      - name: Run Brakeman
+        run: bundle exec brakeman -A --no-pager
+
+      - name: Run Bundler Audit
+        run: |
+          gem install bundler-audit
+          bundle-audit check --update
+
+      - name: Run Ruby Audit
+        run: |
+          gem install ruby_audit
+          ruby-audit check
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Scan dependencies
+        uses: actions/dependency-review-action@v3
+
+  secrets-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+        
+      - name: Scan for secrets with Gitleaks
+        uses: zricethezav/gitleaks-action@v1.6.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  infrastructure-scan:
+    name: Infrastructure Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      - name: Install Pulumi CLI
+        uses: pulumi/setup-pulumi@v2
+
+      - name: Preview infrastructure changes
+        run: bundle exec rake aws:setup_infra
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-west-2
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          PULUMI_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET }} 

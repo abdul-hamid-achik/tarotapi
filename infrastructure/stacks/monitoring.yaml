@@ -1,0 +1,407 @@
+resources:
+  # SNS Topic for Alarms
+  alarmsTopic:
+    type: aws:sns:Topic
+    properties:
+      name: "${app_name}-alarms-${env}"
+      tags:
+        Name: "${app_name}-alarms-${env}"
+        environment: ${env}
+        managed-by: pulumi
+
+  # Email Subscription to SNS Topic
+  emailSubscription:
+    type: aws:sns:TopicSubscription
+    properties:
+      topic: ${alarmsTopic.arn}
+      protocol: "email"
+      endpoint: "${env == "production" ? "devops@example.com" : "dev@example.com"}"  # Replace with real email
+
+  # CloudWatch Dashboard
+  dashboard:
+    type: aws:cloudwatch:Dashboard
+    properties:
+      dashboardName: "${app_name}-${env}"
+      dashboardBody: |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/ECS", "CPUUtilization", "ServiceName", "${app_name}-service-${env}", "ClusterName", "${app_name}-cluster-${env}", { "stat": "Average" } ],
+                  [ "...", { "stat": "Maximum" } ],
+                  [ "...", { "stat": "Minimum" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${aws:region}",
+                "title": "ECS CPU Utilization",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/ECS", "MemoryUtilization", "ServiceName", "${app_name}-service-${env}", "ClusterName", "${app_name}-cluster-${env}", { "stat": "Average" } ],
+                  [ "...", { "stat": "Maximum" } ],
+                  [ "...", { "stat": "Minimum" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${aws:region}",
+                "title": "ECS Memory Utilization",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/ApplicationELB", "RequestCount", "LoadBalancer", "${alb.arnSuffix}", { "stat": "Sum", "period": 60 } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${aws:region}",
+                "title": "ALB Request Count",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", "${alb.arnSuffix}", { "stat": "Average" } ],
+                  [ "...", { "stat": "p90" } ],
+                  [ "...", { "stat": "p95" } ],
+                  [ "...", { "stat": "p99" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${aws:region}",
+                "title": "ALB Response Time",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 12,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/ApplicationELB", "HTTPCode_Target_2XX_Count", "LoadBalancer", "${alb.arnSuffix}", { "stat": "Sum" } ],
+                  [ "AWS/ApplicationELB", "HTTPCode_Target_3XX_Count", "LoadBalancer", "${alb.arnSuffix}", { "stat": "Sum" } ],
+                  [ "AWS/ApplicationELB", "HTTPCode_Target_4XX_Count", "LoadBalancer", "${alb.arnSuffix}", { "stat": "Sum" } ],
+                  [ "AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "LoadBalancer", "${alb.arnSuffix}", { "stat": "Sum" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": true,
+                "region": "${aws:region}",
+                "title": "ALB Response Codes",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 12,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", "${app_name}-db-${env}", { "stat": "Average" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${aws:region}",
+                "title": "RDS CPU Utilization",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 18,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/RDS", "DatabaseConnections", "DBInstanceIdentifier", "${app_name}-db-${env}", { "stat": "Average" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${aws:region}",
+                "title": "RDS Database Connections",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 18,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/ElastiCache", "CPUUtilization", "CacheClusterId", "${app_name}-redis-${env}-001", { "stat": "Average" } ],
+                  [ "AWS/ElastiCache", "CPUUtilization", "CacheClusterId", "${app_name}-redis-${env}-002", { "stat": "Average" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${aws:region}",
+                "title": "ElastiCache CPU Utilization",
+                "period": 300
+              }
+            }
+          ]
+        }
+
+  # High CPU Alarm
+  highCpuAlarm:
+    type: aws:cloudwatch:MetricAlarm
+    properties:
+      alarmName: "${app_name}-${env}-high-cpu"
+      comparisonOperator: "GreaterThanOrEqualToThreshold"
+      evaluationPeriods: 3
+      metricName: "CPUUtilization"
+      namespace: "AWS/ECS"
+      period: 300
+      statistic: "Average"
+      threshold: 80
+      alarmDescription: "This alarm monitors ECS service CPU usage"
+      actionsEnabled: true
+      alarmActions: [${alarmsTopic.arn}]
+      okActions: [${alarmsTopic.arn}]
+      dimensions: {
+        ClusterName: "${app_name}-cluster-${env}",
+        ServiceName: "${app_name}-service-${env}"
+      }
+      tags:
+        Name: "${app_name}-${env}-high-cpu"
+        environment: ${env}
+        managed-by: pulumi
+
+  # High Memory Alarm
+  highMemoryAlarm:
+    type: aws:cloudwatch:MetricAlarm
+    properties:
+      alarmName: "${app_name}-${env}-high-memory"
+      comparisonOperator: "GreaterThanOrEqualToThreshold"
+      evaluationPeriods: 3
+      metricName: "MemoryUtilization"
+      namespace: "AWS/ECS"
+      period: 300
+      statistic: "Average"
+      threshold: 80
+      alarmDescription: "This alarm monitors ECS service memory usage"
+      actionsEnabled: true
+      alarmActions: [${alarmsTopic.arn}]
+      okActions: [${alarmsTopic.arn}]
+      dimensions: {
+        ClusterName: "${app_name}-cluster-${env}",
+        ServiceName: "${app_name}-service-${env}"
+      }
+      tags:
+        Name: "${app_name}-${env}-high-memory"
+        environment: ${env}
+        managed-by: pulumi
+
+  # High 5XX Error Rate Alarm
+  high5xxErrorRateAlarm:
+    type: aws:cloudwatch:MetricAlarm
+    properties:
+      alarmName: "${app_name}-${env}-high-5xx-errors"
+      comparisonOperator: "GreaterThanOrEqualToThreshold"
+      evaluationPeriods: 1
+      threshold: 5
+      alarmDescription: "This alarm monitors for high 5XX error rate"
+      actionsEnabled: true
+      alarmActions: [${alarmsTopic.arn}]
+      okActions: [${alarmsTopic.arn}]
+      treatMissingData: "notBreaching"
+      metrics: [
+        {
+          id: "m1",
+          metricStat: {
+            metric: {
+              namespace: "AWS/ApplicationELB",
+              metricName: "HTTPCode_Target_5XX_Count",
+              dimensions: {
+                LoadBalancer: "${alb.arnSuffix}"
+              }
+            },
+            period: 300,
+            stat: "Sum"
+          },
+          returnData: false
+        },
+        {
+          id: "m2",
+          metricStat: {
+            metric: {
+              namespace: "AWS/ApplicationELB",
+              metricName: "RequestCount",
+              dimensions: {
+                LoadBalancer: "${alb.arnSuffix}"
+              }
+            },
+            period: 300,
+            stat: "Sum"
+          },
+          returnData: false
+        },
+        {
+          id: "e1",
+          expression: "m1 / m2 * 100",
+          label: "5XX Error Rate (%)",
+          returnData: true
+        }
+      ]
+      tags:
+        Name: "${app_name}-${env}-high-5xx-errors"
+        environment: ${env}
+        managed-by: pulumi
+
+  # API Latency Alarm
+  apiLatencyAlarm:
+    type: aws:cloudwatch:MetricAlarm
+    properties:
+      alarmName: "${app_name}-${env}-high-latency"
+      comparisonOperator: "GreaterThanOrEqualToThreshold"
+      evaluationPeriods: 3
+      metricName: "TargetResponseTime"
+      namespace: "AWS/ApplicationELB"
+      period: 300
+      extendedStatistic: "p95"
+      threshold: 1
+      alarmDescription: "This alarm monitors for high API latency (p95 > 1s)"
+      actionsEnabled: true
+      alarmActions: [${alarmsTopic.arn}]
+      okActions: [${alarmsTopic.arn}]
+      dimensions: {
+        LoadBalancer: "${alb.arnSuffix}"
+      }
+      tags:
+        Name: "${app_name}-${env}-high-latency"
+        environment: ${env}
+        managed-by: pulumi
+
+  # Database CPU Alarm
+  dbCpuAlarm:
+    type: aws:cloudwatch:MetricAlarm
+    properties:
+      alarmName: "${app_name}-${env}-db-high-cpu"
+      comparisonOperator: "GreaterThanOrEqualToThreshold"
+      evaluationPeriods: 3
+      metricName: "CPUUtilization"
+      namespace: "AWS/RDS"
+      period: 300
+      statistic: "Average"
+      threshold: 80
+      alarmDescription: "This alarm monitors RDS CPU usage"
+      actionsEnabled: true
+      alarmActions: [${alarmsTopic.arn}]
+      okActions: [${alarmsTopic.arn}]
+      dimensions: {
+        DBInstanceIdentifier: "${app_name}-db-${env}"
+      }
+      tags:
+        Name: "${app_name}-${env}-db-high-cpu"
+        environment: ${env}
+        managed-by: pulumi
+
+  # Low Storage Space Alarm
+  dbStorageAlarm:
+    type: aws:cloudwatch:MetricAlarm
+    properties:
+      alarmName: "${app_name}-${env}-db-low-storage"
+      comparisonOperator: "LessThanOrEqualToThreshold"
+      evaluationPeriods: 3
+      metricName: "FreeStorageSpace"
+      namespace: "AWS/RDS"
+      period: 300
+      statistic: "Average"
+      threshold: 5000000000 # 5GB
+      alarmDescription: "This alarm monitors RDS free storage space"
+      actionsEnabled: true
+      alarmActions: [${alarmsTopic.arn}]
+      okActions: [${alarmsTopic.arn}]
+      dimensions: {
+        DBInstanceIdentifier: "${app_name}-db-${env}"
+      }
+      tags:
+        Name: "${app_name}-${env}-db-low-storage"
+        environment: ${env}
+        managed-by: pulumi
+
+  # Redis CPU Alarm
+  redisCpuAlarm:
+    type: aws:cloudwatch:MetricAlarm
+    properties:
+      alarmName: "${app_name}-${env}-redis-high-cpu"
+      comparisonOperator: "GreaterThanOrEqualToThreshold"
+      evaluationPeriods: 3
+      metricName: "CPUUtilization"
+      namespace: "AWS/ElastiCache"
+      period: 300
+      statistic: "Average"
+      threshold: 80
+      alarmDescription: "This alarm monitors ElastiCache CPU usage"
+      actionsEnabled: true
+      alarmActions: [${alarmsTopic.arn}]
+      okActions: [${alarmsTopic.arn}]
+      dimensions: {
+        CacheClusterId: "${app_name}-redis-${env}-001"
+      }
+      tags:
+        Name: "${app_name}-${env}-redis-high-cpu"
+        environment: ${env}
+        managed-by: pulumi
+
+  # Budget Alarm for cost management
+  costsAlarm:
+    type: aws:cloudwatch:MetricAlarm
+    properties:
+      alarmName: "${app_name}-${env}-monthly-costs"
+      comparisonOperator: "GreaterThanOrEqualToThreshold"
+      evaluationPeriods: 1
+      metricName: "EstimatedCharges"
+      namespace: "AWS/Billing"
+      period: 21600 # 6 hours
+      statistic: "Maximum"
+      threshold: ${env == "production" ? 500 : 100} # $500 for prod, $100 for staging
+      alarmDescription: "This alarm monitors AWS monthly costs"
+      actionsEnabled: true
+      alarmActions: [${alarmsTopic.arn}]
+      dimensions: {
+        Currency: "USD"
+      }
+      tags:
+        Name: "${app_name}-${env}-monthly-costs"
+        environment: ${env}
+        managed-by: pulumi
+
+outputs:
+  alarmTopicArn:
+    value: ${alarmsTopic.arn}
+  dashboardUrl:
+    value: "https://${aws:region}.console.aws.amazon.com/cloudwatch/home?region=${aws:region}#dashboards:name=${dashboard.dashboardName}" 

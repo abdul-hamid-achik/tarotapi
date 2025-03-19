@@ -1,0 +1,105 @@
+resources:
+  # Generate random password for database
+  dbPassword:
+    type: random:RandomPassword
+    properties:
+      length: 16
+      special: true
+      overrideSpecial: "!#$%&*()-_=+[]{}<>:?"
+
+  # DB Subnet Group that spans multiple AZs
+  dbSubnetGroup:
+    type: aws:rds:SubnetGroup
+    properties:
+      namePrefix: "${app_name}-db-subnet-"
+      subnetIds: 
+        - ${privateSubnet1.id}
+        - ${privateSubnet2.id}
+      tags:
+        Name: ${app_name}-db-subnet-group-${env}
+        environment: ${env}
+        managed-by: pulumi
+
+  # Parameter Group with optimized settings for Rails
+  dbParameterGroup:
+    type: aws:rds:ParameterGroup
+    properties:
+      family: "postgres14"
+      name: ${app_name}-db-pg-${env}
+      description: "Parameter group for ${app_name} ${env} database"
+      parameters: {
+        "shared_preload_libraries": "pg_stat_statements",
+        "pg_stat_statements.track": "all",
+        "log_statement": "ddl",
+        "log_min_duration_statement": "1000",
+        "random_page_cost": "1.1",
+        "work_mem": "8388",
+        "maintenance_work_mem": "65536",
+        "max_connections": "100"
+      }
+      tags:
+        Name: ${app_name}-db-pg-${env}
+        environment: ${env}
+        managed-by: pulumi
+
+  # RDS PostgreSQL Instance
+  database:
+    type: aws:rds:Instance
+    properties:
+      identifier: ${app_name}-db-${env}
+      engine: "postgres"
+      engineVersion: "14.8"
+      instanceClass: ${db_instance_class}
+      allocatedStorage: 20
+      storageType: "gp3"
+      dbName: ${db_name}
+      username: ${db_username}
+      password: ${dbPassword.result}
+      skipFinalSnapshot: false
+      finalSnapshotIdentifier: ${app_name}-db-final-snapshot-${env}
+      dbSubnetGroupName: ${dbSubnetGroup.name}
+      vpcSecurityGroupIds: ["${dbSecurityGroup.id}"]
+      parameterGroupName: ${dbParameterGroup.name}
+      publiclyAccessible: false
+      multiAz: true
+      backupRetentionPeriod: 7
+      backupWindow: "03:00-04:00"
+      maintenanceWindow: "mon:04:30-mon:05:30"
+      autoMinorVersionUpgrade: true
+      copyTagsToSnapshot: true
+      performanceInsightsEnabled: true
+      performanceInsightsRetentionPeriod: 7
+      monitoringInterval: 60
+      enabledCloudwatchLogsExports: ["postgresql", "upgrade"]
+      storageEncrypted: true
+      deletionProtection: ${env == "production" ? true : false}
+      tags:
+        Name: ${app_name}-db-${env}
+        environment: ${env}
+        managed-by: pulumi
+
+  # Store DB password in SSM Parameter Store
+  dbPasswordParam:
+    type: aws:ssm:Parameter
+    properties:
+      name: "/${env}/database_password"
+      type: "SecureString"
+      value: ${dbPassword.result}
+      description: "Database password for ${app_name}"
+      tier: "Standard"
+      tags:
+        Name: ${app_name}-db-password-${env}
+        environment: ${env}
+        managed-by: pulumi
+
+outputs:
+  dbEndpoint:
+    value: ${database.endpoint}
+  dbPort:
+    value: ${database.port}
+  dbName:
+    value: ${database.dbName}
+  dbUsername:
+    value: ${database.username}
+  dbPasswordSsmParam:
+    value: "/${env}/database_password" 

@@ -1,0 +1,35 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Tarot API Architecture
+
+## System Components
+
+- **Web Layer**: Rails controllers and views handling HTTP requests
+- **Domain Layer**: Core business logic and data models
+- **Infrastructure**: External services and dependencies
+- **Workers**: Background job processing
+
+## Technologies
+
+- Rails: Web framework
+- PostgreSQL: Primary database
+- Redis: Caching and background jobs
+- AWS S3/MinIO: File storage
+- Docker: Containerization
+- AWS: Deployment environment
+
+## Component Relationships
+
+- Controllers communicate with Services and Models
+- Services orchestrate business logic using Models, Storage, and Cache
+- Workers process background tasks using Services
+- Models define data structures and persistence logic
+
+## Boundaries
+
+- Controllers should never access Database directly
+- Models should not depend on Controllers
+- Infrastructure components are isolated from business logic

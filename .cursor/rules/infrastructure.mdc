@@ -1,0 +1,39 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Tarot API Infrastructure
+
+## Docker Configuration
+- API container: Rails application
+- Database container: PostgreSQL 
+- Cache container: Redis
+- Storage: S3-compatible MinIO (local development) / AWS S3 (production)
+
+## Database (PostgreSQL)
+- Primary data store
+- Contains tarot card data, user records, and reading history
+- Configured with PgBouncer for connection pooling
+
+## Caching (Redis)
+- Session storage
+- Background job queue (Sidekiq)
+- API response caching
+
+## Storage (S3/MinIO)
+- Card images storage
+- Reading results and exports
+- User uploads
+
+## AWS Deployment
+- ECS/Fargate for container orchestration
+- RDS for managed PostgreSQL
+- ElastiCache for Redis
+- S3 for file storage
+- CloudFront for CDN
+
+## CI/CD Pipeline
+- GitHub Actions for testing
+- ECR for container registry
+- Infrastructure as Code using Pulumi

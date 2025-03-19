@@ -1,0 +1,130 @@
+resources:
+  # Main S3 Bucket for Application Data
+  appBucket:
+    type: aws:s3:Bucket
+    properties:
+      bucket: "${app_name}-data-${env}-${aws:accountId}"
+      acl: "private"
+      versioning:
+        enabled: true
+      serverSideEncryptionConfiguration:
+        rule:
+          applyServerSideEncryptionByDefault:
+            sseAlgorithm: "AES256"
+      lifecycleRules:
+        - id: "transition-to-ia"
+          enabled: true
+          transitions:
+            - days: 30
+              storageClass: "STANDARD_IA"
+        - id: "transition-to-glacier"
+          enabled: true
+          transitions:
+            - days: 90
+              storageClass: "GLACIER"
+        - id: "expire-old-versions"
+          enabled: true
+          noncurrentVersionExpiration:
+            days: 30
+      corsRules:
+        - allowedHeaders: ["*"]
+          allowedMethods: ["GET", "PUT", "POST", "DELETE", "HEAD"]
+          allowedOrigins: ["*"]  # Restrict this in production
+          exposeHeaders: ["ETag"]
+          maxAgeSeconds: 3000
+      tags:
+        Name: ${app_name}-data-${env}
+        environment: ${env}
+        managed-by: pulumi
+
+  # Block all public access to the bucket
+  publicAccessBlock:
+    type: aws:s3:BucketPublicAccessBlock
+    properties:
+      bucket: ${appBucket.id}
+      blockPublicAcls: true
+      blockPublicPolicy: true
+      ignorePublicAcls: true
+      restrictPublicBuckets: true
+
+  # Bucket for application logs
+  logBucket:
+    type: aws:s3:Bucket
+    properties:
+      bucket: "${app_name}-logs-${env}-${aws:accountId}"
+      acl: "log-delivery-write"
+      versioning:
+        enabled: false
+      lifecycleRules:
+        - id: "expire-logs"
+          enabled: true
+          expiration:
+            days: 90
+      serverSideEncryptionConfiguration:
+        rule:
+          applyServerSideEncryptionByDefault:
+            sseAlgorithm: "AES256"
+      tags:
+        Name: ${app_name}-logs-${env}
+        environment: ${env}
+        managed-by: pulumi
+
+  # Block all public access to the log bucket
+  logPublicAccessBlock:
+    type: aws:s3:BucketPublicAccessBlock
+    properties:
+      bucket: ${logBucket.id}
+      blockPublicAcls: true
+      blockPublicPolicy: true
+      ignorePublicAcls: true
+      restrictPublicBuckets: true
+
+  # Upload directory for temporary files
+  uploadsBucket:
+    type: aws:s3:Bucket
+    properties:
+      bucket: "${app_name}-uploads-${env}-${aws:accountId}"
+      acl: "private"
+      versioning:
+        enabled: false
+      lifecycleRules:
+        - id: "expire-uploads"
+          enabled: true
+          expiration:
+            days: 7
+      serverSideEncryptionConfiguration:
+        rule:
+          applyServerSideEncryptionByDefault:
+            sseAlgorithm: "AES256"
+      corsRules:
+        - allowedHeaders: ["*"]
+          allowedMethods: ["GET", "PUT", "POST", "DELETE", "HEAD"]
+          allowedOrigins: ["*"]  # Restrict this in production
+          exposeHeaders: ["ETag"]
+          maxAgeSeconds: 3000
+      tags:
+        Name: ${app_name}-uploads-${env}
+        environment: ${env}
+        managed-by: pulumi
+
+  # Block all public access to the uploads bucket
+  uploadsPublicAccessBlock:
+    type: aws:s3:BucketPublicAccessBlock
+    properties:
+      bucket: ${uploadsBucket.id}
+      blockPublicAcls: true
+      blockPublicPolicy: true
+      ignorePublicAcls: true
+      restrictPublicBuckets: true
+
+outputs:
+  appBucketName:
+    value: ${appBucket.bucket}
+  logBucketName:
+    value: ${logBucket.bucket}
+  uploadsBucketName:
+    value: ${uploadsBucket.bucket}
+  appBucketArn:
+    value: ${appBucket.arn}
+  appBucketDomainName:
+    value: ${appBucket.bucketDomainName} 
