@@ -122,8 +122,18 @@ namespace :test do
       end
     end
 
+    desc "run ruby_audit vulnerability scanner"
+    task :ruby_audit do
+      if system("bundle exec ruby-audit check")
+        puts "ruby_audit passed"
+      else
+        puts "ruby_audit found security vulnerabilities"
+        exit 1
+      end
+    end
+
     desc "run all linters"
-    task all: [ :rubocop, :brakeman ] do
+    task all: [ :rubocop, :brakeman, :ruby_audit ] do
       puts "all linters passed"
     end
   end

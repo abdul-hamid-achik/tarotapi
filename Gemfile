@@ -87,6 +87,9 @@ group :development, :test do
   gem "vcr"
   gem "webmock"
   gem "shoulda-matchers"
+
+  # security auditing
+  gem "ruby_audit"
 end
 
 # aws services
