@@ -182,7 +182,7 @@ jobs:
 
       - name: email security team about quota warnings
         if: steps.check_quotas.outputs.has_warnings == 'true' || steps.check_llm.outputs.has_warnings == 'true'
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@v4
         with:
           server_address: ${{ secrets.SMTP_SERVER }}
           server_port: ${{ secrets.SMTP_PORT }}
@@ -253,7 +253,7 @@ jobs:
 
       - name: email security team about failures
         if: steps.check_status.outputs.workflow_failed == 'true'
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@v4
         with:
           server_address: ${{ secrets.SMTP_SERVER }}
           server_port: ${{ secrets.SMTP_PORT }}
