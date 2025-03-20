@@ -1,62 +1,90 @@
-name: Cleanup Preview Environments
+name: cleanup preview environments
 
 on:
+  # Automatically run every day at midnight
   schedule:
-    - cron: '0 */6 * * *'  # run every 6 hours
-  workflow_dispatch:  # allow manual trigger
-  pull_request:
-    types: [closed]  # cleanup when PRs are closed
+    - cron: '0 0 * * *'
+  
+  # Allow manual cleanup
+  workflow_dispatch:
 
 jobs:
   cleanup:
-    name: Cleanup expired preview environments
+    name: cleanup inactive preview environments
     runs-on: ubuntu-latest
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: us-west-2
-      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
-      PULUMI_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET }}
-      APP_NAME: tarotapi
-      DOMAIN_NAME: tarotapi.cards
-
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       
-      - name: Set up Ruby
+      - name: set up ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.4'
           bundler-cache: true
       
-      - name: Install Pulumi CLI
-        uses: pulumi/setup-pulumi@v2
+      - name: set up pulumi
+        uses: pulumi/actions@v4
       
-      - name: Cleanup expired preview environments
-        run: echo "Cleaning up expired preview environments"
-      
-      - name: Cleanup PR environment (if PR was closed)
-        if: github.event_name == 'pull_request'
-        run: |
-          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
-          SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/-/g')
-          STACK_NAME="preview-${SANITIZED_BRANCH}"
-          
-          echo "Cleaning up preview environment for PR #${{ github.event.pull_request.number }} (${STACK_NAME})"
-          
-          # Try to clean up the stack
-          echo "Cleaning up preview environment for $STACK_NAME"
-      
-      - name: Notify Slack on failure
-        uses: 8398a7/action-slack@v3
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          status: ${{ job.status }}
-          fields: repo,message,commit,author,action,eventName,workflow,job
-          text: |
-            ❌ *Preview Environment Cleanup Failed*
-            
-            Please check the logs for details.
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: mx-central-1
+      
+      - name: run cleanup task
+        run: bundle exec rake pulumi:cleanup_previews
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        if: failure() 
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      
+      - name: notify about deleted environments
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { repo: { owner, repo } } = context;
+            
+            // Get log output to see what was cleaned up
+            const fs = require('fs');
+            const logOutput = fs.readFileSync(process.env.GITHUB_STEP_SUMMARY, 'utf8');
+            
+            // Extract any deleted preview environments
+            const deletedPreviews = [];
+            const regex = /preview environment ([\w-]+) is inactive/g;
+            let match;
+            
+            while ((match = regex.exec(logOutput)) !== null) {
+              deletedPreviews.push(match[1]);
+            }
+            
+            if (deletedPreviews.length === 0) {
+              return;
+            }
+            
+            // Find PRs that might be associated with these previews
+            for (const preview of deletedPreviews) {
+              // Look for PRs with this preview name in the title or branch name
+              const prs = await github.rest.pulls.list({
+                owner,
+                repo,
+                state: 'open'
+              });
+              
+              for (const pr of prs.data) {
+                if (pr.head.ref.includes(preview) || pr.title.includes(preview)) {
+                  // Add comment to PR
+                  await github.rest.issues.createComment({
+                    issue_number: pr.number,
+                    owner,
+                    repo,
+                    body: `⚠️ Preview environment \`${preview}\` has been deleted due to inactivity. You can recreate it by pushing a new commit with the tag \`preview-${preview}\`.`
+                  });
+                  
+                  break;
+                }
+              }
+            } 

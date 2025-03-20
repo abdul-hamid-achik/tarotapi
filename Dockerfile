@@ -26,6 +26,22 @@ RUN apt-get update -qq && \
 # set workdir
 WORKDIR /app
 
+# llama.cpp builder stage - separate to improve caching and reuse
+FROM base AS llama-builder
+
+# install llama.cpp using cmake with ARM-specific flags
+RUN git clone https://github.com/ggml-org/llama.cpp.git /opt/llama.cpp && \
+    cd /opt/llama.cpp && \
+    mkdir build && \
+    cd build && \
+    cmake -DLLAMA_NATIVE=OFF -DLLAMA_F16C=OFF -DLLAMA_FMA=OFF -DCMAKE_C_FLAGS="-O3" -DCMAKE_CXX_FLAGS="-O3" .. && \
+    cmake --build . --config Release -j$(nproc) && \
+    mkdir -p /opt/llama.cpp/models
+
+# download a small LLM model (TinyLlama)
+RUN cd /opt/llama.cpp && \
+    wget https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf -O models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+
 # development stage
 FROM base AS development
 
@@ -34,18 +50,8 @@ COPY Gemfile Gemfile.lock ./
 RUN bundle config set --local without '' && \
     bundle install --jobs 4 --retry 3
 
-# install llama.cpp using cmake
-RUN git clone https://github.com/ggml-org/llama.cpp.git /opt/llama.cpp && \
-    cd /opt/llama.cpp && \
-    mkdir build && \
-    cd build && \
-    cmake .. && \
-    cmake --build . --config Release && \
-    mkdir -p /opt/llama.cpp/models
-
-# download a small LLM model (TinyLlama)
-RUN cd /opt/llama.cpp && \
-    wget https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf -O models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+# copy llama.cpp from builder stage
+COPY --from=llama-builder /opt/llama.cpp /opt/llama.cpp
 
 # copy application code
 COPY . .
@@ -79,19 +85,6 @@ COPY . .
 # precompile bootsnap
 RUN bundle exec bootsnap precompile app/ lib/
 
-# install llama.cpp using cmake
-RUN git clone https://github.com/ggerganov/llama.cpp.git /opt/llama.cpp && \
-    cd /opt/llama.cpp && \
-    mkdir build && \
-    cd build && \
-    cmake .. && \
-    cmake --build . --config Release && \
-    mkdir -p /opt/llama.cpp/models
-
-# download a small LLM model (TinyLlama)
-RUN cd /opt/llama.cpp && \
-    wget https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf -O models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
-
 # production stage
 FROM ruby:3.4-slim-bookworm AS production
 
@@ -110,7 +103,7 @@ WORKDIR /app
 # copy from builder
 COPY --from=builder /usr/local/bundle /usr/local/bundle
 COPY --from=builder /app /app
-COPY --from=builder /opt/llama.cpp /opt/llama.cpp
+COPY --from=llama-builder /opt/llama.cpp /opt/llama.cpp
 
 # add non-root user
 RUN groupadd --system --gid 1000 rails && \

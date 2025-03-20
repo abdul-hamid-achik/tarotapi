@@ -90,9 +90,9 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: us-west-2
-      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
-      PULUMI_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET }}
       RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+      KAMAL_REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      KAMAL_REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
       APP_NAME: tarotapi
       DOMAIN_NAME: tarotapi.cards
       DEPLOY_ENV: staging
@@ -107,11 +107,17 @@ jobs:
           ruby-version: '3.4'
           bundler-cache: true
       
-      - name: Install Pulumi CLI
-        uses: pulumi/setup-pulumi@v2
+      - name: Install Kamal
+        run: gem install kamal
       
       - name: Deploy to staging
-        run: bundle exec rake aws:setup_infra
+        run: |
+          # Build and push Docker image
+          kamal build
+          kamal push
+          
+          # Deploy with Kamal
+          kamal deploy -d staging
       
       - name: Notify Slack
         uses: 8398a7/action-slack@v3
@@ -136,9 +142,9 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: us-west-2
-      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
-      PULUMI_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET }}
       RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+      KAMAL_REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      KAMAL_REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
       APP_NAME: tarotapi
       DOMAIN_NAME: tarotapi.cards
       RELEASE_VERSION: ${{ github.event.release.tag_name || format('v{0}', github.run_number) }}
@@ -156,8 +162,8 @@ jobs:
           ruby-version: '3.4'
           bundler-cache: true
       
-      - name: Install Pulumi CLI
-        uses: pulumi/setup-pulumi@v2
+      - name: Install Kamal
+        run: gem install kamal
       
       - name: Validate release version
         run: |
@@ -187,11 +193,15 @@ jobs:
           echo "📝 Deployment changelog for $RELEASE_VERSION:"
           cat CHANGELOG.md
       
-      - name: Initialize production stack
-        run: bundle exec rake aws:setup_infra
+      - name: Build and push Docker image
+        run: |
+          kamal build
+          kamal push
       
       - name: Prepare blue/green deployment
-        run: echo "Preparing blue/green deployment for version $RELEASE_VERSION"
+        run: |
+          # Blue-green deployments are built into Kamal with rollout configuration
+          echo "Preparing blue-green deployment for version $RELEASE_VERSION"
       
       - name: Wait for manual approval
         uses: trstringer/manual-approval@v1
@@ -209,11 +219,11 @@ jobs:
             ```
           exclude-workflow-initiator-as-approver: false
 
-      - name: Switch traffic to new environment
-        run: echo "Switching traffic to new environment"
+      - name: Deploy to production with blue-green strategy
+        run: kamal deploy -d production
       
-      - name: Finalize deployment
-        run: bundle exec rake aws:setup_infra
+      - name: Verify deployment
+        run: kamal status -d production
       
       - name: Notify Slack
         uses: 8398a7/action-slack@v3

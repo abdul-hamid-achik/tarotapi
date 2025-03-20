@@ -1,0 +1,303 @@
+resources:
+  # main bucket for storing application files
+  appBucket:
+    type: aws:s3:Bucket
+    properties:
+      bucket: ${tarotapi:projectName}-${tarotapi:environment}-app
+      acl: private
+      versioning:
+        enabled: ${tarotapi:environment == "production"}
+      corsRules:
+        - allowedHeaders: ["*"]
+          allowedMethods: ["GET", "HEAD", "PUT", "POST", "DELETE"]
+          allowedOrigins: ["*"]
+          maxAgeSeconds: 3000
+      lifecycleRules:
+        - enabled: true
+          noncurrentVersionExpiration:
+            days: 30
+          expiration:
+            days: 365
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-app
+  
+  # bucket for storing tarot card images
+  imagesBucket:
+    type: aws:s3:Bucket
+    properties:
+      bucket: ${tarotapi:projectName}-${tarotapi:environment}-images
+      acl: private
+      corsRules:
+        - allowedHeaders: ["*"]
+          allowedMethods: ["GET", "HEAD"]
+          allowedOrigins: ["*"]
+          maxAgeSeconds: 3000
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-images
+  
+  # access logs bucket (for tracking access to public assets)
+  logsBucket:
+    type: aws:s3:Bucket
+    properties:
+      bucket: ${tarotapi:projectName}-${tarotapi:environment}-logs
+      acl: log-delivery-write
+      lifecycleRules:
+        - enabled: true
+          expiration:
+            days: 90
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-logs
+  
+  # iam policy for application access to s3
+  s3AccessPolicy:
+    type: aws:iam:Policy
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}-s3-access
+      description: allow access to s3 buckets for ${tarotapi:projectName} ${tarotapi:environment}
+      policy: |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "s3:ListBucket",
+                "s3:GetBucketLocation"
+              ],
+              "Resource": [
+                "${appBucket.arn}",
+                "${imagesBucket.arn}"
+              ]
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:DeleteObject"
+              ],
+              "Resource": [
+                "${appBucket.arn}/*",
+                "${imagesBucket.arn}/*"
+              ]
+            }
+          ]
+        }
+  
+  # cloudfront origin access identity for s3
+  originAccessIdentity:
+    type: aws:cloudfront:OriginAccessIdentity
+    properties:
+      comment: access identity for ${tarotapi:projectName} ${tarotapi:environment}
+  
+  # bucket policy allowing cloudfront access to images bucket
+  imagesBucketPolicy:
+    type: aws:s3:BucketPolicy
+    properties:
+      bucket: ${imagesBucket.id}
+      policy: |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${originAccessIdentity.id}"
+              },
+              "Action": "s3:GetObject",
+              "Resource": "${imagesBucket.arn}/*"
+            }
+          ]
+        }
+  
+  # cloudfront distribution for serving tarot card images
+  cdnDistribution:
+    type: aws:cloudfront:Distribution
+    properties:
+      enabled: true
+      isIpv6Enabled: true
+      comment: ${tarotapi:projectName} ${tarotapi:environment} cdn
+      defaultRootObject: index.html
+      
+      # s3 origin for images
+      origins:
+        - domainName: ${imagesBucket.bucketRegionalDomainName}
+          originId: s3Origin
+          s3OriginConfig:
+            originAccessIdentity: ${originAccessIdentity.cloudfrontAccessIdentityPath}
+      
+      # default cache behavior
+      defaultCacheBehavior:
+        allowedMethods: ["GET", "HEAD", "OPTIONS"]
+        cachedMethods: ["GET", "HEAD", "OPTIONS"]
+        targetOriginId: s3Origin
+        forwardedValues:
+          queryString: false
+          cookies:
+            forward: none
+        viewerProtocolPolicy: redirect-to-https
+        minTtl: 0
+        defaultTtl: 86400    # 1 day
+        maxTtl: 31536000     # 1 year
+        compress: true
+      
+      # price class determines edge locations (use cheapest for non-prod)
+      priceClass: ${tarotapi:environment == "production" 
+        ? "PriceClass_All" 
+        : "PriceClass_100"}
+      
+      # ssl certificate will be attached later after domain setup
+      customErrorResponses:
+        - errorCode: 403
+          responseCode: 404
+          responsePagePath: "/error.html"
+        - errorCode: 404
+          responseCode: 404
+          responsePagePath: "/error.html"
+      
+      # restrict by geo if needed
+      restrictions:
+        geoRestriction:
+          restrictionType: none
+      
+      # ssl certificate
+      viewerCertificate:
+        cloudfrontDefaultCertificate: true
+      
+      # logging configuration
+      loggingConfig:
+        bucket: ${logsBucket.bucketDomainName}
+        includeCookies: false
+        prefix: "cdn/"
+      
+      # tags
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-cdn
+
+  # rate limiting function for quota management
+  rateLimitFunction:
+    type: aws:lambda:Function
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}-rate-limit
+      runtime: nodejs18.x
+      timeout: 5
+      memorySize: 128
+      role: ${rateLimitRole.arn}
+      handler: index.handler
+      code:
+        zipFile: |
+          exports.handler = async (event) => {
+            const request = event.Records[0].cf.request;
+            const headers = request.headers;
+            
+            // extract user id or api key from headers
+            const apiKey = headers['x-api-key'] ? headers['x-api-key'][0].value : null;
+            
+            if (!apiKey) {
+              // no api key, pass through
+              return request;
+            }
+            
+            try {
+              // in a real implementation, check quota against dynamodb
+              // this is a simplified example
+              const quotaExceeded = false; // would be determined by lookup
+              
+              if (quotaExceeded) {
+                return {
+                  status: '429',
+                  statusDescription: 'Too Many Requests',
+                  headers: {
+                    'content-type': [{ key: 'Content-Type', value: 'application/json' }],
+                    'retry-after': [{ key: 'Retry-After', value: '3600' }]
+                  },
+                  body: JSON.stringify({ error: 'quota exceeded' })
+                };
+              }
+              
+              // quota not exceeded, pass through
+              return request;
+            } catch (error) {
+              // log error and allow request to pass through
+              console.error('Error in rate limiting:', error);
+              return request;
+            }
+          }
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-rate-limit
+    options:
+      # only create in production
+      condition: ${tarotapi:environment == "production"}
+  
+  # iam role for lambda function
+  rateLimitRole:
+    type: aws:iam:Role
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}-rate-limit-role
+      assumeRolePolicy: |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            },
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "edgelambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        }
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-rate-limit-role
+    options:
+      # only create in production
+      condition: ${tarotapi:environment == "production"}
+  
+  # iam policy for lambda execution
+  rateLimitPolicy:
+    type: aws:iam:Policy
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}-rate-limit-policy
+      description: allow access to resources for rate limiting
+      policy: |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+              ],
+              "Resource": "arn:aws:logs:*:*:*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "dynamodb:GetItem",
+                "dynamodb:UpdateItem"
+              ],
+              "Resource": "*"
+            }
+          ]
+        }
+      roles: [${rateLimitRole.name}]
+    options:
+      # only create in production
+      condition: ${tarotapi:environment == "production"}
+
+outputs:
+  appBucketName: ${appBucket.id}
+  appBucketArn: ${appBucket.arn}
+  imagesBucketName: ${imagesBucket.id}
+  imagesBucketArn: ${imagesBucket.arn}
+  cdnDomainName: ${cdnDistribution.domainName}
+  cdnId: ${cdnDistribution.id} 

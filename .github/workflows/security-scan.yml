@@ -80,28 +80,106 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
 
-  infrastructure-scan:
-    name: Infrastructure Validation
+  infra_security_scan:
+    name: Infrastructure Security Scan
     runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: us-west-2
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+        
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.4'
           bundler-cache: true
-
-      - name: Install Pulumi CLI
-        uses: pulumi/setup-pulumi@v2
-
-      - name: Preview infrastructure changes
-        run: bundle exec rake aws:setup_infra
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: us-west-2
-          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
-          PULUMI_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET }} 
+      
+      - name: Install Kamal
+        run: gem install kamal
+      
+      - name: Scan Kamal configuration
+        run: |
+          echo "Scanning Kamal configuration for security issues..."
+          
+          # Check if deploy.yml exists
+          if [ ! -f "config/deploy.yml" ]; then
+            echo "::error::config/deploy.yml not found!"
+            exit 1
+          fi
+          
+          # Check for sensitive data in deploy.yml
+          SENSITIVE_PATTERNS=("password:" "secret:" "key:" "token:")
+          
+          for pattern in "${SENSITIVE_PATTERNS[@]}"; do
+            if grep -q "$pattern" config/deploy.yml; then
+              echo "::warning::Possible hardcoded sensitive data found in deploy.yml: $pattern"
+              echo "Ensure all sensitive data is using environment variables"
+            fi
+          done
+          
+          # Validate Kamal configuration
+          if ! kamal check > /dev/null 2>&1; then
+            echo "::error::Invalid Kamal configuration!"
+            exit 1
+          fi
+          
+          echo "Kamal configuration scan completed."
+      
+      - name: Scan Dockerfile
+        run: |
+          echo "Scanning Dockerfile for security issues..."
+          
+          # Check if Dockerfile exists
+          if [ ! -f "Dockerfile" ]; then
+            echo "::error::Dockerfile not found!"
+            exit 1
+          fi
+          
+          # Simple checks for Dockerfile best practices
+          if ! grep -q "USER" Dockerfile; then
+            echo "::warning::No USER instruction found in Dockerfile. Container might run as root."
+          fi
+          
+          if grep -q "COPY \." Dockerfile; then
+            echo "::warning::Copying entire directory may include sensitive files. Consider using .dockerignore."
+          fi
+          
+          # Check for hardcoded credentials
+          SENSITIVE_PATTERNS=("password" "secret" "key" "token")
+          for pattern in "${SENSITIVE_PATTERNS[@]}"; do
+            if grep -i "$pattern" Dockerfile | grep -v "ARG" | grep -v "ENV" > /dev/null; then
+              echo "::warning::Possible hardcoded credentials in Dockerfile: $pattern"
+            fi
+          done
+          
+          echo "Dockerfile scan completed."
+      
+      - name: AWS Infrastructure security check
+        run: |
+          echo "Checking AWS resources for security issues..."
+          
+          # Check S3 buckets for public access
+          aws s3api list-buckets --query "Buckets[].Name" --output text | tr '\t' '\n' | while read bucket; do
+            if aws s3api get-bucket-policy-status --bucket "$bucket" --query "PolicyStatus.IsPublic" 2>/dev/null | grep -q "true"; then
+              echo "::warning::S3 bucket is publicly accessible: $bucket"
+            fi
+          done
+          
+          # Check security groups for wide open ports
+          aws ec2 describe-security-groups --query "SecurityGroups[*].[GroupId,GroupName,IpPermissions]" --output json | jq -r '.[] | "\(.[0]) \(.[1]) \(.[2])"' | while read -r line; do
+            if echo "$line" | grep -q "0.0.0.0/0"; then
+              echo "::warning::Security group has wide open access: $line"
+            fi
+          done
+          
+          echo "AWS infrastructure security check completed."
+      
+      - name: Report findings
+        if: always()
+        run: |
+          echo "Infrastructure security scan completed."
+          echo "Review warnings and errors in the workflow logs." 

@@ -55,21 +55,12 @@
 # Add coverage directory
 /coverage
 
-# pulumi
-infrastructure/.pulumi/history
-infrastructure/.pulumi/backups
-infrastructure/.pulumi/stacks/*.json
-!infrastructure/.pulumi/stacks/Pulumi.*.yaml
-
 # Ignore database dumps and backups
 *.dump
 *.sql
 *.bak
 *.backup
 /db/backups/
-
-# Local Pulumi state - contains sensitive data
-infrastructure/.pulumi/
 
 # AWS credentials and profiles
 .aws/
@@ -129,3 +120,35 @@ auth_tokens.yml
 *secrets*
 *api_key*
 *apikey*
+
+# Local .env file
+.env
+.env.*
+!.env.example
+
+# Kamal deployment
+.kamal/
+
+# docker compose override
+docker-compose.override.yml
+
+# deployment tmp files
+tmp/
+
+# Byebug command history file.
+.byebug_history
+
+# bundler stubs
+/bundler_stubs/*
+
+# Ignore VSCode settings
+.vscode/
+
+# RSpec
+.rspec
+
+# Guard
+Guardfile
+
+# API documentation
+/doc/api/

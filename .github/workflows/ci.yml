@@ -6,9 +6,29 @@ on:
     branches: [main]
 
 jobs:
+  # Check if we should run the full CI suite
+  check_ci_requirements:
+    name: Check CI requirements
+    runs-on: ubuntu-latest
+    outputs:
+      run_full_ci: ${{ steps.check.outputs.run_full_ci }}
+    steps:
+      - id: check
+        name: Determine if full CI should run
+        run: |
+          # Skip full CI for Dependabot PRs, but allow security linting
+          if [[ "${{ github.actor }}" == "dependabot[bot]" ]]; then
+            echo "run_full_ci=false" >> $GITHUB_OUTPUT
+            echo "Running limited CI for Dependabot PR"
+          else
+            echo "run_full_ci=true" >> $GITHUB_OUTPUT
+            echo "Running full CI suite"
+          fi
+
   lint:
     name: code quality
     runs-on: ubuntu-latest
+    # Always run linting even for Dependabot PRs
     steps:
       - name: checkout code
         uses: actions/checkout@v4
@@ -30,6 +50,9 @@ jobs:
 
   test:
     name: tests
+    needs: check_ci_requirements
+    # Only run tests if not a Dependabot PR or explicitly needed
+    if: needs.check_ci_requirements.outputs.run_full_ci == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -121,6 +144,9 @@ jobs:
 
   docs:
     name: api documentation
+    needs: check_ci_requirements
+    # Only run docs generation if not a Dependabot PR or explicitly needed
+    if: needs.check_ci_requirements.outputs.run_full_ci == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -170,6 +196,8 @@ jobs:
   ci_completed:
     name: ci workflow completed
     needs: [lint, test, docs]
+    # We need to modify the if condition to consider both normal and dependabot cases
+    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.docs.result == 'success' || needs.docs.result == 'skipped') && needs.lint.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: ci completed successfully

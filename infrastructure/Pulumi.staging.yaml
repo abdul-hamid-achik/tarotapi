@@ -1,6 +1,0 @@
-encryptionsalt: v1:5/H65pAheVg=:v1:H2DeF7XKfLzKG+AP:jpgt/gxGGIJ9FpJ/gzYsOtcmjF6ADA==
-config:
-  tarot-api:environment: staging
-  tarot-api:domain_name: staging.tarotapi.cards
-  tarotapi:rails_master_key:
-    secure: v1:kdPkmDzUjedMuYQQ:fCRNspeU3JIEL3C1g91U1OcMdgAy6+PQ9RpxHMt9M872+2u5yLPGB4npiCJELO84

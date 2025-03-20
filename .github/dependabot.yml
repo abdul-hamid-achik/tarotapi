@@ -1,12 +1,44 @@
 version: 2
 updates:
-- package-ecosystem: bundler
-  directory: "/"
-  schedule:
-    interval: daily
-  open-pull-requests-limit: 10
-- package-ecosystem: github-actions
-  directory: "/"
-  schedule:
-    interval: daily
-  open-pull-requests-limit: 10
+  # Ruby gems
+  - package-ecosystem: "bundler"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    versioning-strategy: auto
+    labels:
+      - "dependencies"
+      - "automerge"
+    allow:
+      # Allow updates for security patches
+      - dependency-type: "direct"
+        update-type: "security"
+      # Allow minor and patch updates 
+      - dependency-type: "all"
+        update-type: "semver-minor"
+      - dependency-type: "all"
+        update-type: "semver-patch"
+    ignore:
+      # Optional: ignore major updates that might break compatibility
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"
+    
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "dependencies"
+      - "github-actions"

@@ -1,0 +1,84 @@
+resources:
+  # subnet group for redis
+  redisSubnetGroup:
+    type: aws:elasticache:SubnetGroup
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}-redis-subnet-group
+      subnetIds: ${network.privateSubnetIds}
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-redis-subnet-group
+  
+  # parameter group for redis
+  redisParameterGroup:
+    type: aws:elasticache:ParameterGroup
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}-redis-pg
+      family: redis7
+      description: parameter group for ${tarotapi:projectName} ${tarotapi:environment} redis
+      parameters:
+        # enable aof persistence for data durability
+        appendonly: "yes"
+        appendfsync: "everysec"
+        # optimize memory usage
+        maxmemory-policy: "volatile-lru"
+        # connection settings
+        tcp-keepalive: "300"
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-redis-pg
+  
+  # redis cluster - production gets replication, staging gets smaller instance
+  redisCluster:
+    type: aws:elasticache:Cluster
+    properties:
+      clusterId: ${tarotapi:projectName}-${tarotapi:environment}-redis
+      engine: redis
+      engineVersion: "7.0"
+      nodeType: ${tarotapi:environment == "production" 
+        ? "cache.t4g.medium" 
+        : (tarotapi:enableCostSaving ? "cache.t4g.micro" : "cache.t4g.small")}
+      numCacheNodes: 1
+      parameterGroupName: ${redisParameterGroup.name}
+      subnetGroupName: ${redisSubnetGroup.name}
+      securityGroupIds: [${network.redisSecurityGroupId}]
+      port: 6379
+      # auto-failover requires replication group for production
+      snapshotRetentionLimit: ${tarotapi:environment == "production" ? 7 : 1}
+      snapshotWindow: "05:00-06:00"
+      maintenanceWindow: "sun:06:00-sun:07:00"
+      applyImmediately: true
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-redis
+  
+  # for production, we'll use a replication group instead of a single node cluster
+  redisReplicationGroup:
+    type: aws:elasticache:ReplicationGroup
+    properties:
+      replicationGroupId: ${tarotapi:projectName}-${tarotapi:environment}-redis-rg
+      replicationGroupDescription: "${tarotapi:projectName} ${tarotapi:environment} redis replication group"
+      engine: redis
+      engineVersion: "7.0"
+      nodeType: "cache.t4g.medium"
+      numCacheClusters: 2
+      automaticFailoverEnabled: true
+      multiAzEnabled: true
+      autoMinorVersionUpgrade: true
+      parameterGroupName: ${redisParameterGroup.name}
+      subnetGroupName: ${redisSubnetGroup.name}
+      securityGroupIds: [${network.redisSecurityGroupId}]
+      port: 6379
+      snapshotRetentionLimit: 7
+      snapshotWindow: "05:00-06:00"
+      maintenanceWindow: "sun:06:00-sun:07:00"
+      atRestEncryptionEnabled: true
+      transitEncryptionEnabled: true
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-redis-rg
+    options:
+      # only create replication group in production
+      condition: ${tarotapi:environment == "production"}
+
+outputs:
+  redisHost: ${tarotapi:environment == "production" 
+    ? redisReplicationGroup.primaryEndpointAddress 
+    : redisCluster.cacheNodes[0].address}
+  redisPort: 6379 

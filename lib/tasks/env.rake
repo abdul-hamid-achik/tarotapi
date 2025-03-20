@@ -122,9 +122,9 @@ namespace :env do
       # Docker Configuration
       DOCKER_RUNNING=false
 
-      # Pulumi Configuration
-      PULUMI_CONFIG_PASSPHRASE=your_passphrase_here
-      PULUMI_STATE_BUCKET=your_pulumi_state_bucket
+      # Kamal Configuration
+      KAMAL_REGISTRY_USERNAME=your_registry_username
+      KAMAL_REGISTRY_PASSWORD=your_registry_password
     ENV
 
     # Only write if file doesn't exist or content is different

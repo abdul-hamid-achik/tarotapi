@@ -18,6 +18,8 @@ jobs:
   check_permissions:
     name: Check permissions
     runs-on: ubuntu-latest
+    # Skip the entire workflow for Dependabot PRs
+    if: github.actor != 'dependabot[bot]'
     outputs:
       allowed: ${{ steps.check.outputs.allowed }}
     steps:
@@ -39,9 +41,9 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: us-west-2
-      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
-      PULUMI_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET }}
       RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+      KAMAL_REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      KAMAL_REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
       APP_NAME: tarotapi
       DOMAIN_NAME: tarotapi.cards
       BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
@@ -56,27 +58,29 @@ jobs:
           ruby-version: '3.4'
           bundler-cache: true
 
-      - name: Install Pulumi CLI
-        uses: pulumi/setup-pulumi@v2
+      - name: Install Kamal
+        run: gem install kamal
       
-      - name: Initialize or select the stack for this PR
+      - name: Create preview environment name
         run: |
           SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/-/g')
-          STACK_NAME="preview-${SANITIZED_BRANCH}"
-          echo "STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
-          
-          # Initialize or select the stack for this PR
-          echo "Initializing preview stack: $STACK_NAME"
+          PREVIEW_NAME="preview-${SANITIZED_BRANCH}"
+          echo "PREVIEW_NAME=$PREVIEW_NAME" >> $GITHUB_ENV
+      
+      - name: Build and push Docker image
+        run: |
+          kamal build
+          kamal push
       
       - name: Deploy preview environment
-        run: bundle exec rake aws:setup_infra
+        run: kamal deploy -d $PREVIEW_NAME
 
       - name: Comment on PR
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const url = `https://${{ env.STACK_NAME }}.${{ env.DOMAIN_NAME }}`;
+            const url = `https://${{ env.PREVIEW_NAME }}.${{ env.DOMAIN_NAME }}`;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -93,9 +97,9 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: us-west-2
-      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
-      PULUMI_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET }}
       RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+      KAMAL_REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      KAMAL_REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
       APP_NAME: tarotapi
       DOMAIN_NAME: tarotapi.cards
       TAG_NAME: ${{ github.ref_name }}
@@ -110,20 +114,22 @@ jobs:
           ruby-version: '3.4'
           bundler-cache: true
 
-      - name: Install Pulumi CLI
-        uses: pulumi/setup-pulumi@v2
+      - name: Install Kamal
+        run: gem install kamal
       
-      - name: Initialize stack
+      - name: Set preview name
         run: |
           # Tag name is already validated by the trigger condition
-          STACK_NAME="${TAG_NAME}"
-          echo "STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
-          
-          # Initialize stack
-          echo "Initializing stack: $STACK_NAME"
+          PREVIEW_NAME="${TAG_NAME}"
+          echo "PREVIEW_NAME=$PREVIEW_NAME" >> $GITHUB_ENV
+      
+      - name: Build and push Docker image
+        run: |
+          kamal build
+          kamal push
       
       - name: Deploy preview environment
-        run: bundle exec rake aws:setup_infra
+        run: kamal deploy -d $PREVIEW_NAME
 
       - name: Notify Slack
         uses: 8398a7/action-slack@v3
@@ -134,8 +140,8 @@ jobs:
             🔮 *Tag Preview Environment Deployed*
             
             *Tag:* ${{ env.TAG_NAME }}
-            *Stack:* ${{ env.STACK_NAME }}
-            *URL:* https://${{ env.STACK_NAME }}.${{ env.DOMAIN_NAME }}
+            *Preview:* ${{ env.PREVIEW_NAME }}
+            *URL:* https://${{ env.PREVIEW_NAME }}.${{ env.DOMAIN_NAME }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         if: success()
@@ -149,9 +155,9 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: us-west-2
-      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
-      PULUMI_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET }}
       RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+      KAMAL_REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      KAMAL_REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
       APP_NAME: tarotapi
       DOMAIN_NAME: tarotapi.cards
       ENV_NAME: ${{ github.event.inputs.environment_name }}
@@ -166,8 +172,8 @@ jobs:
           ruby-version: '3.4'
           bundler-cache: true
 
-      - name: Install Pulumi CLI
-        uses: pulumi/setup-pulumi@v2
+      - name: Install Kamal
+        run: gem install kamal
       
       - name: Validate environment name
         run: |
@@ -176,15 +182,16 @@ jobs:
             exit 1
           fi
           
-          STACK_NAME="preview-${ENV_NAME}"
-          echo "STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
+          PREVIEW_NAME="preview-${ENV_NAME}"
+          echo "PREVIEW_NAME=$PREVIEW_NAME" >> $GITHUB_ENV
       
-      - name: Initialize stack
+      - name: Build and push Docker image
         run: |
-          echo "Initializing stack: $STACK_NAME"
+          kamal build
+          kamal push
       
       - name: Deploy preview environment
-        run: bundle exec rake aws:setup_infra
+        run: kamal deploy -d $PREVIEW_NAME
 
       - name: Notify Slack
         uses: 8398a7/action-slack@v3
@@ -195,8 +202,8 @@ jobs:
             🔮 *Manual Preview Environment Deployed*
             
             *Name:* ${{ env.ENV_NAME }}
-            *Stack:* ${{ env.STACK_NAME }}
-            *URL:* https://${{ env.STACK_NAME }}.${{ env.DOMAIN_NAME }}
+            *Preview:* ${{ env.PREVIEW_NAME }}
+            *URL:* https://${{ env.PREVIEW_NAME }}.${{ env.DOMAIN_NAME }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         if: success()

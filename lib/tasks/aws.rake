@@ -9,7 +9,7 @@ namespace :aws do
       aws_dir = File.expand_path("~/.aws")
       Dir.mkdir(aws_dir) unless File.directory?(aws_dir)
 
-      region = ENV["AWS_DEFAULT_REGION"] || "us-west-2"
+      region = ENV["AWS_DEFAULT_REGION"] || "mx-central-1" # Default to Mexico region
 
       # Create credentials file
       File.open(File.join(aws_dir, "credentials"), "w") do |f|
@@ -25,7 +25,7 @@ namespace :aws do
         f.puts "output = json"
       end
 
-      puts "aws credentials file created"
+      puts "aws credentials file created using #{region} region"
     else
       abort "aws credentials not found in environment variables\nset AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and optionally AWS_DEFAULT_REGION"
     end
@@ -41,15 +41,68 @@ namespace :aws do
     # Verify credentials work
     if system("aws sts get-caller-identity > /dev/null 2>&1")
       puts "aws credentials verified successfully"
+      
+      # Get current region
+      region = `aws configure get region`.strip
+      puts "using aws region: #{region}"
+      
+      # Check if the region is available
+      if region == "mx-central-1"
+        region_check = system("aws ec2 describe-regions --region-names mx-central-1 > /dev/null 2>&1")
+        unless region_check
+          puts "warning: mx-central-1 region might not be available for your account"
+          puts "consider using a different region by setting AWS_DEFAULT_REGION"
+        end
+      end
     else
       abort "aws credentials are invalid"
     end
   end
 
+  desc "check region capabilities"
+  task check_region: :verify_credentials do
+    region = `aws configure get region`.strip
+    puts "checking aws region #{region} capabilities..."
+    
+    # Check service availability
+    services = {
+      "ec2" => "describe-instances",
+      "rds" => "describe-db-instances",
+      "s3" => "list-buckets",
+      "elasticache" => "describe-cache-clusters",
+      "cloudwatch" => "list-metrics",
+      "sns" => "list-topics",
+      "budgets" => "describe-budgets",
+      "lambda" => "list-functions"
+    }
+    
+    puts "\nservice availability in #{region}:"
+    
+    services.each do |service, command|
+      available = system("aws #{service} #{command} > /dev/null 2>&1")
+      status = available ? "✅" : "❌"
+      puts "#{status} #{service}"
+    end
+    
+    # If using Mexico region, check additional details
+    if region == "mx-central-1"
+      puts "\n#{region} region details:"
+      puts "- availability zones: 3 (mx-central-1a, mx-central-1b, mx-central-1c)"
+      puts "- data residency: supports data sovereignty requirements in Mexico"
+      puts "- latency: improved performance for users in Mexico and Latin America"
+      
+      # Check availability zones
+      puts "\navailability zones:"
+      system("aws ec2 describe-availability-zones --region #{region} | grep ZoneName")
+    end
+    
+    puts "\nregion capability check complete"
+  end
+
   desc "setup aws s3 buckets"
   task setup_s3: :verify_credentials do
-    bucket_name = ENV["AWS_S3_BUCKET"] || "tarot-api-#{SecureRandom.hex(4)}"
-    region = ENV["AWS_DEFAULT_REGION"] || "us-west-2"
+    region = `aws configure get region`.strip
+    bucket_name = ENV["AWS_S3_BUCKET"] || "tarot-api-#{region}-#{SecureRandom.hex(4)}"
 
     puts "setting up s3 bucket #{bucket_name} in region #{region}..."
 
@@ -90,17 +143,16 @@ namespace :aws do
     end
   end
 
-  desc "setup aws infrastructure using pulumi"
+  desc "setup infrastructure using kamal"
   task setup_infra: :verify_credentials do
-    # Check if pulumi is installed
-    unless system("which pulumi > /dev/null 2>&1")
-      abort "pulumi is not installed\nplease install pulumi following the instructions at https://www.pulumi.com/docs/install/"
+    # Check if kamal is installed
+    unless system("which kamal > /dev/null 2>&1")
+      abort "kamal is not installed\nplease install kamal with: gem install kamal"
     end
 
     # Check if required environment variables are set
     required_envs = {
-      "rails_master_key" => "RAILS_MASTER_KEY",
-      "pulumi_config_passphrase" => "PULUMI_CONFIG_PASSPHRASE"
+      "rails_master_key" => "RAILS_MASTER_KEY"
     }
 
     missing_envs = required_envs.select { |_, env_var| ENV[env_var].to_s.empty? }
@@ -111,61 +163,128 @@ namespace :aws do
       abort "please set the required environment variables and try again"
     end
 
-    # Setup Pulumi backend
-    pulumi_bucket = ENV["PULUMI_STATE_BUCKET"]
-
-    if pulumi_bucket && !pulumi_bucket.empty?
-      # Use S3 for state storage
-      puts "using s3 bucket for pulumi state: #{pulumi_bucket}"
-
-      unless system("pulumi login s3://#{pulumi_bucket}")
-        puts "failed to configure s3 backend, falling back to local storage"
-        setup_local_backend
-      end
-    else
-      # Setup local backend
-      pulumi_dir = File.expand_path("../../infrastructure/.pulumi", __dir__)
-      ENV["PULUMI_BACKEND_URL"] = "file://#{pulumi_dir}"
-      puts "configured pulumi to use local file backend at: #{ENV['PULUMI_BACKEND_URL']}"
-      puts "warning: local state storage is not recommended for production"
-
-      # Ensure the directory exists
-      FileUtils.mkdir_p(pulumi_dir)
-
-      # Ensure .pulumi is in .gitignore
-      gitignore_path = File.expand_path("../../.gitignore", __dir__)
-      if File.exist?(gitignore_path)
-        gitignore_content = File.read(gitignore_path)
-        unless gitignore_content.include?("infrastructure/.pulumi")
-          File.open(gitignore_path, "a") do |f|
-            f.puts "\n# Local Pulumi state - contains sensitive data"
-            f.puts "infrastructure/.pulumi/"
-          end
-          puts "added infrastructure/.pulumi to .gitignore for security"
-        end
-      end
+    # Determine environment
+    deploy_env = ENV["DEPLOY_ENV"] || "staging"
+    app_name = ENV["APP_NAME"] || "tarotapi"
+    
+    puts "setting up infrastructure for #{app_name} in #{deploy_env} environment..."
+    
+    # Build and push Docker image
+    puts "building and pushing docker image..."
+    unless system("kamal build")
+      abort "failed to build docker image"
     end
-
-    # Navigate to infrastructure directory and run pulumi
-    infra_dir = File.expand_path("../../infrastructure", __dir__)
-    unless Dir.exist?(infra_dir)
-      abort "infrastructure directory not found at #{infra_dir}"
+    
+    unless system("kamal push")
+      abort "failed to push docker image"
     end
-
-    Dir.chdir(infra_dir) do
-      # Run pulumi commands
-      system("pulumi stack select dev --create") || abort("failed to select pulumi stack")
-      system("pulumi up") || abort("failed to update infrastructure")
+    
+    # Deploy the application with blue-green strategy
+    puts "deploying application with blue-green deployment strategy..."
+    
+    deploy_cmd = "kamal deploy"
+    deploy_cmd += " -d #{deploy_env}" if deploy_env
+    
+    unless system(deploy_cmd)
+      abort "deployment failed"
     end
-
-    puts "infrastructure setup complete"
+    
+    puts "deployed #{app_name} to #{deploy_env} successfully"
+    
+    # Show deployment status
+    system("kamal status -d #{deploy_env}")
   end
 
-  def setup_local_backend
-    pulumi_dir = File.expand_path("../../infrastructure/.pulumi", __dir__)
-    ENV["PULUMI_BACKEND_URL"] = "file://#{pulumi_dir}"
+  desc "provision servers for kamal deployment"
+  task provision_servers: :verify_credentials do
+    # Check if required environment variables are set
+    required_envs = {
+      "ssh_key_path" => "SSH_KEY_PATH"
+    }
 
-    # Ensure the directory exists
-    FileUtils.mkdir_p(pulumi_dir)
+    missing_envs = required_envs.select { |_, env_var| ENV[env_var].to_s.empty? }
+
+    unless missing_envs.empty?
+      puts "missing required environment variables:"
+      missing_envs.each { |name, env_var| puts "  - #{env_var} (#{name})" }
+      abort "please set the required environment variables and try again"
+    end
+
+    # Determine environment
+    deploy_env = ENV["DEPLOY_ENV"] || "staging"
+    
+    puts "provisioning servers for #{deploy_env} environment..."
+    
+    # Run Kamal setup to prepare servers
+    setup_cmd = "kamal setup"
+    setup_cmd += " -d #{deploy_env}" if deploy_env
+    
+    unless system(setup_cmd)
+      abort "server setup failed"
+    end
+    
+    puts "servers provisioned successfully for #{deploy_env} environment"
+  end
+
+  desc "create preview environment"
+  task create_preview: :verify_credentials do
+    # Check if required environment variables are set
+    required_envs = {
+      "rails_master_key" => "RAILS_MASTER_KEY",
+      "branch_or_preview_name" => "BRANCH_NAME"
+    }
+
+    missing_envs = required_envs.select { |_, env_var| ENV[env_var].to_s.empty? }
+
+    unless missing_envs.empty?
+      puts "missing required environment variables:"
+      missing_envs.each { |name, env_var| puts "  - #{env_var} (#{name})" }
+      abort "please set the required environment variables and try again"
+    end
+
+    branch_name = ENV["BRANCH_NAME"]
+    sanitized_branch = branch_name.gsub(/[^a-zA-Z0-9]/, '-')
+    preview_name = "preview-#{sanitized_branch}"
+    
+    puts "creating preview environment for branch: #{branch_name}"
+    puts "preview name: #{preview_name}"
+    
+    # Build and push Docker image
+    puts "building and pushing docker image..."
+    unless system("kamal build")
+      abort "failed to build docker image"
+    end
+    
+    unless system("kamal push")
+      abort "failed to push docker image"
+    end
+    
+    # Deploy with preview destination
+    deploy_cmd = "kamal deploy -d #{preview_name}"
+    
+    unless system(deploy_cmd)
+      abort "preview deployment failed"
+    end
+    
+    puts "preview environment deployed successfully: #{preview_name}"
+    system("kamal status -d #{preview_name}")
+  end
+
+  desc "clean up preview environment"
+  task cleanup_preview: :verify_credentials do
+    preview_name = ENV["PREVIEW_NAME"]
+    
+    if preview_name.nil? || preview_name.empty?
+      abort "PREVIEW_NAME environment variable must be set"
+    end
+    
+    puts "cleaning up preview environment: #{preview_name}"
+    
+    # Destroy the preview environment
+    unless system("kamal destroy -d #{preview_name}")
+      abort "failed to destroy preview environment"
+    end
+    
+    puts "preview environment cleaned up successfully: #{preview_name}"
   end
 end
