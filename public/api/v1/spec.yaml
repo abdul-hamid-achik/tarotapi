@@ -812,11 +812,11 @@ paths:
                     type: string
                 required:
                 - error
-  "/api/v1/tarot_cards":
+  "/api/v1/cards":
     get:
-      summary: list all tarot cards
+      summary: list all cards
       tags:
-      - tarot cards
+      - cards
       parameters:
       - name: arcana
         in: query
@@ -897,9 +897,9 @@ paths:
                 required:
                 - data
     post:
-      summary: create a tarot card
+      summary: create a card
       tags:
-      - tarot cards
+      - cards
       parameters: []
       responses:
         '201':
@@ -1010,7 +1010,7 @@ paths:
               - description
               - rank
               - symbols
-  "/api/v1/tarot_cards/{id}":
+  "/api/v1/cards/{id}":
     parameters:
     - name: id
       in: path
@@ -1019,9 +1019,9 @@ paths:
       schema:
         type: string
     get:
-      summary: retrieve a tarot card
+      summary: retrieve a card
       tags:
-      - tarot cards
+      - cards
       responses:
         '200':
           description: card found
@@ -1089,9 +1089,9 @@ paths:
                 required:
                 - error
     patch:
-      summary: update a tarot card
+      summary: update a card
       tags:
-      - tarot cards
+      - cards
       parameters: []
       responses:
         '200':
@@ -1207,9 +1207,9 @@ paths:
                   format: binary
                   nullable: true
     delete:
-      summary: delete a tarot card
+      summary: delete a card
       tags:
-      - tarot cards
+      - cards
       responses:
         '204':
           description: card deleted

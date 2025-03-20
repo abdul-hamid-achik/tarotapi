@@ -27,7 +27,7 @@ RSpec.describe User, type: :model do
     it { should belong_to(:identity_provider).optional }
     it { should have_many(:card_readings) }
     it { should have_many(:spreads) }
-    it { should have_many(:reading_sessions) }
+    it { should have_many(:readings) }
     it { should have_many(:tarot_cards).through(:card_readings) }
     it { should have_many(:subscriptions) }
   end

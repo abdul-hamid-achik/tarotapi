@@ -97,4 +97,60 @@ namespace :db do
       exit 1
     end
   end
+
+  namespace :update do
+    desc "Update card readings table with new reference columns"
+    task card_readings: :environment do
+      puts "Starting update of card_readings table..."
+      
+      if ActiveRecord::Base.connection.table_exists?("card_readings")
+        # Check for old columns
+        has_tarot_card_id = ActiveRecord::Base.connection.column_exists?(:card_readings, :tarot_card_id)
+        has_reading_session_id = ActiveRecord::Base.connection.column_exists?(:card_readings, :reading_session_id)
+        
+        # Check for new columns
+        has_card_id = ActiveRecord::Base.connection.column_exists?(:card_readings, :card_id)
+        has_reading_id = ActiveRecord::Base.connection.column_exists?(:card_readings, :reading_id)
+        
+        if !has_card_id && has_tarot_card_id
+          puts "Adding card_id column to card_readings..."
+          ActiveRecord::Base.connection.add_reference :card_readings, :card, foreign_key: true, index: true
+          
+          puts "Copying data from tarot_card_id to card_id..."
+          ActiveRecord::Base.connection.execute(<<-SQL)
+            UPDATE card_readings 
+            SET card_id = tarot_card_id
+            WHERE card_id IS NULL AND tarot_card_id IS NOT NULL
+          SQL
+        end
+        
+        if !has_reading_id && has_reading_session_id
+          puts "Adding reading_id column to card_readings..."
+          ActiveRecord::Base.connection.add_reference :card_readings, :reading, foreign_key: true, index: true
+          
+          puts "Copying data from reading_session_id to reading_id..."
+          ActiveRecord::Base.connection.execute(<<-SQL)
+            UPDATE card_readings 
+            SET reading_id = reading_session_id
+            WHERE reading_id IS NULL AND reading_session_id IS NOT NULL
+          SQL
+        end
+        
+        # Remove old columns if they exist
+        if has_tarot_card_id && has_card_id
+          puts "Removing tarot_card_id column..."
+          ActiveRecord::Base.connection.remove_reference :card_readings, :tarot_card, foreign_key: true, index: true
+        end
+        
+        if has_reading_session_id && has_reading_id
+          puts "Removing reading_session_id column..."
+          ActiveRecord::Base.connection.remove_reference :card_readings, :reading_session, foreign_key: true, index: true
+        end
+        
+        puts "Card readings table updated successfully!"
+      else
+        puts "Card readings table does not exist. Skipping update."
+      end
+    end
+  end
 end

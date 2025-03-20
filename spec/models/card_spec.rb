@@ -1,10 +1,11 @@
 require 'rails_helper'
 
-RSpec.describe TarotCard, type: :model do
+RSpec.describe Card, type: :model do
   describe 'associations' do
     it { should have_one_attached(:image) }
     it { should have_many(:card_readings) }
     it { should have_many(:users).through(:card_readings) }
+    it { should have_many(:readings).through(:card_readings) }
   end
 
   describe 'validations' do
@@ -36,40 +37,40 @@ RSpec.describe TarotCard, type: :model do
 
   describe '#major_arcana?' do
     it 'returns true if arcana is major' do
-      card = build(:tarot_card, arcana: 'major')
+      card = build(:card, arcana: 'major')
       expect(card.major_arcana?).to be true
     end
     
     it 'returns false if arcana is not major' do
-      card = build(:tarot_card, arcana: 'minor')
+      card = build(:card, arcana: 'minor')
       expect(card.major_arcana?).to be false
     end
   end
   
   describe '#minor_arcana?' do
     it 'returns true if arcana is minor' do
-      card = build(:tarot_card, arcana: 'minor')
+      card = build(:card, arcana: 'minor')
       expect(card.minor_arcana?).to be true
     end
     
     it 'returns false if arcana is not minor' do
-      card = build(:tarot_card, arcana: 'major')
+      card = build(:card, arcana: 'major')
       expect(card.minor_arcana?).to be false
     end
   end
 
   describe 'factory' do
     it 'has a valid factory' do
-      expect(build(:tarot_card)).to be_valid
+      expect(build(:card)).to be_valid
     end
     
     it 'creates a valid major arcana card' do
-      card = build(:tarot_card, arcana: 'major', rank: '0', suit: nil)
+      card = build(:card, arcana: 'major', rank: '0', suit: nil)
       expect(card).to be_valid
     end
     
     it 'creates a valid minor arcana card' do
-      card = build(:tarot_card, arcana: 'minor', rank: nil, suit: 'wands')
+      card = build(:card, arcana: 'minor', rank: nil, suit: 'wands')
       expect(card).to be_valid
     end
   end

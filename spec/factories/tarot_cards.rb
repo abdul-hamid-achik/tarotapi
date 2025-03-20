@@ -1,5 +1,5 @@
 FactoryBot.define do
-  factory :tarot_card do
+  factory :card do
     name { Faker::Ancient.god }
     arcana { %w[major minor].sample }
     description { Faker::Lorem.paragraph }
@@ -9,6 +9,6 @@ FactoryBot.define do
     image_url { Faker::Internet.url }
   end
   
-  # Define card as an alias to tarot_card
-  factory :card, parent: :tarot_card
+  # Define tarot_card as an alias to card for backwards compatibility
+  factory :tarot_card, parent: :card
 end

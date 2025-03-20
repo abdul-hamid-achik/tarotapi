@@ -411,7 +411,7 @@ GEM
       rubocop (>= 1.72)
       rubocop-performance (>= 1.24)
       rubocop-rails (>= 2.30)
-    ruby-openai (8.0.0)
+    ruby-openai (6.3.1)
       event_stream_parser (>= 0.3.0, < 2.0.0)
       faraday (>= 1)
       faraday-multipart (>= 1)
@@ -529,7 +529,7 @@ DEPENDENCIES
   rswag-api
   rswag-specs
   rubocop-rails-omakase
-  ruby-openai
+  ruby-openai (~> 6.3.0)
   ruby_audit
   shoulda-matchers
   simplecov

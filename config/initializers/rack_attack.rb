@@ -20,8 +20,8 @@ class Rack::Attack
 
   # limit reading session creation
   # 60 requests per 5 minutes per ip
-  throttle("reading_sessions/ip", limit: 60, period: 5.minutes) do |req|
-    if req.post? && req.path.start_with?("/api/v1/reading_sessions")
+  throttle("readings/ip", limit: 60, period: 5.minutes) do |req|
+    if req.post? && req.path.start_with?("/api/v1/readings")
       req.ip
     end
   end

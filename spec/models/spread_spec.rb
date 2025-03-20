@@ -4,7 +4,7 @@ RSpec.describe Spread, type: :model do
   describe 'associations' do
     it { should belong_to(:user) }
     it { should have_many(:card_readings).dependent(:nullify) }
-    it { should have_many(:reading_sessions) }
+    it { should have_many(:readings) }
   end
 
   describe 'validations' do

@@ -1,7 +1,7 @@
 class Spread < ApplicationRecord
   belongs_to :user
   has_many :card_readings, dependent: :nullify
-  has_many :reading_sessions
+  has_many :readings
 
   validates :name, presence: true, uniqueness: true
   validates :description, presence: true

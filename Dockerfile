@@ -18,7 +18,9 @@ RUN apt-get update -qq && \
     git \
     pkg-config \
     libyaml-dev \
-    curl && \
+    curl \
+    cmake \
+    wget && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 # set workdir
@@ -32,12 +34,27 @@ COPY Gemfile Gemfile.lock ./
 RUN bundle config set --local without '' && \
     bundle install --jobs 4 --retry 3
 
+# install llama.cpp using cmake
+RUN git clone https://github.com/ggml-org/llama.cpp.git /opt/llama.cpp && \
+    cd /opt/llama.cpp && \
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    cmake --build . --config Release && \
+    mkdir -p /opt/llama.cpp/models
+
+# download a small LLM model (TinyLlama)
+RUN cd /opt/llama.cpp && \
+    wget https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf -O models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+
 # copy application code
 COPY . .
 
 # configure for development
 ENV RAILS_ENV=development \
-    RAILS_LOG_TO_STDOUT=true
+    RAILS_LOG_TO_STDOUT=true \
+    LOCAL_LLM_PATH=/opt/llama.cpp/build/bin/main \
+    LOCAL_LLM_MODEL=/opt/llama.cpp/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
 
 # health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
@@ -62,6 +79,19 @@ COPY . .
 # precompile bootsnap
 RUN bundle exec bootsnap precompile app/ lib/
 
+# install llama.cpp using cmake
+RUN git clone https://github.com/ggerganov/llama.cpp.git /opt/llama.cpp && \
+    cd /opt/llama.cpp && \
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    cmake --build . --config Release && \
+    mkdir -p /opt/llama.cpp/models
+
+# download a small LLM model (TinyLlama)
+RUN cd /opt/llama.cpp && \
+    wget https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf -O models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+
 # production stage
 FROM ruby:3.4-slim-bookworm AS production
 
@@ -70,7 +100,8 @@ RUN apt-get update -qq && \
     apt-get install -y \
     libpq-dev \
     libyaml-dev \
-    curl && \
+    curl \
+    wget && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 # set workdir
@@ -79,6 +110,7 @@ WORKDIR /app
 # copy from builder
 COPY --from=builder /usr/local/bundle /usr/local/bundle
 COPY --from=builder /app /app
+COPY --from=builder /opt/llama.cpp /opt/llama.cpp
 
 # add non-root user
 RUN groupadd --system --gid 1000 rails && \
@@ -90,7 +122,9 @@ USER rails
 # configure rails
 ENV RAILS_ENV=production \
     RAILS_LOG_TO_STDOUT=true \
-    RAILS_SERVE_STATIC_FILES=true
+    RAILS_SERVE_STATIC_FILES=true \
+    LOCAL_LLM_PATH=/opt/llama.cpp/build/bin/main \
+    LOCAL_LLM_MODEL=/opt/llama.cpp/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
 
 # health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \

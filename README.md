@@ -261,6 +261,7 @@ the infrastructure is managed using infrastructure as code (iac) principles:
 - user authentication with jwt tokens
 - tarot spreads and readings
 - subscription management via stripe
+- streaming responses for paid subscribers
 - comprehensive api documentation via swagger
 - docker-based development and deployment
 - aws infrastructure deployment via pulumi
@@ -626,3 +627,64 @@ bundle exec rake test:full
 ## license
 
 distributed under the mit license. see `license` for more information.
+
+## api features
+
+### streaming responses
+
+Paid subscribers can receive streaming responses for tarot reading interpretations:
+
+```bash
+# Request a streaming interpretation
+curl -X POST \
+  "https://api.tarotapi.cards/api/v1/readings/[reading_id]/interpret_streaming" \
+  -H "Authorization: Bearer [token]" \
+  -H "Content-Type: application/json" \
+  -H "X-Stream-Response: true" \
+  -d '{"birth_date": "1990-01-01", "name": "John Doe"}'
+```
+
+The streaming response will be delivered as Server-Sent Events (SSE), with each chunk of the interpretation arriving as it's generated. This provides a more interactive and engaging experience for users.
+
+**Requirements:**
+- User must have an active paid subscription
+- The `X-Stream-Response: true` header must be set
+- Client must handle SSE format responses
+
+**Client-side implementation:**
+```javascript
+// Connect to SSE stream
+const eventSource = new EventSource('/api/v1/readings/[reading_id]/interpret_streaming');
+
+// Handle incoming interpretation chunks
+eventSource.addEventListener('interpretation', (event) => {
+  const data = JSON.parse(event.data);
+  console.log(data.chunk); // Append this chunk to your UI
+});
+
+// Handle connection open
+eventSource.onopen = () => {
+  console.log('Connection to stream established');
+};
+
+// Handle errors
+eventSource.onerror = (error) => {
+  console.error('EventSource error:', error);
+  eventSource.close();
+};
+
+// Close the connection when done
+function closeConnection() {
+  eventSource.close();
+}
+```
+
+For free users or when streaming is not requested, the standard interpretation endpoint is used:
+```bash
+# Standard interpretation request
+curl -X POST \
+  "https://api.tarotapi.cards/api/v1/readings/[reading_id]/interpret" \
+  -H "Authorization: Bearer [token]" \
+  -H "Content-Type: application/json" \
+  -d '{"birth_date": "1990-01-01", "name": "John Doe"}'
+```

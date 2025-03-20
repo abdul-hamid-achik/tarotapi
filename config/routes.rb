@@ -22,6 +22,7 @@ Rails.application.routes.draw do
       post "auth/login", to: "auth#login"
       post "auth/refresh", to: "auth#refresh"
       get "auth/profile", to: "auth#profile"
+      post "auth/agent", to: "auth#create_agent"
 
       # Subscription routes
       resources :subscriptions, only: [ :create, :show ] do
@@ -31,24 +32,25 @@ Rails.application.routes.draw do
       end
 
       resources :users, only: [ :create, :show ]
-      resources :tarot_cards, only: [ :index, :show ]
+      resources :cards, only: [ :index, :show ]
       resources :card_readings, only: [ :create, :index, :show ] do
         collection do
           post :interpret
         end
       end
       resources :spreads, only: [ :create, :index, :show ]
-      resources :reading_sessions, only: [ :create, :index, :show ] do
+      resources :readings, only: [ :create, :index, :show ] do
         member do
           post :interpret
+          post :interpret_streaming
           post :numerology
           get :symbolism
         end
       end
 
       # Arcana explanation endpoint
-      get "arcana/:arcana_type", to: "reading_sessions#arcana_explanation"
-      get "arcana/:arcana_type/:specific_card", to: "reading_sessions#arcana_explanation"
+      get "arcana/:arcana_type", to: "readings#arcana_explanation"
+      get "arcana/:arcana_type/:specific_card", to: "readings#arcana_explanation"
 
       # Card combination analysis
       get "card_combinations/:card_id1/:card_id2", to: "card_readings#analyze_combination"
@@ -57,7 +59,6 @@ Rails.application.routes.draw do
         get :validate, on: :collection
       end
 
-      resources :reading_sessions
       resources :spreads, only: [ :index ]
     end
   end

@@ -6,7 +6,7 @@ class UserSerializer
   belongs_to :identity_provider
   has_many :card_readings
   has_many :spreads
-  has_many :reading_sessions
+  has_many :readings
 
   attribute :user_type do |user|
     if user.anonymous?

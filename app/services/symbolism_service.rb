@@ -162,62 +162,170 @@ class SymbolismService
     end
 
     def analyze_card_combination(card1, card2)
-      # Check for known combinations
-      CARD_COMBINATIONS.each do |type, combinations|
-        combinations.each do |combo|
-          if combo[:cards].include?(card1) && combo[:cards].include?(card2)
-            return { type: type, meaning: combo[:meaning] }
-          end
-        end
-      end
-
-      # If no predefined combination, analyze by arcana type
-      if ArcanaService.is_major_arcana?(card1) && ArcanaService.is_major_arcana?(card2)
-        { type: :major_major, meaning: "Significant forces at work, important life themes" }
-      elsif !ArcanaService.is_major_arcana?(card1) && !ArcanaService.is_major_arcana?(card2)
-        { type: :minor_minor, meaning: "Day-to-day situations, practical matters" }
+      # Analyze the relationship between two cards
+      if is_opposing_pair?(card1, card2)
+        { type: "opposition", meaning: "These cards represent opposing forces or energies that need to be balanced." }
+      elsif is_complementary_pair?(card1, card2)
+        { type: "complementary", meaning: "These cards complement each other, suggesting harmony and reinforcement." }
+      elsif is_sequential_pair?(card1, card2)
+        { type: "sequential", meaning: "These cards form a natural progression, suggesting development or evolution." }
       else
-        { type: :major_minor, meaning: "Important theme manifesting in everyday life" }
+        { type: "neutral", meaning: "These cards have no specific inherent relationship but should be interpreted together in context." }
       end
     end
 
     def analyze_elemental_combination(card1, card2)
-      element1 = ArcanaService.get_elemental_association(card1)
-      element2 = ArcanaService.get_elemental_association(card2)
+      # Get the elements associated with each card
+      element1 = get_card_element(card1)
+      element2 = get_card_element(card2)
+      
+      if element1 == element2
+        "These cards share the same elemental energy (#{element1}), reinforcing each other's qualities."
+      else
+        case [element1, element2].sort.join("_")
+        when "air_fire"
+          "Air feeds Fire, suggesting that thoughts and communication enhance passion and creativity."
+        when "air_water"
+          "Air and Water can create storms, suggesting emotional turbulence or deep intuitive insights."
+        when "air_earth"
+          "Air and Earth have less natural affinity, suggesting a need to balance ideas with practicality."
+        when "earth_fire"
+          "Earth contains Fire, suggesting a need to ground passion with practicality."
+        when "earth_water"
+          "Earth and Water together are fertile, suggesting growth, nurturing, and productivity."
+        when "fire_water"
+          "Fire and Water oppose each other, suggesting internal conflict or transformative energy."
+        else
+          "These elements interact in complex ways, suggesting nuanced energies at play."
+        end
+      end
+    end
 
-      return nil unless element1 && element2
-
-      elements = [ element1.downcase, element2.downcase ].sort.join("_")
-      ELEMENTAL_COMBINATIONS[elements.to_sym]
+    def analyze_spread_pattern(cards)
+      # Analyze patterns across all cards in a spread
+      
+      # Count card types
+      major_count = cards.count { |c| c.arcana&.downcase == "major" }
+      minor_count = cards.count { |c| c.arcana&.downcase == "minor" }
+      
+      # Count elements
+      elements = cards.map { |c| get_card_element(c.name) }
+      dominant_element = elements.tally.max_by { |_, count| count }&.first
+      
+      # Count reversed cards
+      # Note: This would need to be passed in from the card_readings if implemented
+      
+      {
+        major_arcana_count: major_count,
+        minor_arcana_count: minor_count,
+        dominant_element: dominant_element,
+        element_balance: elements.tally,
+        pattern_description: generate_pattern_description(major_count, minor_count, dominant_element)
+      }
     end
 
     def identify_symbols_in_card(card_name)
-      # Get card symbolism from ArcanaService
-      card_symbolism = ArcanaService.get_card_symbolism(card_name)
-
-      # Identify universal symbols present in the card
-      universal_symbols = {}
-
-      UNIVERSAL_SYMBOLS.each do |category, symbols|
-        found_symbols = {}
-
-        symbols.each do |symbol, meaning|
-          # Check if the symbol is mentioned in the card's symbolism
-          card_symbolism.each do |card_symbol, _|
-            if card_symbol.to_s.include?(symbol.to_s) || symbol.to_s.include?(card_symbol.to_s)
-              found_symbols[symbol] = meaning
-              break
-            end
-          end
+      # Return common symbols associated with each card
+      case card_name.to_s.downcase
+      when /fool/
+        ["cliff", "small dog", "knapsack", "white rose", "mountains", "sun"]
+      when /magician/
+        ["infinity symbol", "table", "pentacle", "cup", "sword", "wand", "lemniscate"]
+      when /high priestess/
+        ["moon crown", "veil", "pillars", "pomegranates", "scroll", "water"]
+      when /empress/
+        ["crown of stars", "venus symbol", "cushion", "heart", "wheat", "trees", "waterfall"]
+      when /emperor/
+        ["throne", "ram heads", "ankh scepter", "red robe", "mountains", "armor"]
+      when /hierophant/
+        ["triple crown", "staff", "two acolytes", "keys", "pillars", "religious symbols"]
+      when /lovers/
+        ["angel", "man", "woman", "tree", "serpent", "flames", "mountains"]
+      when /chariot/
+        ["chariot", "sphinxes", "armor", "square", "staff", "stars", "crown", "city"]
+      when /strength/
+        ["lion", "infinity symbol", "woman", "flowers", "white dress", "mountains"]
+      when /hermit/
+        ["lantern", "staff", "gray robe", "snow", "mountains", "star", "hood"]
+      when /wheel of fortune/
+        ["wheel", "sphinx", "anubis", "serpent", "four figures", "hebrew letters", "clouds"]
+      when /justice/
+        ["scales", "sword", "throne", "crown", "pillars", "square"]
+      when /hanged man/
+        ["gallows", "upside-down man", "halo", "crossed legs", "blue clothing", "rope"]
+      when /death/
+        ["skeleton", "armor", "horse", "flag", "bodies", "sunset", "boat", "river"]
+      when /temperance/
+        ["angel", "cups", "flowing water", "path", "mountains", "sun", "crown", "wings"]
+      when /devil/
+        ["horns", "wings", "pentagram", "chains", "naked figures", "tail", "altar", "torch"]
+      when /tower/
+        ["lightning", "crown", "falling people", "flames", "rocks", "waves", "darkness"]
+      when /star/
+        ["nude woman", "seven stars", "two vessels", "bird", "pool", "land", "tree"]
+      when /moon/
+        ["moon", "dog and wolf", "crawfish", "water", "path", "towers", "drops"]
+      when /sun/
+        ["sun", "child", "horse", "sunflowers", "wall", "rays", "flag"]
+      when /judgement/
+        ["angel", "trumpet", "figures rising", "waves", "coffins", "mountains", "clouds"]
+      when /world/
+        ["dancing figure", "wreath", "four figures", "wand", "sky", "clouds", "stars"]
+      else
+        # For minor arcana or unknown cards, return generic symbols
+        if card_name.match?(/(\w+) of (\w+)/)
+          rank, suit = card_name.split(" of ")
+          suit_symbols = case suit.downcase
+                         when "wands"
+                           ["staffs", "fire", "growth", "energy"]
+                         when "cups"
+                           ["chalices", "water", "emotions", "relationships"]
+                         when "swords"
+                           ["blades", "air", "thought", "conflict"]
+                         when "pentacles"
+                           ["coins", "earth", "material", "work"]
+                         else
+                           ["unknown suit"]
+                         end
+                         
+          rank_symbols = case rank.downcase
+                         when "ace"
+                           ["single", "beginning", "potential"]
+                         when "two"
+                           ["balance", "duality", "choice"]
+                         when "three"
+                           ["creation", "growth", "collaboration"]
+                         when "four"
+                           ["stability", "foundation", "structure"]
+                         when "five"
+                           ["conflict", "challenge", "change"]
+                         when "six"
+                           ["harmony", "cooperation", "transition"]
+                         when "seven"
+                           ["reflection", "assessment", "vision"]
+                         when "eight"
+                           ["movement", "progress", "speed"]
+                         when "nine"
+                           ["fruition", "culmination", "readiness"]
+                         when "ten"
+                           ["completion", "fulfillment", "ending"]
+                         when "page"
+                           ["youth", "student", "messenger"]
+                         when "knight"
+                           ["action", "adventure", "pursuit"]
+                         when "queen"
+                           ["nurturing", "intuition", "inner power"]
+                         when "king"
+                           ["mastery", "authority", "control"]
+                         else
+                           ["unknown rank"]
+                         end
+                         
+          suit_symbols + rank_symbols
+        else
+          ["unknown card"]
         end
-
-        universal_symbols[category] = found_symbols unless found_symbols.empty?
       end
-
-      {
-        card_specific: card_symbolism,
-        universal: universal_symbols
-      }
     end
 
     def get_numerological_symbolism(card_name)
@@ -251,36 +359,151 @@ class SymbolismService
       }
     end
 
-    def analyze_spread_pattern(card_positions)
-      # Analyze the geometric pattern of the spread
-      case card_positions.length
-      when 1
-        { pattern: "single", meaning: "Focus on a single issue or energy" }
-      when 2
-        { pattern: "binary", meaning: "Duality, choice, or balance between two forces" }
-      when 3
-        { pattern: "triangle", meaning: "Synthesis, creation, past-present-future" }
-      when 4
-        { pattern: "square", meaning: "Stability, foundation, structure" }
-      when 5
-        { pattern: "pentagram", meaning: "Balance of elements, protection, wholeness" }
-      when 6
-        { pattern: "hexagram", meaning: "Harmony, balance of opposing forces" }
-      when 7
-        { pattern: "septagram", meaning: "Mystical insight, spiritual awareness" }
-      when 10
-        { pattern: "tree of life", meaning: "Complete spiritual journey, cosmic order" }
-      else
-        { pattern: "complex", meaning: "Multi-faceted situation with many influences" }
-      end
-    end
-
     def get_color_symbolism(color)
       UNIVERSAL_SYMBOLS[:colors][color.to_sym]
     end
 
     def get_element_symbolism(element)
       UNIVERSAL_SYMBOLS[:elements][element.to_sym]
+    end
+
+    private
+    
+    def is_opposing_pair?(card1, card2)
+      opposing_pairs = [
+        ["the fool", "the world"],
+        ["the magician", "the high priestess"],
+        ["the empress", "the emperor"],
+        ["the hierophant", "the lovers"],
+        ["the chariot", "the hermit"],
+        ["wheel of fortune", "justice"],
+        ["the hanged man", "death"],
+        ["temperance", "the devil"],
+        ["the tower", "the star"],
+        ["the moon", "the sun"]
+      ]
+      
+      card1_lower = card1.to_s.downcase
+      card2_lower = card2.to_s.downcase
+      
+      opposing_pairs.any? do |pair|
+        (pair[0] == card1_lower && pair[1] == card2_lower) ||
+        (pair[0] == card2_lower && pair[1] == card1_lower)
+      end
+    end
+    
+    def is_complementary_pair?(card1, card2)
+      complementary_pairs = [
+        ["the magician", "the sun"],
+        ["the high priestess", "the moon"],
+        ["the empress", "temperance"],
+        ["the emperor", "justice"],
+        ["the hierophant", "judgement"],
+        ["the lovers", "the world"],
+        ["the chariot", "strength"],
+        ["the hermit", "the star"],
+        ["wheel of fortune", "the world"],
+        ["the hanged man", "the star"],
+        ["death", "judgement"],
+        ["the devil", "the tower"]
+      ]
+      
+      card1_lower = card1.to_s.downcase
+      card2_lower = card2.to_s.downcase
+      
+      complementary_pairs.any? do |pair|
+        (pair[0] == card1_lower && pair[1] == card2_lower) ||
+        (pair[0] == card2_lower && pair[1] == card1_lower)
+      end
+    end
+    
+    def is_sequential_pair?(card1, card2)
+      # Check if cards are sequential in the major arcana
+      major_arcana = [
+        "the fool", "the magician", "the high priestess", "the empress", "the emperor",
+        "the hierophant", "the lovers", "the chariot", "strength", "the hermit",
+        "wheel of fortune", "justice", "the hanged man", "death", "temperance",
+        "the devil", "the tower", "the star", "the moon", "the sun", "judgement", "the world"
+      ]
+      
+      card1_lower = card1.to_s.downcase
+      card2_lower = card2.to_s.downcase
+      
+      card1_index = major_arcana.index(card1_lower)
+      card2_index = major_arcana.index(card2_lower)
+      
+      if card1_index && card2_index
+        (card1_index - card2_index).abs == 1
+      else
+        false
+      end
+    end
+    
+    def get_card_element(card_name)
+      card_lower = card_name.to_s.downcase
+      
+      # Major Arcana
+      case card_lower
+      when "the fool", "the magician", "the emperor", "the hierophant", 
+           "the chariot", "justice", "death", "temperance", "the sun", "judgement"
+        "fire"
+      when "the high priestess", "the empress", "the lovers", 
+           "the hanged man", "the moon"
+        "water"
+      when "the hermit", "wheel of fortune", "the devil", 
+           "the star", "the world"
+        "earth"
+      when "strength", "the tower"
+        "air"
+      else
+        # Minor Arcana
+        if card_lower.include?("wands")
+          "fire"
+        elsif card_lower.include?("cups")
+          "water"
+        elsif card_lower.include?("swords")
+          "air"
+        elsif card_lower.include?("pentacles") || card_lower.include?("coins")
+          "earth"
+        else
+          "unknown"
+        end
+      end
+    end
+    
+    def generate_pattern_description(major_count, minor_count, dominant_element)
+      description = []
+      
+      # Analyze major/minor balance
+      if major_count > minor_count * 2
+        description << "This spread is heavily dominated by Major Arcana cards, suggesting significant life events and powerful external forces at work."
+      elsif major_count > minor_count
+        description << "There are more Major Arcana than Minor Arcana cards, suggesting important life themes and decisions are prominent."
+      elsif major_count == 0
+        description << "The absence of Major Arcana cards suggests this relates to everyday matters rather than major life events."
+      elsif minor_count == 0
+        description << "The spread contains only Major Arcana cards, indicating profound life changes and spiritual significance."
+      else
+        description << "The balance between Major and Minor Arcana suggests a mix of everyday concerns and significant life themes."
+      end
+      
+      # Analyze elemental balance
+      if dominant_element
+        case dominant_element
+        when "fire"
+          description << "Fire dominates this spread, suggesting themes of energy, passion, creativity, and transformation."
+        when "water"
+          description << "Water dominates this spread, suggesting themes of emotion, intuition, relationships, and the subconscious."
+        when "air"
+          description << "Air dominates this spread, suggesting themes of intellect, communication, conflict, and mental activity."
+        when "earth"
+          description << "Earth dominates this spread, suggesting themes of practicality, work, material concerns, and stability."
+        end
+      else
+        description << "The elements are relatively balanced, suggesting a holistic situation involving multiple aspects of life."
+      end
+      
+      description.join(" ")
     end
   end
 end

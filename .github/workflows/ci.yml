@@ -1,4 +1,4 @@
-name: CI
+name: ci
 
 on:
   pull_request:
@@ -7,31 +7,29 @@ on:
 
 jobs:
   lint:
-    name: Code Quality
+    name: code quality
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Ruby
+      - name: set up ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.4'
           bundler-cache: true
 
-      - name: Lint code with RuboCop
-        run: bundle exec rubocop -f github
+      - name: lint code with rubocop
+        run: bundle exec rake test:lint:rubocop
 
-      - name: Run Brakeman security scan
-        run: bundle exec brakeman --no-pager
+      - name: run brakeman security scan
+        run: bundle exec rake test:lint:brakeman
 
-      - name: Run Bundler Audit
-        run: |
-          gem install bundler-audit
-          bundle-audit check --update
+      - name: run ruby audit
+        run: bundle exec rake test:lint:ruby_audit
 
   test:
-    name: Tests
+    name: tests
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -50,54 +48,71 @@ jobs:
         options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
-      - name: Install system dependencies
+      - name: install system dependencies
         run: sudo apt-get update && sudo apt-get install --no-install-recommends -y build-essential git libpq-dev libyaml-dev pkg-config
 
-      - name: Checkout code
+      - name: checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Ruby
+      - name: set up ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.4'
           bundler-cache: true
 
-      - name: Setup test database
+      - name: setup test database
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
           REDIS_URL: redis://localhost:6379/0
-        run: |
-          bundle exec rails db:migrate
-          bundle exec rails db:test:prepare
+        run: bundle exec rake test:prepare
 
-      - name: Run RSpec tests (TDD)
+      - name: verify test coverage
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
           REDIS_URL: redis://localhost:6379/0
-        run: bundle exec rspec --format progress
+        run: bundle exec rake test:verify_coverage
 
-      - name: Run Cucumber features (BDD)
+      - name: run model tests
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
           REDIS_URL: redis://localhost:6379/0
-        run: bundle exec cucumber --format progress
+        run: bundle exec rake test:models:all
 
-      - name: Generate coverage report
+      - name: run service tests
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+          REDIS_URL: redis://localhost:6379/0
+        run: bundle exec rake test:services:all
+
+      - name: run feature tests
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+          REDIS_URL: redis://localhost:6379/0
+        run: bundle exec rake test:features:all
+
+      - name: run subscription tests
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+          REDIS_URL: redis://localhost:6379/0
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_KEY }}
+        run: bundle exec rake test:subscriptions:all
+
+      - name: generate coverage report
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
           REDIS_URL: redis://localhost:6379/0
           COVERAGE: "true"
           SIMPLECOV_FORMATTER: "SimpleCov::Formatter::HTMLFormatter"
-        run: |
-          echo "Generating merged coverage report..."
-          bundle exec rake test:coverage || true
-          ls -la coverage/
+        run: bundle exec rake test:coverage
 
-      - name: Upload coverage reports
+      - name: upload coverage reports
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
@@ -105,7 +120,7 @@ jobs:
           retention-days: 7
 
   docs:
-    name: API Documentation
+    name: api documentation
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -118,36 +133,34 @@ jobs:
         options: --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=3
 
     steps:
-      - name: Checkout code
+      - name: checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Ruby
+      - name: set up ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.4'
           bundler-cache: true
 
-      - name: Setup test database
+      - name: setup test database
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
-        run: |
-          bundle exec rails db:migrate
-          bundle exec rails db:test:prepare
+        run: bundle exec rake test:prepare
 
-      - name: Generate API documentation
+      - name: generate api documentation
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
         run: bundle exec rake api:docs
 
-      - name: Validate API against schema
+      - name: validate api against schema
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
         run: bundle exec rake api:validate
 
-      - name: Upload API documentation
+      - name: upload api documentation
         uses: actions/upload-artifact@v4
         with:
           name: api-docs
@@ -155,11 +168,11 @@ jobs:
           retention-days: 7
 
   ci_completed:
-    name: CI Workflow Completed
+    name: ci workflow completed
     needs: [lint, test, docs]
     runs-on: ubuntu-latest
     steps:
-      - name: CI completed successfully
-        run: echo "CI workflow completed successfully!"
+      - name: ci completed successfully
+        run: echo "ci workflow completed successfully!"
     outputs:
       status: success

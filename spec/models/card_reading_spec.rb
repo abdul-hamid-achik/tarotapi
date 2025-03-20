@@ -3,9 +3,9 @@ require 'rails_helper'
 RSpec.describe CardReading, type: :model do
   describe 'associations' do
     it { should belong_to(:user) }
-    it { should belong_to(:tarot_card) }
+    it { should belong_to(:card) }
     it { should belong_to(:spread).optional }
-    it { should belong_to(:reading_session).optional }
+    it { should belong_to(:reading).optional }
   end
 
   describe 'validations' do

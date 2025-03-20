@@ -3,7 +3,7 @@ class Api::V1::CardReadingsController < ApplicationController
     user = UserResolutionService.new(user_params).resolve
     spread = params[:spread_id].present? ? Spread.where(id: params[:spread_id]).first : nil
 
-    reading_session = ReadingSession.create!(
+    reading = Reading.create!(
       user: user,
       spread: spread,
       question: params[:question],
@@ -12,8 +12,8 @@ class Api::V1::CardReadingsController < ApplicationController
 
     card_reading = CardReading.create!(
       user: user,
-      reading_session: reading_session,
-      tarot_card_id: params[:tarot_card_id],
+      reading: reading,
+      card_id: params[:card_id],
       spread: spread,
       position: params[:position] || 1,
       is_reversed: params[:is_reversed] || false,
@@ -32,7 +32,7 @@ class Api::V1::CardReadingsController < ApplicationController
 
   def index
     user = UserResolutionService.new(user_params).resolve
-    readings = user.card_readings.includes(:tarot_card, :spread, :reading_session).order(created_at: :desc)
+    readings = user.card_readings.includes(:card, :spread, :reading).order(created_at: :desc)
     render json: readings
   rescue StandardError => e
     Rails.logger.error("error fetching card readings: #{e.message}")
@@ -76,7 +76,7 @@ class Api::V1::CardReadingsController < ApplicationController
     card_id2 = params[:card_id2]
 
     # Validate that both cards exist
-    unless TarotCard.where(id: card_id1).exists? && TarotCard.where(id: card_id2).exists?
+    unless Card.where(id: card_id1).exists? && Card.where(id: card_id2).exists?
       render json: { error: "One or both cards not found" }, status: :not_found
       return
     end

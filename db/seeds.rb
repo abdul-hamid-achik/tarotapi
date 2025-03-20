@@ -47,26 +47,42 @@ tarot_data["cards"].each do |card_data|
   # Skip cards without a name
   next unless card_data["name"].present?
 
+  # Clean up the filename - remove spaces and downcase
+  file_name = card_data["name"].gsub(/\s+/, '').downcase
+
   # Create or update the card
-  card = TarotCard.find_or_create_by!(name: card_data["name"]) do |c|
+  card = Card.find_or_create_by!(name: card_data["name"]) do |c|
     c.arcana = card_data["arcana"]
     c.suit = card_data["suit"]
     c.description = card_data["description"]
     c.rank = card_data["rank"].to_s if card_data["rank"].present?
     c.symbols = card_data["symbols"]
-    # Add default image_url if needed
-    c.image_url = "/images/cards/#{card_data['arcana'].downcase}_#{card_data['suit']}_#{card_data['rank']}.jpg" if card_data["image_url"].blank?
+    # Add default image_url if needed - look for PNG first, then JPG
+    if card_data["image_url"].blank?
+      if card_data["arcana"].downcase == "major"
+        c.image_url = "cards/#{file_name}.png" 
+      else
+        c.image_url = "cards/#{card_data['arcana'].downcase}_#{card_data['suit']}_#{card_data['rank']}.png"
+      end
+    else
+      c.image_url = card_data["image_url"]
+    end
+  end
+  
+  # Try to attach the image if it's not already attached
+  unless card.image.attached?
+    card.attach_image_from_file_system
   end
 end
 
-puts "seeded #{TarotCard.count} tarot cards"
+puts "seeded #{Card.count} cards"
 
 # create default admin user for testing
 admin = User.find_or_create_by!(email: "admin@tarotapi.cards") do |user|
   user.name = 'admin'
   user.admin = true
-  user.password = 'password123'
-  user.password_confirmation = 'password123'
+  user.password = 'changeme'
+  user.password_confirmation = 'changeme'
 end
 
 puts "created admin user"
@@ -201,7 +217,7 @@ major_arcana = [
 ]
 
 major_arcana.each do |card|
-  TarotCard.find_or_create_by!(name: card[:name]) do |c|
+  Card.find_or_create_by!(name: card[:name]) do |c|
     c.arcana = card[:arcana]
     c.rank = card[:rank]
     c.description = card[:description]
@@ -217,5 +233,26 @@ court_cards = { 11 => 'page', 12 => 'knight', 13 => 'queen', 14 => 'king' }
 
 puts "seeds completed! created:"
 puts "  - #{Spread.count} spreads"
-puts "  - #{TarotCard.count} tarot cards"
+puts "  - #{Card.count} cards"
 puts "  - #{User.count} users"
+
+# Load subscription plans
+load Rails.root.join('db', 'seeds', 'subscription_plans.rb')
+
+# Initialize reading quotas for existing users
+puts "Setting up reading quotas for existing users..."
+
+if ActiveRecord::Base.connection.table_exists?("reading_quotas")
+  default_limit = ENV.fetch("DEFAULT_FREE_TIER_LIMIT", 100).to_i
+  reset_date = Date.today.end_of_month + 1.day
+  
+  User.where(subscription_status: [nil, "inactive"]).find_each do |user|
+    ReadingQuota.find_or_create_by(user_id: user.id) do |quota|
+      quota.monthly_limit = default_limit
+      quota.readings_this_month = 0
+      quota.reset_date = reset_date
+    end
+  end
+  
+  puts "Reading quotas initialized for #{User.where(subscription_status: [nil, "inactive"]).count} free users"
+end

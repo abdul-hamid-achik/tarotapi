@@ -1,4 +1,4 @@
-class ReadingSession < ApplicationRecord
+class Reading < ApplicationRecord
   belongs_to :user
   belongs_to :spread, optional: true
   has_many :card_readings, dependent: :destroy
@@ -94,4 +94,4 @@ class ReadingSession < ApplicationRecord
 
     self.name = generated_name
   end
-end
+end 

@@ -5,6 +5,58 @@ class LlmService
     @client = OpenAI::Client.new(access_token: ENV["OPENAI_API_KEY"])
   end
 
+  def interpret_reading_streaming(cards:, positions:, spread_name:, is_reversed: false, question: nil, astrological_context: nil, numerological_context: nil, symbolism_context: nil, &block)
+    prompt_context = {
+      cards: cards,
+      positions: positions,
+      spread_name: spread_name,
+      is_reversed: is_reversed,
+      question: question,
+      astrological_context: astrological_context,
+      numerological_context: numerological_context,
+      symbolism_context: symbolism_context
+    }
+
+    cache_key = generate_cache_key(prompt_context)
+    cached_response = Rails.cache.read(cache_key)
+    
+    if cached_response
+      chunks = cached_response.scan(/.{1,20}/m)
+      chunks.each do |chunk|
+        yield chunk if block_given?
+        sleep(0.05)
+      end
+      return cached_response
+    end
+    
+    prompt = PromptService.get_prompt(PromptService::PROMPT_TYPES[:tarot_reading], prompt_context)
+    
+    full_response = ""
+    
+    @client.chat(
+      parameters: {
+        model: "gpt-4-turbo-preview",
+        messages: [
+          { role: "system", content: prompt[:system] },
+          { role: "user", content: prompt[:user] }
+        ],
+        temperature: 0.7,
+        max_tokens: 1000,
+        stream: true
+      }
+    ) do |chunk, _bytesize|
+      content = chunk.dig("choices", 0, "delta", "content")
+      if content
+        full_response += content
+        yield content if block_given?
+      end
+    end
+    
+    Rails.cache.write(cache_key, full_response, expires_in: 24.hours)
+    
+    full_response
+  end
+
   def interpret_reading(cards:, positions:, spread_name:, is_reversed: false, question: nil, astrological_context: nil, numerological_context: nil, symbolism_context: nil)
     prompt_context = {
       cards: cards,
@@ -17,6 +69,10 @@ class LlmService
       symbolism_context: symbolism_context
     }
 
+    cache_key = generate_cache_key(prompt_context)
+    cached_response = Rails.cache.read(cache_key)
+    return cached_response if cached_response
+    
     prompt = PromptService.get_prompt(PromptService::PROMPT_TYPES[:tarot_reading], prompt_context)
 
     response = @client.chat(
@@ -31,7 +87,11 @@ class LlmService
       }
     )
 
-    response.dig("choices", 0, "message", "content")
+    content = response.dig("choices", 0, "message", "content")
+    
+    Rails.cache.write(cache_key, content, expires_in: 24.hours) if content
+    
+    content
   end
 
   def get_card_meaning(card_name:, is_reversed: false, numerology: nil, arcana_info: nil, symbolism: nil)
@@ -229,5 +289,13 @@ class LlmService
     )
 
     response.dig("choices", 0, "message", "content")
+  end
+
+  private
+  
+  def generate_cache_key(context)
+    context_string = context.to_json
+    digest = Digest::MD5.hexdigest(context_string)
+    "llm_response:#{digest}"
   end
 end

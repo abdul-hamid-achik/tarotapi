@@ -119,173 +119,162 @@ class NumerologyService
 
   class << self
     def calculate_life_path_number(birth_date)
-      # Convert birth_date to string if it's a Date object
-      date_str = birth_date.is_a?(Date) ? birth_date.strftime("%Y%m%d") : birth_date.to_s.gsub(/\D/, "")
-
-      # Extract year, month, day
-      if date_str.length >= 8
-        year = date_str[0..3]
-        month = date_str[4..5]
-        day = date_str[6..7]
+      # Convert birth_date to a string if it's a Date object
+      date_string = birth_date.is_a?(Date) ? birth_date.strftime('%Y-%m-%d') : birth_date.to_s
+      
+      # Extract year, month, day from the date string
+      parts = date_string.split(/[-\/]/).map(&:to_i)
+      
+      # Ensure we have 3 parts
+      return nil unless parts.size == 3
+      
+      year, month, day = parts
+      
+      # Calculate the sum of all digits
+      year_sum = sum_digits(year)
+      month_sum = sum_digits(month)
+      day_sum = sum_digits(day)
+      
+      # Sum the reduced numbers
+      total_sum = year_sum + month_sum + day_sum
+      
+      # Reduce to a single digit (except master numbers 11, 22, 33)
+      if total_sum == 11 || total_sum == 22 || total_sum == 33
+        return total_sum
       else
-        # Handle different date formats
-        parts = birth_date.to_s.split(/[-\/]/)
-        if parts.length == 3
-          year = parts[0].length == 4 ? parts[0] : parts[2]
-          month = parts[1]
-          day = parts[0].length == 4 ? parts[2] : parts[0]
-        else
-          return nil # Invalid date format
-        end
+        return reduce_to_single_digit(total_sum)
       end
-
-      # Calculate life path number
-      year_num = reduce_to_single_digit(year)
-      month_num = reduce_to_single_digit(month)
-      day_num = reduce_to_single_digit(day)
-
-      life_path = year_num + month_num + day_num
-
-      # Reduce to single digit or master number
-      final_number = reduce_to_single_or_master_number(life_path)
-
-      final_number
     end
-
-    def get_life_path_meaning(number)
-      LIFE_PATH_MEANINGS[number] || {
-        name: "Unknown",
-        description: "No information available for this number.",
-        strengths: "",
-        challenges: ""
-      }
-    end
-
-    def get_card_numerology(card_name)
-      # Find the number associated with the card
-      TAROT_NUMEROLOGY.each do |number, data|
-        return { number: number, meaning: data[:meaning] } if data[:cards].include?(card_name)
-      end
-
-      # If not found in major arcana, check if it's a minor arcana card
-      if card_name.match?(/(\w+) of (\w+)/)
-        rank = card_name.split(" ").first
-
-        case rank
-        when "Ace"
-          return { number: 1, meaning: TAROT_NUMEROLOGY[1][:meaning] }
-        when "Two"
-          return { number: 2, meaning: TAROT_NUMEROLOGY[2][:meaning] }
-        when "Three"
-          return { number: 3, meaning: TAROT_NUMEROLOGY[3][:meaning] }
-        when "Four"
-          return { number: 4, meaning: TAROT_NUMEROLOGY[4][:meaning] }
-        when "Five"
-          return { number: 5, meaning: TAROT_NUMEROLOGY[5][:meaning] }
-        when "Six"
-          return { number: 6, meaning: TAROT_NUMEROLOGY[6][:meaning] }
-        when "Seven"
-          return { number: 7, meaning: TAROT_NUMEROLOGY[7][:meaning] }
-        when "Eight"
-          return { number: 8, meaning: TAROT_NUMEROLOGY[8][:meaning] }
-        when "Nine"
-          return { number: 9, meaning: TAROT_NUMEROLOGY[9][:meaning] }
-        when "Ten"
-          return { number: 10, meaning: "Completion and new beginnings" }
-        when "Page"
-          return { number: 11, meaning: "New perspectives and learning" }
-        when "Knight"
-          return { number: 12, meaning: "Action and movement" }
-        when "Queen"
-          return { number: 13, meaning: "Nurturing mastery and receptivity" }
-        when "King"
-          return { number: 14, meaning: "Mastery and authority" }
-        end
-      end
-
-      { number: nil, meaning: "Unknown numerological association" }
-    end
-
+    
     def calculate_name_number(name)
-      # Remove spaces and convert to lowercase
-      name = name.downcase.gsub(/\s+/, "")
-
-      # Calculate the numerology value
+      # Remove any non-alphabetic characters and convert to lowercase
+      cleaned_name = name.to_s.gsub(/[^a-zA-Z]/, '').downcase
+      
+      # Sum the values of each letter in the name
       total = 0
-      name.each_char do |char|
-        total += letter_to_number(char)
+      cleaned_name.each_char do |char|
+        total += letter_value(char)
       end
-
-      # Reduce to single digit or master number
-      reduce_to_single_or_master_number(total)
+      
+      # Reduce to a single digit (except master numbers)
+      if total == 11 || total == 22 || total == 33
+        return total
+      else
+        return reduce_to_single_digit(total)
+      end
     end
-
+    
+    def get_life_path_meaning(number)
+      case number
+      when 1
+        "Independent, leader, original, self-sufficient"
+      when 2
+        "Cooperative, diplomat, sensitive, peacemaker"
+      when 3
+        "Creative, expressive, optimistic, social"
+      when 4
+        "Practical, reliable, stable, organized"
+      when 5
+        "Adventurous, versatile, freedom-loving, adaptable"
+      when 6
+        "Nurturing, responsible, service-oriented, supportive"
+      when 7
+        "Analytical, introspective, spiritual, knowledge-seeking"
+      when 8
+        "Ambitious, goal-oriented, influential, material mastery"
+      when 9
+        "Humanitarian, compassionate, global consciousness, artistic"
+      when 11
+        "Intuitive, idealistic, inspirational, visionary"
+      when 22
+        "Master builder, practical visionary, capable of manifestation"
+      when 33
+        "Master teacher, selfless service, highest spiritual wisdom"
+      else
+        "Unknown or invalid numerological path"
+      end
+    end
+    
+    def get_card_numerology(card_name)
+      # Basic mapping of tarot cards to numerological meanings
+      case card_name.to_s.downcase
+      when /fool/, /jester/
+        { number: 0, meaning: "New beginnings, unlimited potential" }
+      when /magician/
+        { number: 1, meaning: "Creation, willpower, manifestation" }
+      when /high priestess/
+        { number: 2, meaning: "Intuition, duality, receptivity" }
+      when /empress/
+        { number: 3, meaning: "Creation, fertility, abundance" }
+      when /emperor/
+        { number: 4, meaning: "Structure, stability, authority" }
+      when /hierophant/
+        { number: 5, meaning: "Tradition, spiritual guidance, conformity" }
+      when /lovers/
+        { number: 6, meaning: "Love, harmony, relationships" }
+      when /chariot/
+        { number: 7, meaning: "Direction, control, willpower" }
+      when /strength/
+        { number: 8, meaning: "Inner strength, courage, influence" }
+      when /hermit/
+        { number: 9, meaning: "Introspection, wisdom, solitude" }
+      when /wheel of fortune/
+        { number: 10, meaning: "Change, cycles, destiny" }
+      when /justice/
+        { number: 11, meaning: "Balance, fairness, truth" }
+      when /hanged man/
+        { number: 12, meaning: "Surrender, perspective, sacrifice" }
+      when /death/
+        { number: 13, meaning: "Transformation, endings, transition" }
+      when /temperance/
+        { number: 14, meaning: "Balance, moderation, harmony" }
+      when /devil/
+        { number: 15, meaning: "Materialism, bondage, addiction" }
+      when /tower/
+        { number: 16, meaning: "Sudden change, revelation, upheaval" }
+      when /star/
+        { number: 17, meaning: "Hope, faith, inspiration" }
+      when /moon/
+        { number: 18, meaning: "Intuition, illusion, subconscious" }
+      when /sun/
+        { number: 19, meaning: "Joy, success, vitality" }
+      when /judgement/
+        { number: 20, meaning: "Rebirth, inner calling, absolution" }
+      when /world/
+        { number: 21, meaning: "Completion, fulfillment, integration" }
+      else
+        # For minor arcana or unknown cards
+        { number: nil, meaning: "No specific numerological association" }
+      end
+    end
+    
     private
-
-    def letter_to_number(letter)
-      case letter.downcase
-      when "a", "j", "s"
-        1
-      when "b", "k", "t"
-        2
-      when "c", "l", "u"
-        3
-      when "d", "m", "v"
-        4
-      when "e", "n", "w"
-        5
-      when "f", "o", "x"
-        6
-      when "g", "p", "y"
-        7
-      when "h", "q", "z"
-        8
-      when "i", "r"
-        9
-      else
-        0 # For non-alphabetic characters
-      end
+    
+    def sum_digits(number)
+      # Convert to string to handle digit by digit
+      number.to_s.chars.map(&:to_i).sum
     end
-
+    
     def reduce_to_single_digit(number)
-      # Convert to string to process each digit
-      num_str = number.to_s
-
-      # Sum all digits
-      sum = 0
-      num_str.each_char { |digit| sum += digit.to_i }
-
-      # If sum is still more than one digit, reduce again
-      if sum > 9
-        reduce_to_single_digit(sum)
-      else
-        sum
+      # Keep reducing until we get a single digit
+      while number > 9
+        number = sum_digits(number)
       end
+      number
     end
-
-    def reduce_to_single_or_master_number(number)
-      # Convert to string to process each digit
-      num_str = number.to_s
-
-      # Check if it's already a single digit
-      return number if num_str.length == 1
-
-      # Check for master numbers
-      return number if [ 11, 22, 33 ].include?(number)
-
-      # Sum all digits
-      sum = 0
-      num_str.each_char { |digit| sum += digit.to_i }
-
-      # Check if result is a master number
-      return sum if [ 11, 22, 33 ].include?(sum)
-
-      # If sum is still more than one digit, reduce again
-      if sum > 9
-        reduce_to_single_or_master_number(sum)
-      else
-        sum
-      end
+    
+    def letter_value(char)
+      # Numerology assigns values 1-9 to letters A-Z
+      # A=1, B=2, ..., I=9, J=1, ..., R=9, S=1, ...
+      values = {
+        'a' => 1, 'b' => 2, 'c' => 3, 'd' => 4, 'e' => 5,
+        'f' => 6, 'g' => 7, 'h' => 8, 'i' => 9, 'j' => 1,
+        'k' => 2, 'l' => 3, 'm' => 4, 'n' => 5, 'o' => 6,
+        'p' => 7, 'q' => 8, 'r' => 9, 's' => 1, 't' => 2,
+        'u' => 3, 'v' => 4, 'w' => 5, 'x' => 6, 'y' => 7,
+        'z' => 8
+      }
+      values[char] || 0
     end
   end
 end
