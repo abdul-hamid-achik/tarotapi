@@ -69,6 +69,8 @@ jobs:
           RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AWS_REGION: mx-central-1
+          AWS_DEFAULT_REGION: mx-central-1
       
       - name: get deployment url
         id: get_url
@@ -140,6 +142,8 @@ jobs:
           RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AWS_REGION: mx-central-1
+          AWS_DEFAULT_REGION: mx-central-1
       
       - name: get preview url
         id: get_url
@@ -233,6 +237,8 @@ jobs:
           RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AWS_REGION: mx-central-1
+          AWS_DEFAULT_REGION: mx-central-1
       
       - name: get deployment url
         id: get_url
@@ -306,4 +312,6 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }} 
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AWS_REGION: mx-central-1
+          AWS_DEFAULT_REGION: mx-central-1 

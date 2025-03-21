@@ -14,6 +14,9 @@ require "action_view/railtie"
 require "action_cable/engine"
 # require "rails/test_unit/railtie"
 
+# Require the middleware
+require_relative "../app/middleware/reading_quota_middleware"
+
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
 Bundler.require(*Rails.groups)
@@ -38,6 +41,9 @@ module TarotApi
     #
     # config.time_zone = "Central Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join("extras")
+
+    # Add app/middleware to the eager load paths
+    config.eager_load_paths << Rails.root.join("app/middleware")
 
     # Only loads a smaller set of middleware suitable for API only apps.
     # Middleware like session, flash, cookies can be added back manually.
