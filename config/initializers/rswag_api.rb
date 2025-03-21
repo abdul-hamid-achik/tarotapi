@@ -17,11 +17,26 @@ Rswag::Api.configure do |c|
         "scheme" => "bearer",
         "bearerFormat" => "JWT",
         "description" => "JWT token obtained from login or registration"
+      },
+      "basicAuth" => {
+        "type" => "http",
+        "scheme" => "basic",
+        "description" => "HTTP Basic Auth using email and password"
+      },
+      "apiKeyAuth" => {
+        "type" => "apiKey",
+        "in" => "header",
+        "name" => "X-API-Key",
+        "description" => "API key for agent/service authentication"
       }
     }
 
     # Add global security requirement
-    swagger["security"] ||= [ { "bearerAuth" => [] } ]
+    swagger["security"] ||= [
+      { "bearerAuth" => [] },
+      { "basicAuth" => [] },
+      { "apiKeyAuth" => [] }
+    ]
 
     # Ensure info section has proper contact and license info
     swagger["info"]["contact"] ||= {

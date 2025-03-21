@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_03_21_011021) do
+ActiveRecord::Schema[8.0].define(version: 2025_03_21_072404) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -40,6 +40,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_21_011021) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "api_keys", force: :cascade do |t|
+    t.string "name"
+    t.string "token", null: false
+    t.datetime "expires_at"
+    t.bigint "user_id", null: false
+    t.integer "rate_limit", default: 100
+    t.datetime "last_used_at"
+    t.string "description"
+    t.boolean "active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["token"], name: "index_api_keys_on_token", unique: true
+    t.index ["user_id"], name: "index_api_keys_on_user_id"
   end
 
   create_table "card_interpretations", force: :cascade do |t|
@@ -100,41 +115,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_21_011021) do
     t.index ["name"], name: "index_identity_providers_on_name", unique: true
   end
 
-  create_table "subscription_plans", force: :cascade do |t|
-    t.string "name", null: false
-    t.integer "price_cents", default: 0
-    t.integer "reading_limit"
-    t.string "interval", default: "month"
-    t.decimal "price", precision: 10, scale: 2, default: "0.0"
-    t.integer "monthly_readings", default: 0
-    t.integer "duration_days", default: 30
-    t.boolean "is_active", default: true
-    t.string "features", default: [], array: true
-    t.jsonb "metadata", default: {}
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["is_active"], name: "index_subscription_plans_on_is_active"
-    t.index ["name"], name: "index_subscription_plans_on_name", unique: true
-  end
-
-  create_table "subscriptions", force: :cascade do |t|
-    t.bigint "user_id"
-    t.bigint "subscription_plan_id"
-    t.string "plan_name", null: false
-    t.string "status", default: "pending"
-    t.datetime "current_period_start"
-    t.datetime "current_period_end"
-    t.jsonb "metadata", default: {}
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["current_period_start", "current_period_end"], name: "idx_on_current_period_start_current_period_end_ef96a9f506"
-    t.index ["status"], name: "index_subscriptions_on_status"
-    t.index ["subscription_plan_id"], name: "index_subscriptions_on_subscription_plan_id"
-    t.index ["user_id", "plan_name", "status"], name: "index_subscriptions_on_user_id_and_plan_name_and_status"
-    t.index ["user_id", "status"], name: "index_subscriptions_on_user_id_and_status"
-    t.index ["user_id"], name: "index_subscriptions_on_user_id"
-  end
-
   create_table "reading_quotas", force: :cascade do |t|
     t.bigint "user_id"
     t.integer "monthly_limit"
@@ -182,6 +162,41 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_21_011021) do
     t.index ["user_id"], name: "index_spreads_on_user_id"
   end
 
+  create_table "subscription_plans", force: :cascade do |t|
+    t.string "name", null: false
+    t.integer "price_cents", default: 0
+    t.integer "reading_limit"
+    t.string "interval", default: "month"
+    t.decimal "price", precision: 10, scale: 2, default: "0.0"
+    t.integer "monthly_readings", default: 0
+    t.integer "duration_days", default: 30
+    t.boolean "is_active", default: true
+    t.string "features", default: [], array: true
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_subscription_plans_on_is_active"
+    t.index ["name"], name: "index_subscription_plans_on_name", unique: true
+  end
+
+  create_table "subscriptions", force: :cascade do |t|
+    t.bigint "user_id"
+    t.bigint "subscription_plan_id"
+    t.string "plan_name", null: false
+    t.string "status", default: "pending"
+    t.datetime "current_period_start"
+    t.datetime "current_period_end"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["current_period_start", "current_period_end"], name: "idx_on_current_period_start_current_period_end_ef96a9f506"
+    t.index ["status"], name: "index_subscriptions_on_status"
+    t.index ["subscription_plan_id"], name: "index_subscriptions_on_subscription_plan_id"
+    t.index ["user_id", "plan_name", "status"], name: "index_subscriptions_on_user_id_and_plan_name_and_status"
+    t.index ["user_id", "status"], name: "index_subscriptions_on_user_id_and_status"
+    t.index ["user_id"], name: "index_subscriptions_on_user_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "name"
     t.string "email"
@@ -204,6 +219,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_21_011021) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "api_keys", "users"
   add_foreign_key "card_interpretations", "cards"
   add_foreign_key "card_readings", "cards"
   add_foreign_key "card_readings", "readings"

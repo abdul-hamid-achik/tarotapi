@@ -53,11 +53,24 @@ RSpec.configure do |config|
             scheme: 'bearer',
             bearerFormat: 'JWT',
             description: 'JWT token obtained from login or registration'
+          },
+          basicAuth: {
+            type: 'http',
+            scheme: 'basic',
+            description: 'HTTP Basic Auth using email and password'
+          },
+          apiKeyAuth: {
+            type: 'apiKey',
+            in: 'header',
+            name: 'X-API-Key',
+            description: 'API key for agent/service authentication'
           }
         }
       },
       security: [
-        { bearerAuth: [] }
+        { bearerAuth: [] },
+        { basicAuth: [] },
+        { apiKeyAuth: [] }
       ]
     }
   }

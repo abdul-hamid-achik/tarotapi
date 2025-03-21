@@ -10,6 +10,7 @@ class User < ApplicationRecord
   has_many :active_storage_attachments, as: :record
   has_many :active_storage_blobs, through: :active_storage_attachments
   has_one :reading_quota
+  has_many :api_keys, dependent: :destroy
 
   # Track created agent users
   belongs_to :created_by, class_name: "User", foreign_key: "created_by_user_id", optional: true

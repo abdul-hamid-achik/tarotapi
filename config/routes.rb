@@ -17,6 +17,13 @@ Rails.application.routes.draw do
 
   namespace :api do
     namespace :v1 do
+      # API Keys management
+      resources :api_keys, only: [:index, :show, :create] do
+        member do
+          delete :revoke
+        end
+      end
+      
       # Authentication routes
       post "auth/register", to: "auth#register"
       post "auth/login", to: "auth#login"
