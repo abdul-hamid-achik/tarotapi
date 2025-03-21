@@ -51,7 +51,7 @@ jobs:
           bundler-cache: true
       
       - name: set up pulumi
-        uses: pulumi/actions@v4
+        uses: pulumi/actions@v6
       
       - name: configure aws credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -114,7 +114,7 @@ jobs:
           bundler-cache: true
       
       - name: set up pulumi
-        uses: pulumi/actions@v4
+        uses: pulumi/actions@v6
       
       - name: configure aws credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -219,7 +219,7 @@ jobs:
           bundler-cache: true
       
       - name: set up pulumi
-        uses: pulumi/actions@v4
+        uses: pulumi/actions@v6
       
       - name: configure aws credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -294,7 +294,7 @@ jobs:
           bundler-cache: true
       
       - name: set up pulumi
-        uses: pulumi/actions@v4
+        uses: pulumi/actions@v6
       
       - name: configure aws credentials
         uses: aws-actions/configure-aws-credentials@v2
