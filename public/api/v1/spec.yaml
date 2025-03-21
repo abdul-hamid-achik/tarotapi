@@ -4,7 +4,295 @@ info:
   title: tarot api
   version: v1
   description: tarot card reading and interpretation api
+  contact:
+    name: API Support
+    url: https://github.com/yourusername/tarot_api/issues
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
 paths:
+  "/api/v1/auth/register":
+    post:
+      summary: Register a new user
+      tags:
+      - Authentication
+      parameters: []
+      responses:
+        '201':
+          description: user registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  refresh_token:
+                    type: string
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      email:
+                        type: string
+                        format: email
+                    required:
+                    - id
+                    - email
+                required:
+                - token
+                - refresh_token
+                - user
+        '422':
+          description: invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      type: string
+                required:
+                - errors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user:
+                  type: object
+                  properties:
+                    email:
+                      type: string
+                      format: email
+                    password:
+                      type: string
+                      format: password
+                    password_confirmation:
+                      type: string
+                      format: password
+                  required:
+                  - email
+                  - password
+                  - password_confirmation
+              required:
+              - user
+  "/api/v1/auth/login":
+    post:
+      summary: Login with email and password
+      tags:
+      - Authentication
+      parameters: []
+      responses:
+        '200':
+          description: login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  refresh_token:
+                    type: string
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      email:
+                        type: string
+                        format: email
+                    required:
+                    - id
+                    - email
+                required:
+                - token
+                - refresh_token
+                - user
+        '401':
+          description: invalid credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+              required:
+              - email
+              - password
+  "/api/v1/auth/refresh":
+    post:
+      summary: Refresh authentication token
+      tags:
+      - Authentication
+      parameters: []
+      responses:
+        '200':
+          description: token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                required:
+                - token
+        '401':
+          description: invalid refresh token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+              required:
+              - refresh_token
+  "/api/v1/auth/profile":
+    get:
+      summary: Get user profile
+      tags:
+      - Authentication
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: profile retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  email:
+                    type: string
+                    format: email
+                  identity_provider:
+                    type: string
+                    nullable: true
+                required:
+                - id
+                - email
+        '401':
+          description: unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+  "/api/v1/auth/agent":
+    post:
+      summary: Create an agent API user
+      tags:
+      - Authentication
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: agent created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agent_id:
+                    type: string
+                    format: uuid
+                  external_id:
+                    type: string
+                  email:
+                    type: string
+                    format: email
+                  api_token:
+                    type: string
+                required:
+                - agent_id
+                - external_id
+                - email
+                - api_token
+        '401':
+          description: unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+        '422':
+          description: invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      type: string
+                required:
+                - errors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+                password_confirmation:
+                  type: string
+                  format: password
+              required:
+              - email
+              - password
+              - password_confirmation
   "/api/v1/card_readings":
     get:
       summary: list all card readings
@@ -812,11 +1100,11 @@ paths:
                     type: string
                 required:
                 - error
-  "/api/v1/cards":
+  "/api/v1/tarot_cards":
     get:
-      summary: list all cards
+      summary: list all tarot cards
       tags:
-      - cards
+      - tarot cards
       parameters:
       - name: arcana
         in: query
@@ -897,9 +1185,9 @@ paths:
                 required:
                 - data
     post:
-      summary: create a card
+      summary: create a tarot card
       tags:
-      - cards
+      - tarot cards
       parameters: []
       responses:
         '201':
@@ -1010,7 +1298,7 @@ paths:
               - description
               - rank
               - symbols
-  "/api/v1/cards/{id}":
+  "/api/v1/tarot_cards/{id}":
     parameters:
     - name: id
       in: path
@@ -1019,9 +1307,9 @@ paths:
       schema:
         type: string
     get:
-      summary: retrieve a card
+      summary: retrieve a tarot card
       tags:
-      - cards
+      - tarot cards
       responses:
         '200':
           description: card found
@@ -1089,9 +1377,9 @@ paths:
                 required:
                 - error
     patch:
-      summary: update a card
+      summary: update a tarot card
       tags:
-      - cards
+      - tarot cards
       parameters: []
       responses:
         '200':
@@ -1207,9 +1495,9 @@ paths:
                   format: binary
                   nullable: true
     delete:
-      summary: delete a card
+      summary: delete a tarot card
       tags:
-      - cards
+      - tarot cards
       responses:
         '204':
           description: card deleted
@@ -1301,4 +1589,11 @@ servers:
       default: localhost:3000
 components:
   schemas: {}
-  securitySchemes: {}
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from login or registration
+security:
+- bearerAuth: []

@@ -105,6 +105,11 @@ namespace :dev do
     system("docker compose exec api bundle exec rails test") || abort("tests failed")
     puts "tests completed successfully"
   end
+  desc "fixes common lint issues"
+  task :fix do
+    system("docker compose exec api bundle exec rubocop --auto-correct") || abort("failed to run rubocop")
+    puts "lint issues fixed"
+  end
 
   desc "view development logs"
   task :logs do

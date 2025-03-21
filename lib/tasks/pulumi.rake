@@ -698,18 +698,18 @@ namespace :pulumi do
   end
 
   desc "store domain registration information in AWS Parameter Store for later use"
-  task :store_domain_info => :ensure_installed do
+  task store_domain_info: :ensure_installed do
     puts "This task will securely store domain registration information in AWS Parameter Store"
     puts "This information will be used when registering the domain automatically"
-    
+
     # Create parameter path
     param_path_prefix = "/tarot-api/domain/"
-    
+
     # Check if AWS CLI is configured
     unless system("aws sts get-caller-identity > /dev/null 2>&1")
       abort "Error: AWS CLI is not configured. Please run 'aws configure' first."
     end
-    
+
     # Collect registration information
     puts "Please provide contact information for domain registration:"
     print "First name: "
@@ -730,10 +730,10 @@ namespace :pulumi do
     country = STDIN.gets.chomp
     print "Postal code: "
     postal_code = STDIN.gets.chomp
-    
+
     # Store information in AWS Parameter Store (securely)
     puts "Storing information in AWS Parameter Store..."
-    
+
     params = [
       { name: "firstName", value: first_name },
       { name: "lastName", value: last_name },
@@ -745,40 +745,40 @@ namespace :pulumi do
       { name: "countryCode", value: country },
       { name: "postalCode", value: postal_code }
     ]
-    
+
     params.each do |param|
       full_path = "#{param_path_prefix}#{param[:name]}"
       system("aws ssm put-parameter --name \"#{full_path}\" --value \"#{param[:value]}\" --type SecureString --overwrite")
     end
-    
+
     puts "Domain registration information stored securely."
     puts "When you're ready to register the domain, run: rake pulumi:register_domain_auto"
   end
-  
+
   desc "automatically register domain using stored information"
-  task :register_domain_auto => :init do
+  task register_domain_auto: :init do
     puts "Registering tarotapi.cards domain using stored registration information..."
-    
+
     # Parameter path
     param_path_prefix = "/tarot-api/domain/"
-    
+
     # Check if domain is already registered
     stdout, stderr, status = Open3.capture3("aws route53domains get-domain-detail --domain-name tarotapi.cards")
-    
+
     if status.success?
       puts "Domain tarotapi.cards is already registered with AWS"
       return
     end
-    
+
     # Retrieve stored parameters
     contact_info = {}
-    
+
     params = %w[firstName lastName email phoneNumber addressLine1 city state countryCode postalCode]
-    
+
     params.each do |param|
       full_path = "#{param_path_prefix}#{param}"
       stdout, stderr, status = Open3.capture3("aws ssm get-parameter --name \"#{full_path}\" --with-decryption")
-      
+
       if status.success?
         value = JSON.parse(stdout)["Parameter"]["Value"]
         contact_info[param] = value
@@ -786,28 +786,28 @@ namespace :pulumi do
         abort "Error: Could not retrieve parameter #{param}. Please run 'rake pulumi:store_domain_info' first."
       end
     end
-    
+
     # Check domain availability
     puts "Checking domain availability..."
     stdout, stderr, status = Open3.capture3("aws route53domains check-domain-availability --domain-name tarotapi.cards")
-    
+
     if status.success?
       result = JSON.parse(stdout)
       if result["Availability"] == "AVAILABLE"
         puts "Domain tarotapi.cards is available for registration"
-        
+
         # Get domain price
         stdout, stderr, status = Open3.capture3("aws route53domains get-domain-pricing --domain-name tarotapi.cards --tld-name cards")
-        
+
         if status.success?
           pricing = JSON.parse(stdout)
           reg_price = pricing["RegistrationPrice"]["Price"]
           renewal_price = pricing["RenewalPrice"]["Price"]
           puts "Domain registration price: $#{reg_price} (renewal: $#{renewal_price})"
-          
+
           print "Do you want to proceed with automatic registration? (yes/no): "
           confirm = STDIN.gets.chomp.downcase
-          
+
           if confirm == "yes"
             # Create contact JSON
             contact = {
@@ -823,14 +823,14 @@ namespace :pulumi do
               phoneNumber: contact_info["phoneNumber"],
               email: contact_info["email"]
             }.to_json
-            
+
             # Create temporary file for contact
-            contact_file = Tempfile.new(["contact", ".json"])
+            contact_file = Tempfile.new([ "contact", ".json" ])
             contact_file.write(contact)
             contact_file.close
-            
+
             puts "Registering domain tarotapi.cards..."
-            
+
             # Register domain
             cmd = "aws route53domains register-domain --domain-name tarotapi.cards " \
                   "--duration-in-years 1 --auto-renew " \
@@ -840,13 +840,13 @@ namespace :pulumi do
                   "--privacy-protect-admin-contact " \
                   "--privacy-protect-registrant-contact " \
                   "--privacy-protect-tech-contact"
-            
+
             puts "Executing: #{cmd}"
             if system(cmd)
               puts "Domain registration initiated successfully"
               puts "Note: Domain registration can take up to 3 days to complete"
               puts "You will receive an email with confirmation"
-              
+
               # After successful registration, automatically protect the domain
               puts "Sleeping for 60 seconds to allow registration to process..."
               sleep(60)
@@ -854,7 +854,7 @@ namespace :pulumi do
             else
               puts "Error: Domain registration failed"
             end
-            
+
             # Remove temporary file
             contact_file.unlink
           else
@@ -872,28 +872,28 @@ namespace :pulumi do
   end
 
   desc "register domain fully automated using existing contact information from AWS"
-  task :register_domain_fully_automated => :init do
+  task register_domain_fully_automated: :init do
     puts "Starting fully automated domain registration for tarotapi.cards..."
-    
+
     # Check if domain is already registered
     stdout, stderr, status = Open3.capture3("aws route53domains get-domain-detail --domain-name tarotapi.cards")
-    
+
     if status.success?
       puts "Domain tarotapi.cards is already registered with AWS"
       return
     end
-    
+
     # Find existing domains owned by this AWS account
     puts "Searching for existing domains to reuse contact information..."
     stdout, stderr, status = Open3.capture3("aws route53domains list-domains")
-    
+
     if !status.success? || stdout.strip.empty? || stdout.include?("[]")
       puts "No existing domains found in your AWS account. Cannot reuse contact information."
       puts "Falling back to manual registration method..."
       Rake::Task["pulumi:register_domain"].invoke
       return
     end
-    
+
     # Parse domain list result
     begin
       domains = JSON.parse(stdout)["Domains"]
@@ -903,80 +903,80 @@ namespace :pulumi do
         Rake::Task["pulumi:register_domain"].invoke
         return
       end
-      
+
       # Use the first domain as source for contact information
       source_domain = domains.first["DomainName"]
       puts "Found existing domain: #{source_domain}"
       puts "Will reuse contact information from this domain"
-      
+
       # Get detailed information about the source domain
       stdout, stderr, status = Open3.capture3("aws route53domains get-domain-detail --domain-name #{source_domain}")
-      
+
       if !status.success?
         puts "Failed to get details for domain #{source_domain}"
         puts "Falling back to manual registration method..."
         Rake::Task["pulumi:register_domain"].invoke
         return
       end
-      
+
       domain_details = JSON.parse(stdout)
-      
+
       # Check domain availability
       puts "Checking availability of tarotapi.cards..."
       stdout, stderr, status = Open3.capture3("aws route53domains check-domain-availability --domain-name tarotapi.cards")
-      
+
       if !status.success?
         puts "Failed to check domain availability: #{stderr}"
         return
       end
-      
+
       availability_result = JSON.parse(stdout)
       if availability_result["Availability"] != "AVAILABLE"
         puts "Domain tarotapi.cards is not available for registration (status: #{availability_result["Availability"]})"
         return
       end
-      
+
       puts "Domain tarotapi.cards is available for registration"
-      
+
       # Get domain pricing
       stdout, stderr, status = Open3.capture3("aws route53domains get-domain-pricing --domain-name tarotapi.cards --tld-name cards")
-      
+
       if !status.success?
         puts "Failed to get domain pricing: #{stderr}"
         return
       end
-      
+
       pricing = JSON.parse(stdout)
       reg_price = pricing["RegistrationPrice"]["Price"]
       renewal_price = pricing["RenewalPrice"]["Price"]
       puts "Domain registration price: $#{reg_price} (renewal: $#{renewal_price})"
-      
+
       print "Do you want to proceed with automatic registration using existing contact information? (yes/no): "
       confirm = STDIN.gets.chomp.downcase
-      
+
       if confirm != "yes"
         puts "Domain registration cancelled"
         return
       end
-      
+
       # Create temporary JSON files for contact information
-      admin_contact_file = Tempfile.new(["admin-contact", ".json"])
-      registrant_contact_file = Tempfile.new(["registrant-contact", ".json"])
-      tech_contact_file = Tempfile.new(["tech-contact", ".json"])
-      
+      admin_contact_file = Tempfile.new([ "admin-contact", ".json" ])
+      registrant_contact_file = Tempfile.new([ "registrant-contact", ".json" ])
+      tech_contact_file = Tempfile.new([ "tech-contact", ".json" ])
+
       begin
         # Extract and save contact information from source domain
         admin_contact_file.write(domain_details["AdminContact"].to_json)
         registrant_contact_file.write(domain_details["RegistrantContact"].to_json)
         tech_contact_file.write(domain_details["TechContact"].to_json)
-        
+
         admin_contact_file.close
         registrant_contact_file.close
         tech_contact_file.close
-        
+
         # Register domain with existing contact information
         puts "Registering domain tarotapi.cards with contact information from #{source_domain}..."
-        
+
         cmd = "aws route53domains register-domain " \
               "--domain-name tarotapi.cards " \
               "--duration-in-years 1 " \
@@ -987,12 +987,12 @@ namespace :pulumi do
               "--privacy-protect-admin-contact " \
               "--privacy-protect-registrant-contact " \
               "--privacy-protect-tech-contact"
-        
+
         puts "Executing: #{cmd}"
         if system(cmd)
           puts "Domain registration initiated successfully"
           puts "Note: Domain registration can take up to 3 days to complete"
-          
+
           # After successful registration, automatically protect the domain
           puts "Waiting for 60 seconds to allow registration to process..."
           sleep(60)
@@ -1014,27 +1014,27 @@ namespace :pulumi do
   end
 
   desc "register alternative TLD (tarot.cards) using existing contact information"
-  task :register_alt_domain => :init do
+  task register_alt_domain: :init do
     puts "Starting registration for alternative domain tarot.cards..."
-    
+
     # Check if domain is already registered
     stdout, stderr, status = Open3.capture3("aws route53domains get-domain-detail --domain-name tarot.cards")
-    
+
     if status.success?
       puts "Domain tarot.cards is already registered with AWS"
       return
     end
-    
+
     # Find existing domains owned by this AWS account
     puts "Searching for existing domains to reuse contact information..."
     stdout, stderr, status = Open3.capture3("aws route53domains list-domains")
-    
+
     if !status.success? || stdout.strip.empty? || stdout.include?("[]")
       puts "No existing domains found in your AWS account. Cannot reuse contact information."
       puts "Please register at least one domain manually first."
       return
     end
-    
+
     # Parse domain list result
     begin
       domains = JSON.parse(stdout)["Domains"]
@@ -1043,78 +1043,78 @@ namespace :pulumi do
         puts "Please register at least one domain manually first."
         return
       end
-      
+
       # Use the first domain as source for contact information
       source_domain = domains.first["DomainName"]
       puts "Found existing domain: #{source_domain}"
       puts "Will reuse contact information from this domain"
-      
+
       # Get detailed information about the source domain
       stdout, stderr, status = Open3.capture3("aws route53domains get-domain-detail --domain-name #{source_domain}")
-      
+
       if !status.success?
         puts "Failed to get details for domain #{source_domain}"
         return
       end
-      
+
       domain_details = JSON.parse(stdout)
-      
+
       # Check domain availability
       puts "Checking availability of tarot.cards..."
       stdout, stderr, status = Open3.capture3("aws route53domains check-domain-availability --domain-name tarot.cards")
-      
+
       if !status.success?
         puts "Failed to check domain availability: #{stderr}"
         return
       end
-      
+
       availability_result = JSON.parse(stdout)
       if availability_result["Availability"] != "AVAILABLE"
         puts "Domain tarot.cards is not available for registration (status: #{availability_result["Availability"]})"
         return
       end
-      
+
       puts "Domain tarot.cards is available for registration"
-      
+
       # Get domain pricing
       stdout, stderr, status = Open3.capture3("aws route53domains get-domain-pricing --domain-name tarot.cards --tld-name cards")
-      
+
       if !status.success?
         puts "Failed to get domain pricing: #{stderr}"
         return
       end
-      
+
       pricing = JSON.parse(stdout)
       reg_price = pricing["RegistrationPrice"]["Price"]
       renewal_price = pricing["RenewalPrice"]["Price"]
       puts "Domain registration price: $#{reg_price} (renewal: $#{renewal_price})"
-      
+
       print "Do you want to proceed with automatic registration of tarot.cards? (yes/no): "
       confirm = STDIN.gets.chomp.downcase
-      
+
       if confirm != "yes"
         puts "Domain registration cancelled"
         return
       end
-      
+
       # Create temporary JSON files for contact information
-      admin_contact_file = Tempfile.new(["admin-contact", ".json"])
-      registrant_contact_file = Tempfile.new(["registrant-contact", ".json"])
-      tech_contact_file = Tempfile.new(["tech-contact", ".json"])
-      
+      admin_contact_file = Tempfile.new([ "admin-contact", ".json" ])
+      registrant_contact_file = Tempfile.new([ "registrant-contact", ".json" ])
+      tech_contact_file = Tempfile.new([ "tech-contact", ".json" ])
+
       begin
         # Extract and save contact information from source domain
         admin_contact_file.write(domain_details["AdminContact"].to_json)
         registrant_contact_file.write(domain_details["RegistrantContact"].to_json)
         tech_contact_file.write(domain_details["TechContact"].to_json)
-        
+
         admin_contact_file.close
         registrant_contact_file.close
         tech_contact_file.close
-        
+
         # Register domain with existing contact information
         puts "Registering domain tarot.cards with contact information from #{source_domain}..."
-        
+
         cmd = "aws route53domains register-domain " \
               "--domain-name tarot.cards " \
               "--duration-in-years 1 " \
@@ -1125,12 +1125,12 @@ namespace :pulumi do
               "--privacy-protect-admin-contact " \
               "--privacy-protect-registrant-contact " \
               "--privacy-protect-tech-contact"
-        
+
         puts "Executing: #{cmd}"
         if system(cmd)
           puts "Domain registration initiated successfully"
           puts "Note: Domain registration can take up to 3 days to complete"
-          
+
           # After successful registration, automatically protect the domain
           puts "Waiting for 60 seconds to allow registration to process..."
           sleep(60)
@@ -1148,9 +1148,9 @@ namespace :pulumi do
       puts "Error parsing domain information: #{e.message}"
     end
   end
-  
+
   desc "protect tarot.cards domain from accidental deletion"
-  task :protect_alt_domain => :init do
+  task protect_alt_domain: :init do
     puts "protecting tarot.cards domain from accidental deletion..."
 
     # check if domain is registered with aws

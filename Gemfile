@@ -91,6 +91,9 @@ group :development, :test do
 
   # security auditing
   gem "ruby_audit"
+
+  # OpenAPI parser
+  gem "openapi_parser"
 end
 
 # aws services

@@ -5,16 +5,30 @@ info:
   description: |
     tarot api provides access to tarot card information, spreads, and readings.
     the api follows json:api specification for consistent and predictable responses.
+
+    rate limiting:
+    - free tier: 60 requests per hour
+    - basic tier: 1000 requests per hour
+    - premium tier: 5000 requests per hour
+
+    all responses include rate limit headers:
+    - x-ratelimit-limit: maximum requests per hour
+    - x-ratelimit-remaining: remaining requests in the current window
+    - x-ratelimit-reset: unix timestamp when the rate limit resets
   version: v1
   contact:
     name: api support
-    url: https://github.com/yourusername/tarot_api
+    url: https://github.com/yourusername/tarot_api/issues
+  license:
+    name: mit
+    url: https://opensource.org/licenses/mit
 paths:
   "/api/v1/auth/register":
     post:
       summary: register a new user
       tags:
-      - authentication
+        - authentication
+      security: []  # No auth required for registration
       requestBody:
         required: true
         content:
@@ -28,17 +42,36 @@ paths:
                     email:
                       type: string
                       format: email
+                      example: user@example.com
                     password:
                       type: string
                       format: password
+                      example: SecureP@ssw0rd
                     password_confirmation:
                       type: string
                       format: password
+                      example: SecureP@ssw0rd
               required:
-              - user
+                - user
       responses:
         '201':
           description: user registered successfully
+          headers:
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+              description: The number of allowed requests in the current period
+              example: 60
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+              description: The number of remaining requests in the current period
+              example: 59
+            X-RateLimit-Reset:
+              schema:
+                type: integer
+              description: The time at which the current rate limit window resets
+              example: 1635724800
           content:
             application/json:
               schema:
@@ -46,27 +79,34 @@ paths:
                 properties:
                   token:
                     type: string
+                    example: eyJhbGciOiJIUzI1NiJ9...
                   refresh_token:
                     type: string
+                    example: def50200641f3e...
                   user:
                     type: object
                     properties:
                       id:
                         type: string
+                        format: uuid
+                        example: 123e4567-e89b-12d3-a456-426614174000
                       email:
                         type: string
+                        format: email
+                        example: user@example.com
         '422':
           description: validation error
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  errors:
-                    type: array
-                    items:
-                      type: string
-                      
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimit'
+
   "/api/v1/auth/login":
     post:
       summary: login and get authentication token
@@ -598,6 +638,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: JWT token obtained from login or registration
   schemas:
     spread:
       type: object
@@ -633,6 +674,36 @@ components:
                 type: string
               detail:
                 type: string
+    Error:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              code:
+                type: string
+              message:
+                type: string
+              detail:
+                type: string
+      example:
+        errors:
+          - code: validation_error
+            message: Validation failed
+            detail: Email has already been taken
+
+    RateLimit:
+      type: object
+      properties:
+        error:
+          type: string
+        retry_after:
+          type: integer
+      example:
+        error: Rate limit exceeded
+        retry_after: 3600
 servers:
 - url: http://localhost:3000
   description: development server

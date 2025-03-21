@@ -74,17 +74,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_21_011021) do
 
   create_table "cards", force: :cascade do |t|
     t.string "name", null: false
+    t.string "arcana", null: false
     t.string "suit"
-    t.integer "number"
+    t.string "rank"
     t.text "description"
     t.string "keywords", default: [], array: true
+    t.string "symbols", default: [], array: true
     t.string "image_url"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["arcana"], name: "index_cards_on_arcana"
     t.index ["keywords"], name: "index_cards_on_keywords", using: :gin
     t.index ["name"], name: "index_cards_on_name", unique: true
-    t.index ["suit", "number"], name: "index_cards_on_suit_and_number"
+    t.index ["suit", "rank"], name: "index_cards_on_suit_and_rank"
     t.index ["suit"], name: "index_cards_on_suit"
+    t.index ["symbols"], name: "index_cards_on_symbols", using: :gin
   end
 
   create_table "identity_providers", force: :cascade do |t|
@@ -94,6 +98,41 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_21_011021) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_identity_providers_on_name", unique: true
+  end
+
+  create_table "subscription_plans", force: :cascade do |t|
+    t.string "name", null: false
+    t.integer "price_cents", default: 0
+    t.integer "reading_limit"
+    t.string "interval", default: "month"
+    t.decimal "price", precision: 10, scale: 2, default: "0.0"
+    t.integer "monthly_readings", default: 0
+    t.integer "duration_days", default: 30
+    t.boolean "is_active", default: true
+    t.string "features", default: [], array: true
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_subscription_plans_on_is_active"
+    t.index ["name"], name: "index_subscription_plans_on_name", unique: true
+  end
+
+  create_table "subscriptions", force: :cascade do |t|
+    t.bigint "user_id"
+    t.bigint "subscription_plan_id"
+    t.string "plan_name", null: false
+    t.string "status", default: "pending"
+    t.datetime "current_period_start"
+    t.datetime "current_period_end"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["current_period_start", "current_period_end"], name: "idx_on_current_period_start_current_period_end_ef96a9f506"
+    t.index ["status"], name: "index_subscriptions_on_status"
+    t.index ["subscription_plan_id"], name: "index_subscriptions_on_subscription_plan_id"
+    t.index ["user_id", "plan_name", "status"], name: "index_subscriptions_on_user_id_and_plan_name_and_status"
+    t.index ["user_id", "status"], name: "index_subscriptions_on_user_id_and_status"
+    t.index ["user_id"], name: "index_subscriptions_on_user_id"
   end
 
   create_table "reading_quotas", force: :cascade do |t|
@@ -131,30 +170,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_21_011021) do
     t.text "description"
     t.integer "num_cards", null: false
     t.bigint "user_id"
+    t.jsonb "positions", default: {}
+    t.boolean "is_public", default: false
+    t.boolean "is_system", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["num_cards"], name: "index_spreads_on_num_cards"
-    t.index ["user_id", "name"], name: "index_spreads_on_user_id_and_name"
+    t.index ["is_public"], name: "index_spreads_on_is_public"
+    t.index ["is_system"], name: "index_spreads_on_is_system"
+    t.index ["name"], name: "index_spreads_on_name"
+    t.index ["positions"], name: "index_spreads_on_positions", using: :gin
     t.index ["user_id"], name: "index_spreads_on_user_id"
   end
 
-  create_table "subscriptions", force: :cascade do |t|
-    t.bigint "user_id"
-    t.string "plan_name", null: false
-    t.string "status", default: "pending"
-    t.datetime "current_period_start"
-    t.datetime "current_period_end"
-    t.jsonb "metadata", default: {}
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["current_period_start", "current_period_end"], name: "idx_on_current_period_start_current_period_end_ef96a9f506"
-    t.index ["status"], name: "index_subscriptions_on_status"
-    t.index ["user_id", "plan_name", "status"], name: "index_subscriptions_on_user_id_and_plan_name_and_status"
-    t.index ["user_id", "status"], name: "index_subscriptions_on_user_id_and_status"
-    t.index ["user_id"], name: "index_subscriptions_on_user_id"
-  end
-
   create_table "users", force: :cascade do |t|
+    t.string "name"
     t.string "email"
     t.string "password_digest"
     t.string "external_id"
@@ -163,15 +192,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_21_011021) do
     t.string "refresh_token"
     t.datetime "token_expiry"
     t.integer "readings_count", default: 0
+    t.boolean "admin", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["created_by_user_id"], name: "index_users_on_created_by_user_id"
-    t.index ["email", "identity_provider_id"], name: "index_users_on_email_and_identity_provider_id", where: "(email IS NOT NULL)"
     t.index ["email"], name: "index_users_on_email", unique: true, where: "(email IS NOT NULL)"
     t.index ["external_id", "identity_provider_id"], name: "index_users_on_external_id_and_identity_provider_id", unique: true
     t.index ["identity_provider_id"], name: "index_users_on_identity_provider_id"
-    t.index ["refresh_token"], name: "index_users_on_refresh_token", where: "(refresh_token IS NOT NULL)"
-    t.index ["token_expiry"], name: "index_users_on_token_expiry"
+    t.index ["name"], name: "index_users_on_name"
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
@@ -183,6 +211,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_21_011021) do
   add_foreign_key "readings", "spreads"
   add_foreign_key "readings", "users"
   add_foreign_key "spreads", "users"
+  add_foreign_key "subscriptions", "subscription_plans"
   add_foreign_key "subscriptions", "users"
   add_foreign_key "users", "identity_providers"
   add_foreign_key "users", "users", column: "created_by_user_id"

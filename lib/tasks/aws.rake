@@ -165,23 +165,23 @@ namespace :aws do
   end
 
   desc "Ensure AWS region is set correctly across all configurations"
-  task :set_region, [:region] => :environment do |t, args|
+  task :set_region, [ :region ] => :environment do |t, args|
     region = args[:region] || "us-west-2"
-    
+
     puts "Setting AWS region to #{region} across all configurations..."
-    
+
     # Check if AWS CLI is installed
     unless system("which aws > /dev/null 2>&1")
       abort "Error: AWS CLI is not installed. Please install it first."
     end
-    
+
     # 1. Set AWS CLI config
     puts "Setting AWS CLI default region..."
     system("aws configure set region #{region}")
-    
+
     # 2. Update Pulumi configs
     puts "Updating Pulumi configuration files..."
-    
+
     # Find all Pulumi.yaml files
     pulumi_files = Dir.glob(File.join(Rails.root, "infra", "pulumi", "**", "Pulumi.yaml"))
     pulumi_files.each do |file|
@@ -194,7 +194,7 @@ namespace :aws do
         puts "  ⚠️ No aws:region found in #{file}"
       end
     end
-    
+
     # 3. Update config.yaml file
     config_file = File.join(Rails.root, "infra", "pulumi", "config.yaml")
     if File.exist?(config_file)
@@ -207,21 +207,21 @@ namespace :aws do
         puts "  ⚠️ No region setting found in #{config_file}"
       end
     end
-    
+
     # 4. Update GitHub workflow files
     puts "Updating GitHub workflow files..."
-    
+
     workflow_files = Dir.glob(File.join(Rails.root, ".github", "workflows", "*.yml"))
     workflow_files.each do |file|
       content = File.read(file)
-      
+
       # Update aws-region parameter
       if content.match?(/aws-region:/)
         updated_content = content.gsub(/aws-region:.*/, "aws-region: #{region}  # AWS region")
         File.write(file, updated_content)
         puts "  ✅ Updated aws-region in #{file}"
       end
-      
+
       # Update environment variables
       if content.match?(/AWS_REGION=/)
         updated_content = content.gsub(/AWS_REGION=.*/, "AWS_REGION=#{region}")
@@ -230,56 +230,56 @@ namespace :aws do
         puts "  ✅ Updated AWS_REGION in #{file}"
       end
     end
-    
+
     # 5. Set environment variables for the current process
-    ENV['AWS_REGION'] = region
-    ENV['AWS_DEFAULT_REGION'] = region
-    
+    ENV["AWS_REGION"] = region
+    ENV["AWS_DEFAULT_REGION"] = region
+
     puts "AWS region has been set to #{region} in all configurations."
     puts "To verify the changes, run: rake aws:check_region"
   end
-  
+
   desc "Check current AWS region configuration"
-  task :check_region => :environment do
+  task check_region: :environment do
     puts "Checking AWS region configuration..."
-    
+
     # Check if AWS CLI is installed
     unless system("which aws > /dev/null 2>&1")
       abort "Error: AWS CLI is not installed. Please install it first."
     end
-    
+
     # 1. Check AWS CLI config
     region = `aws configure get region`.strip
     puts "AWS CLI default region: #{region.empty? ? 'not set' : region}"
-    
+
     # 2. Check environment variables
     puts "AWS_REGION environment variable: #{ENV['AWS_REGION'] || 'not set'}"
     puts "AWS_DEFAULT_REGION environment variable: #{ENV['AWS_DEFAULT_REGION'] || 'not set'}"
-    
+
     # 3. Check Pulumi configurations
     puts "\nPulumi configuration files:"
     pulumi_files = Dir.glob(File.join(Rails.root, "infra", "pulumi", "**", "Pulumi.yaml"))
     pulumi_files.each do |file|
       content = File.read(file)
       region_match = content.match(/aws:region: (.*)/)
-      pulumi_region = region_match ? region_match[1].strip : 'not found'
+      pulumi_region = region_match ? region_match[1].strip : "not found"
       puts "  #{File.basename(file)}: #{pulumi_region}"
     end
-    
+
     # 4. Check GitHub workflow files
     puts "\nGitHub workflow files:"
     workflow_files = Dir.glob(File.join(Rails.root, ".github", "workflows", "*.yml"))
     workflow_files.each do |file|
       content = File.read(file)
       region_match = content.match(/aws-region: (.*)/)
-      workflow_region = region_match ? region_match[1].strip : 'not found'
+      workflow_region = region_match ? region_match[1].strip : "not found"
       puts "  #{File.basename(file)}: #{workflow_region}"
     end
-    
+
     # 5. Check AWS account access
     puts "\nVerifying AWS account access:"
     system("aws sts get-caller-identity")
-    
+
     puts "\nTo set a consistent region across all configurations, run: rake aws:set_region[region_name]"
     puts "Example: rake aws:set_region[us-west-2]"
   end

@@ -338,26 +338,26 @@ namespace :deploy do
 
   # Add a task to deploy a new environment with domain setup
   desc "Create a new environment with infrastructure and domain setup"
-  task :new_environment, [:environment, :domain] => [:environment] do |t, args|
+  task :new_environment, [ :environment, :domain ] => [ :environment ] do |t, args|
     env = args[:environment] || abort("Environment name is required")
     domain = args[:domain] || "tarotapi.cards"
-    
+
     # Validate environment
     unless %w[production staging preview].include?(env)
       abort "Invalid environment. Choose one of: production, staging, preview"
     end
-    
+
     puts "Setting up #{env} environment with domain #{domain}..."
-    
+
     # Step 1: Check if domain is registered
     puts "Checking domain registration..."
     domain_registered = system("aws route53domains get-domain-detail --domain-name #{domain} > /dev/null 2>&1")
-    
+
     unless domain_registered
       puts "Domain #{domain} is not registered. You need to register it first."
       puts "Would you like to register the domain now? (yes/no)"
       response = STDIN.gets.chomp.downcase
-      
+
       if response == "yes"
         # Try to use the fully automated method first
         Rake::Task["pulumi:register_domain_fully_automated"].invoke
@@ -367,29 +367,29 @@ namespace :deploy do
     else
       puts "Domain #{domain} is already registered."
     end
-    
+
     # Step 2: Setup infrastructure using Pulumi
     puts "Deploying infrastructure for #{env} environment..."
     Rake::Task["pulumi:deploy"].invoke(env)
-    
+
     # Step 3: Configure SSL certificate
     puts "Setting up SSL certificate..."
-    
+
     # This happens automatically in the Pulumi deployment, but we should check
     # if it's completed successfully
     puts "Checking SSL certificate validation..."
     Rake::Task["pulumi:info"].invoke(env)
-    
+
     # Step 4: Protect domain if production
     if env == "production"
       puts "Setting up domain protection..."
       Rake::Task["pulumi:protect_domain"].invoke
     end
-    
+
     # Step 5: Deploy application
     puts "Deploying application to #{env} environment..."
     Rake::Task["deploy:#{env}"].invoke
-    
+
     # Output completion message with domain information
     puts ""
     puts "==========================================================="

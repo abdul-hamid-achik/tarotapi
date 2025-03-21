@@ -289,6 +289,7 @@ GEM
     oj (3.16.10)
       bigdecimal (>= 3.0)
       ostruct (>= 0.2)
+    openapi_parser (2.2.4)
     ostruct (0.6.1)
     parallel (1.26.3)
     parser (3.3.7.1)
@@ -530,6 +531,7 @@ DEPENDENCIES
   langchain
   llama_cpp
   oj
+  openapi_parser
   pg (~> 1.1)
   puma (>= 5.0)
   rack-attack

@@ -246,7 +246,14 @@ if ActiveRecord::Base.connection.table_exists?("reading_quotas")
   default_limit = ENV.fetch("DEFAULT_FREE_TIER_LIMIT", 100).to_i
   reset_date = Date.today.end_of_month + 1.day
 
-  User.where(subscription_status: [ nil, "inactive" ]).find_each do |user|
+  # Only query subscription_status if the column exists
+  if ActiveRecord::Base.connection.column_exists?(:users, :subscription_status)
+    users_needing_quota = User.where(subscription_status: [ nil, "inactive" ])
+  else
+    users_needing_quota = User.all
+  end
+
+  users_needing_quota.find_each do |user|
     ReadingQuota.find_or_create_by(user_id: user.id) do |quota|
       quota.monthly_limit = default_limit
       quota.readings_this_month = 0

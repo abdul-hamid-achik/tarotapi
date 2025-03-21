@@ -20,7 +20,15 @@ RSpec.configure do |config|
       info: {
         title: 'tarot api',
         version: 'v1',
-        description: 'tarot card reading and interpretation api'
+        description: 'tarot card reading and interpretation api',
+        contact: {
+          name: 'API Support',
+          url: 'https://github.com/yourusername/tarot_api/issues'
+        },
+        license: {
+          name: 'MIT',
+          url: 'https://opensource.org/licenses/MIT'
+        }
       },
       paths: {},
       servers: [
@@ -39,8 +47,18 @@ RSpec.configure do |config|
       ],
       components: {
         schemas: {},
-        securitySchemes: {}
-      }
+        securitySchemes: {
+          bearerAuth: {
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT',
+            description: 'JWT token obtained from login or registration'
+          }
+        }
+      },
+      security: [
+        { bearerAuth: [] }
+      ]
     }
   }
 

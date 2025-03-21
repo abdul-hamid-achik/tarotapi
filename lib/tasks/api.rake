@@ -130,6 +130,157 @@ namespace :api do
     end
   end
 
+  desc "validate openapi specification"
+  task validate_spec: :environment do
+    require "yaml"
+    require "openapi_parser"
+
+    puts "validating openapi specification..."
+
+    spec_file = Rails.root.join("public/api/v1/spec.yaml")
+    unless File.exist?(spec_file)
+      puts "generating api documentation first..."
+      # Use system call to avoid loading the current Rails environment
+      if system("RAILS_ENV=test bundle exec rake rswag:specs:swaggerize")
+        puts "api documentation generated successfully"
+      else
+        puts "failed to generate api documentation"
+        exit 1
+      end
+    end
+
+    begin
+      spec = YAML.load_file(spec_file)
+      # Configure the parser to be more lenient
+      config = OpenAPIParser::Config.new(
+        strict_reference_validation: false,
+        validate_required_security_schemes: false
+      )
+      OpenAPIParser.parse(spec, config)
+
+      # Additional custom validations
+      validate_security_schemes(spec)
+      validate_error_responses(spec)
+      validate_rate_limiting(spec)
+      validate_examples(spec)
+
+      puts "openapi specification is valid!"
+    rescue OpenAPIParser::OpenAPIError => e
+      puts "openapi specification validation failed:"
+      puts e.message
+      exit 1
+    end
+  end
+
+  # Standalone task that doesn't require the Rails environment
+  desc "validate openapi specification without requiring the database"
+  task :validate_spec_standalone do
+    require "yaml"
+    require "openapi_parser"
+
+    puts "validating openapi specification (standalone mode)..."
+
+    spec_file = File.join(Dir.pwd, "public/api/v1/spec.yaml")
+    unless File.exist?(spec_file)
+      puts "spec file not found at #{spec_file}"
+      exit 1
+    end
+
+    begin
+      spec = YAML.load_file(spec_file)
+      # Configure the parser to be more lenient
+      config = OpenAPIParser::Config.new(
+        strict_reference_validation: false,
+        validate_required_security_schemes: false
+      )
+      OpenAPIParser.parse(spec, config)
+
+      puts "openapi specification is valid!"
+    rescue OpenAPIParser::OpenAPIError => e
+      puts "openapi specification validation failed:"
+      puts e.message
+      exit 1
+    end
+  end
+
+  private
+
+  def validate_security_schemes(spec)
+    # Skip if we don't have security schemes defined yet
+    return unless spec["security"] && spec["security"].any? { |s| s.key?("bearerAuth") }
+
+    unless spec["components"] &&
+           spec["components"]["securitySchemes"] &&
+           spec["components"]["securitySchemes"]["bearerAuth"]
+      raise "Missing security scheme definition for bearerAuth"
+    end
+  end
+
+  def validate_error_responses(spec)
+    spec["paths"].each do |path, methods|
+      methods.each do |method, details|
+        next if %w[parameters summary tags description].include?(method)
+
+        responses = details["responses"] || {}
+        unless responses.keys.any? { |k| k.start_with?("4") }
+          raise "Endpoint #{method.upcase} #{path} is missing error responses"
+        end
+      end
+    end
+  end
+
+  def validate_rate_limiting(spec)
+    unless spec["info"]["description"].include?("rate limit")
+      raise "API description should include rate limiting information"
+    end
+
+    spec["paths"].each do |path, methods|
+      methods.each do |method, details|
+        next if %w[parameters summary tags description].include?(method)
+
+        success_responses = (details["responses"] || {}).select { |k, _| k.start_with?("2") }
+        success_responses.each do |_, response|
+          unless response["headers"] &&
+                 response["headers"]["X-RateLimit-Limit"] &&
+                 response["headers"]["X-RateLimit-Remaining"] &&
+                 response["headers"]["X-RateLimit-Reset"]
+            raise "Success response for #{method.upcase} #{path} is missing rate limit headers"
+          end
+        end
+      end
+    end
+  end
+
+  def validate_examples(spec)
+    spec["paths"].each do |path, methods|
+      methods.each do |method, details|
+        next if %w[parameters summary tags description].include?(method)
+
+        if details["requestBody"]
+          schema = details["requestBody"]["content"]["application/json"]["schema"]
+          validate_schema_examples(schema, "Request body for #{method.upcase} #{path}")
+        end
+
+        (details["responses"] || {}).each do |code, response|
+          next unless response["content"]
+          schema = response["content"]["application/json"]["schema"]
+          validate_schema_examples(schema, "Response #{code} for #{method.upcase} #{path}")
+        end
+      end
+    end
+  end
+
+  def validate_schema_examples(schema, context)
+    return if schema["$ref"] # Skip referenced schemas
+
+    if schema["type"] == "object"
+      unless schema["example"] || schema["examples"] ||
+             (schema["properties"] && schema["properties"].values.all? { |p| p["example"] })
+        raise "#{context} is missing examples"
+      end
+    end
+  end
+
   namespace :version do
     desc "create a new api version"
     task :create, [ :version ] => :environment do |_, args|

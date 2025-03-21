@@ -5,9 +5,35 @@ Rswag::Api.configure do |c|
   # that it's configured to generate files in the same folder
   c.openapi_root = Rails.root.to_s + "/public/api"
 
-  # Inject a lambda function to alter the returned Swagger prior to serialization
-  # The function will have access to the rack env for the current request
-  # For example, you could leverage this to dynamically assign the "host" property
-  #
-  # c.swagger_filter = lambda { |swagger, env| swagger['host'] = env['HTTP_HOST'] }
+  # Inject security schemes and other OpenAPI enhancements
+  c.swagger_filter = lambda { |swagger, env|
+    # Ensure components section exists
+    swagger["components"] ||= {}
+
+    # Add security schemes
+    swagger["components"]["securitySchemes"] = {
+      "bearerAuth" => {
+        "type" => "http",
+        "scheme" => "bearer",
+        "bearerFormat" => "JWT",
+        "description" => "JWT token obtained from login or registration"
+      }
+    }
+
+    # Add global security requirement
+    swagger["security"] ||= [ { "bearerAuth" => [] } ]
+
+    # Ensure info section has proper contact and license info
+    swagger["info"]["contact"] ||= {
+      "name" => "API Support",
+      "url" => "https://github.com/yourusername/tarot_api/issues"
+    }
+
+    swagger["info"]["license"] ||= {
+      "name" => "MIT",
+      "url" => "https://opensource.org/licenses/MIT"
+    }
+
+    swagger
+  }
 end
