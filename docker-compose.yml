@@ -41,6 +41,16 @@ services:
             - node_modules/
             - .git/
             - tmp/
+            - vendor/
+            - coverage/
+            - log/
+            - storage/
+            - public/assets/
+            - public/packs/
+            - .bundle/
+            - .docker/
+            - .yarn/
+            - swagger/
         - action: rebuild
           path: Gemfile
         - action: rebuild

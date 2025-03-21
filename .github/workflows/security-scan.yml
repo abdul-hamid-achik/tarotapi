@@ -35,11 +35,40 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake git curl wget libssl-dev
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.4'
-          bundler-cache: true
+          bundler-cache: false  # Don't use cache initially as we need to install llama.cpp first
+
+      - name: Install llama.cpp
+        id: llama_cpp
+        run: |
+          LLAMA_CPP_DIR=$HOME/.llama_cpp
+          echo "LLAMA_CPP_DIR=$LLAMA_CPP_DIR" >> $GITHUB_ENV
+          
+          mkdir -p $LLAMA_CPP_DIR
+          git clone https://github.com/ggml-org/llama.cpp.git $LLAMA_CPP_DIR
+          
+          cd $LLAMA_CPP_DIR
+          mkdir -p build
+          cd build
+          cmake -DBUILD_SHARED_LIBS=ON -DLLAMA_NATIVE=OFF -DLLAMA_F16C=OFF -DLLAMA_FMA=OFF -DCMAKE_C_FLAGS="-O3" -DCMAKE_CXX_FLAGS="-O3" ..
+          cmake --build . --config Release -j$(nproc)
+          
+          echo "LIBRARY_PATH=$LLAMA_CPP_DIR/build" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=$LLAMA_CPP_DIR/build" >> $GITHUB_ENV 
+          echo "CPATH=$LLAMA_CPP_DIR" >> $GITHUB_ENV
+
+      - name: Bundle install
+        run: |
+          bundle config set --local path 'vendor/bundle'
+          bundle install --jobs 4 --retry 3
 
       - name: Run Brakeman
         run: bundle exec brakeman -A --no-pager

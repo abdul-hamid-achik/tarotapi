@@ -24,33 +24,63 @@ jobs:
             echo "run_full_ci=true" >> $GITHUB_OUTPUT
             echo "Running full CI suite"
           fi
+  
+  build_image:
+    name: Build CI image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build and cache CI image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.ci
+          target: ci
+          tags: tarot-api-ci:latest
+          outputs: type=docker,dest=/tmp/tarot-api-ci.tar
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Upload image as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tarot-api-ci-image
+          path: /tmp/tarot-api-ci.tar
+          retention-days: 1
 
   lint:
     name: code quality
     runs-on: ubuntu-latest
+    needs: build_image
     # Always run linting even for Dependabot PRs
     steps:
-      - name: checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: set up ruby
-        uses: ruby/setup-ruby@v1
+      
+      - name: Download CI image
+        uses: actions/download-artifact@v4
         with:
-          ruby-version: '3.4'
-          bundler-cache: true
-
-      - name: lint code with rubocop
-        run: bundle exec rake test:lint:rubocop
-
-      - name: run brakeman security scan
-        run: bundle exec rake test:lint:brakeman
-
-      - name: run ruby audit
-        run: bundle exec rake test:lint:ruby_audit
+          name: tarot-api-ci-image
+          path: /tmp
+      
+      - name: Load CI image
+        run: docker load --input /tmp/tarot-api-ci.tar
+      
+      - name: Lint code
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/app \
+            tarot-api-ci:latest \
+            bundle exec rake test:lint:rubocop test:lint:brakeman test:lint:ruby_audit
 
   test:
     name: tests
-    needs: check_ci_requirements
+    needs: [check_ci_requirements, build_image]
     # Only run tests if not a Dependabot PR or explicitly needed
     if: needs.check_ci_requirements.outputs.run_full_ci == 'true'
     runs-on: ubuntu-latest
@@ -71,71 +101,39 @@ jobs:
         options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
-      - name: install system dependencies
-        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y build-essential git libpq-dev libyaml-dev pkg-config
-
-      - name: checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: set up ruby
-        uses: ruby/setup-ruby@v1
+      
+      - name: Download CI image
+        uses: actions/download-artifact@v4
         with:
-          ruby-version: '3.4'
-          bundler-cache: true
-
-      - name: setup test database
-        env:
-          RAILS_ENV: test
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432
-          REDIS_URL: redis://localhost:6379/0
-        run: bundle exec rake test:prepare
-
-      - name: verify test coverage
-        env:
-          RAILS_ENV: test
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432
-          REDIS_URL: redis://localhost:6379/0
-        run: bundle exec rake test:verify_coverage
-
-      - name: run model tests
-        env:
-          RAILS_ENV: test
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432
-          REDIS_URL: redis://localhost:6379/0
-        run: bundle exec rake test:models:all
-
-      - name: run service tests
-        env:
-          RAILS_ENV: test
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432
-          REDIS_URL: redis://localhost:6379/0
-        run: bundle exec rake test:services:all
-
-      - name: run feature tests
-        env:
-          RAILS_ENV: test
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432
-          REDIS_URL: redis://localhost:6379/0
-        run: bundle exec rake test:features:all
-
-      - name: run subscription tests
-        env:
-          RAILS_ENV: test
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432
-          REDIS_URL: redis://localhost:6379/0
-          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_KEY }}
-        run: bundle exec rake test:subscriptions:all
-
-      - name: generate coverage report
-        env:
-          RAILS_ENV: test
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432
-          REDIS_URL: redis://localhost:6379/0
-          COVERAGE: "true"
-          SIMPLECOV_FORMATTER: "SimpleCov::Formatter::HTMLFormatter"
-        run: bundle exec rake test:coverage
-
-      - name: upload coverage reports
+          name: tarot-api-ci-image
+          path: /tmp
+      
+      - name: Load CI image
+        run: docker load --input /tmp/tarot-api-ci.tar
+      
+      - name: Run tests
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/app \
+            --network host \
+            -e RAILS_ENV=test \
+            -e DATABASE_URL=postgres://postgres:postgres@localhost:5432 \
+            -e REDIS_URL=redis://localhost:6379/0 \
+            -e STRIPE_SECRET_KEY=${{ secrets.STRIPE_TEST_KEY }} \
+            -e COVERAGE=true \
+            -e SIMPLECOV_FORMATTER=SimpleCov::Formatter::HTMLFormatter \
+            tarot-api-ci:latest \
+            sh -c "bundle exec rake test:prepare && \
+                  bundle exec rake test:verify_coverage && \
+                  bundle exec rake test:models:all && \
+                  bundle exec rake test:services:all && \
+                  bundle exec rake test:features:all && \
+                  bundle exec rake test:subscriptions:all && \
+                  bundle exec rake test:coverage"
+      
+      - name: Upload coverage reports
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
@@ -144,7 +142,7 @@ jobs:
 
   docs:
     name: api documentation
-    needs: check_ci_requirements
+    needs: [check_ci_requirements, build_image]
     # Only run docs generation if not a Dependabot PR or explicitly needed
     if: needs.check_ci_requirements.outputs.run_full_ci == 'true'
     runs-on: ubuntu-latest
@@ -159,34 +157,31 @@ jobs:
         options: --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=3
 
     steps:
-      - name: checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: set up ruby
-        uses: ruby/setup-ruby@v1
+      
+      - name: Download CI image
+        uses: actions/download-artifact@v4
         with:
-          ruby-version: '3.4'
-          bundler-cache: true
-
-      - name: setup test database
-        env:
-          RAILS_ENV: test
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432
-        run: bundle exec rake test:prepare
-
-      - name: generate api documentation
-        env:
-          RAILS_ENV: test
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432
-        run: bundle exec rake api:docs
-
-      - name: validate api against schema
-        env:
-          RAILS_ENV: test
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432
-        run: bundle exec rake api:validate
-
-      - name: upload api documentation
+          name: tarot-api-ci-image
+          path: /tmp
+      
+      - name: Load CI image
+        run: docker load --input /tmp/tarot-api-ci.tar
+      
+      - name: Generate API docs
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/app \
+            --network host \
+            -e RAILS_ENV=test \
+            -e DATABASE_URL=postgres://postgres:postgres@localhost:5432 \
+            tarot-api-ci:latest \
+            sh -c "bundle exec rake test:prepare && \
+                  bundle exec rake api:docs && \
+                  bundle exec rake api:validate"
+      
+      - name: Upload API documentation
         uses: actions/upload-artifact@v4
         with:
           name: api-docs

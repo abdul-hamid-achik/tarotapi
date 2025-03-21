@@ -15,4 +15,4 @@ config:
   enable-cost-saving:
     default: true
   repo-url:
-    default: https://github.com/yourusername/tarot_api 
+    default: https://github.com/abdul-hamid-achik/tarot-api 

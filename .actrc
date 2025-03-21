@@ -1,0 +1,9 @@
+-P ubuntu-latest=ruby:3.4-slim-bookworm
+--container-architecture linux/amd64
+--action-offline-mode
+--use-new-action-cache
+--secret-file .env
+--bind ~/.cache/act:/root/.cache
+--env BUILDKIT_PROGRESS=plain
+--env DOCKER_BUILDKIT=1
+--env COMPOSE_BAKE=1

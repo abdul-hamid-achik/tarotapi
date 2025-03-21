@@ -518,3 +518,40 @@ this project uses a hybrid deployment approach:
    - scalable and reliable container management
 
 this hybrid approach gives us the best of both worlds - robust infrastructure management and flexible container deployments.
+
+## Running CI Locally
+
+This project includes rake tasks to run GitHub Actions workflows locally using [act](https://github.com/nektos/act).
+
+### Prerequisites
+
+1. Install [act](https://github.com/nektos/act#installation)
+2. Docker installed and running
+
+### Available CI Commands
+
+```bash
+# Run linting (fastest)
+rake ci:lint
+
+# Run tests
+rake ci:test
+
+# Generate API docs
+rake ci:docs
+
+# Run all CI jobs
+rake ci
+```
+
+These commands will:
+1. Build a custom Docker image with Ruby and llama.cpp pre-installed
+2. Run the GitHub Actions workflow locally using that image
+3. Use bind mounts for caching to improve performance on subsequent runs
+
+### Troubleshooting
+
+If you encounter any issues:
+- Check Docker is running
+- Make sure `.env` file exists with required environment variables
+- You may need to run `docker system prune` to clear out old images
