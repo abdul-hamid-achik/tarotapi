@@ -47,7 +47,7 @@ bundle exec rake dev:setup
 bundle exec rake dev
 
 # Visit the API at http://localhost:3000
-# API documentation at http://localhost:3000/api-docs
+# API documentation at http://localhost:3000/docs
 ```
 
 ## Overview
@@ -485,225 +485,106 @@ curl -X GET \
 | Command | Description |
 |---------|-------------|
 | `bundle exec rake dev:setup` | Set up development environment |
-| `bundle exec rake dev` | Start development server |
-| `bundle exec rake dev:console` | Open Rails console |
-| `bundle exec rake dev:test` | Run tests |
-| `bundle exec rake dev:logs` | View logs |
-| `bundle exec rake dev:rebuild` | Rebuild all containers |
+| `bundle exec rake dev`
 
-### Data Management
+### Complete Environment Setup Sequence
 
-| Command | Description |
-|---------|-------------|
-| `bundle exec rake data:backup` | Backup database |
-| `bundle exec rake data:restore[filename]` | Restore from backup |
-| `bundle exec rake data:analyze` | Analyze database performance |
+1. Initialize Pulumi and create state bucket:
+   ```bash
+   bundle exec rake pulumi:init
+   ```
 
-## Contributing
+2. Set up secrets for each environment:
+   ```bash
+   bundle exec rake pulumi:set_secrets[staging]
+   bundle exec rake pulumi:set_secrets[production]
+   ```
 
-Contributions are welcome! Here's how you can help:
+3. Deploy infrastructure:
+   ```bash
+   # Deploy staging first
+   bundle exec rake pulumi:deploy[staging]
+   
+   # Once staging is verified, deploy production
+   bundle exec rake pulumi:deploy[production]
+   ```
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b my-new-feature`
-3. Make your changes and commit: `git commit -am 'Add some feature'`
-4. Push to the branch: `git push origin my-new-feature`
-5. Submit a pull request
+4. Deploy application:
+   ```bash
+   bundle exec rake deploy:app:staging
+   bundle exec rake deploy:app:production
+   ```
 
-### Development Workflow
+### Local Workflow Testing with Act
 
-We use GitHub flow for development:
-- Feature branches should be created from `main`
-- Pull requests should target `main`
-- After review and approval, PRs will be merged to `main`
-- Releases are created by tagging the `main` branch
+We use [Act](https://github.com/nektos/act) to test GitHub Actions workflows locally. The project includes a pre-configured `.actrc` file and helper rake tasks.
 
-## Troubleshooting
+1. Install Act:
+   ```bash
+   # macOS
+   brew install act
+   ```
 
-### Common Issues
+2. Run CI checks:
+   ```bash
+   # Build CI image first (required once)
+   bundle exec rake ci:build_image
 
-#### Docker Container Won't Start
-```
-ERROR: for api  Cannot start service api: network XXXXX not found
-```
-**Solution**: Run `docker network prune` and then try again with `rake dev:setup`.
+   # Run all checks
+   bundle exec rake ci:all
 
-#### Database Connection Issues
-```
-PG::ConnectionBad: could not connect to server
-```
-**Solution**: Ensure Postgres is running with `docker compose ps postgres`. If not, restart with `docker compose start postgres`.
+   # Run specific checks
+   bundle exec rake ci:lint
+   bundle exec rake ci:test
+   bundle exec rake ci:docs
+   ```
 
-#### API Key Authentication Fails
-**Solution**: Verify the API key is active in the database and hasn't expired. Create a new key with:
-```ruby
-bundle exec rails console
-ApiKey.create(user: User.find_by(email: "abdulachik@icloud.com"), name: "New Key")
-```
+Common issues:
+- Docker errors: Check Docker is running
+- Memory issues: Increase Docker memory limit
+- Database errors: Ensure PostgreSQL is running on port 5432
+- Redis errors: Ensure Redis is running on port 6379
 
-### Security Best Practices
+For more details, see the [Act documentation](https://github.com/nektos/act#readme).
 
-1. Never commit `.env` files or sensitive credentials
-2. Use environment variables for all sensitive configuration
-3. Regularly rotate API keys and access tokens
-4. Keep dependencies up to date with `bundle update`
-5. Run security scans regularly with `bundle exec rake ci:security`
+### Preview Environment Management
 
-## License
+Preview environments are temporary deployments for feature testing:
 
-this project is licensed under the mit license - see the license file for details.
+- **Creation Methods**:
+  1. Branch naming: Create a branch with `preview-*` prefix
+  2. PR tagging: Add `preview` label to a PR
+  3. Manual trigger: Use GitHub Actions workflow dispatch
 
-## API Features
+- **Access Control**:
+  - Only repository owner (@abdul-hamid-achik) can create preview environments
+  - Dependabot PRs do not create preview environments
+  - Preview URLs follow pattern: `https://preview-{feature-name}.tarotapi.cards`
 
-### Streaming Responses
+- **Lifecycle**:
+  - Created automatically on PR open or preview tag
+  - Updated on PR synchronize
+  - Cleaned up automatically:
+    - When PR is closed
+    - After 3 days of inactivity
+    - When preview tag is removed
+  - Can be recreated using `bundle exec rake deploy:preview[name]`
 
-Paid subscribers can receive streaming responses for tarot reading interpretations:
+### Deployment Verification
 
-```bash
-# Request a streaming interpretation
-curl -X POST \
-  "https://api.tarotapi.cards/api/v1/readings/[reading_id]/interpret_streaming" \
-  -H "Authorization: Bearer [token]" \
-  -H "Content-Type: application/json" \
-  -H "X-Stream-Response: true" \
-  -d '{"birth_date": "1990-01-01", "name": "John Doe"}'
-```
+After deploying to any environment, verify the setup:
 
-The streaming response will be delivered as Server-Sent Events (SSE), with each chunk of the interpretation arriving as it's generated. This provides a more interactive and engaging experience for users.
+1. Check infrastructure status:
+   ```bash
+   bundle exec rake deploy:status[environment]
+   ```
 
-**Requirements:**
-- User must have an active paid subscription
-- The `X-Stream-Response: true` header must be set
-- Client must handle SSE format responses
+2. Verify domain and SSL setup:
+   ```bash
+   bundle exec rake deploy:verify_ssl[environment]
+   ```
 
-**Client-side implementation:**
-```javascript
-// Connect to SSE stream
-const eventSource = new EventSource('/api/v1/readings/[reading_id]/interpret_streaming');
-
-// Handle incoming interpretation chunks
-eventSource.addEventListener('interpretation', (event) => {
-  const data = JSON.parse(event.data);
-  console.log(data.chunk); // Append this chunk to your UI
-});
-
-// Handle connection open
-eventSource.onopen = () => {
-  console.log('Connection to stream established');
-};
-
-// Handle errors
-eventSource.onerror = (error) => {
-  console.error('EventSource error:', error);
-  eventSource.close();
-};
-
-// Close the connection when done
-function closeConnection() {
-  eventSource.close();
-}
-```
-
-For free users or when streaming is not requested, the standard interpretation endpoint is used:
-```bash
-# Standard interpretation request
-curl -X POST \
-  "https://api.tarotapi.cards/api/v1/readings/[reading_id]/interpret" \
-  -H "Authorization: Bearer [token]" \
-  -H "Content-Type: application/json" \
-  -d '{"birth_date": "1990-01-01", "name": "John Doe"}'
-```
-
-## Domain and Environment Setup
-
-the project is configured to deploy to the following domains:
-
-- **production**: https://tarotapi.cards
-- **staging**: https://staging.tarotapi.cards
-- **preview environments**: https://preview-[feature-name].tarotapi.cards
-
-this domain structure is configured through:
-
-1. **github environments**: defined in `.github/environments/` directory
-2. **pulumi infrastructure**: configured in `infra/pulumi/dns.yaml`
-3. **github actions**: workflows in `.github/workflows/`
-
-## Github Secrets Setup
-
-for the pulumi infrastructure and github actions workflows to function correctly, you'll need to set up the following secrets in your github repository:
-
-### required github secrets
-
-| secret name | description | example |
-|-------------|-------------|---------|
-| `AWS_ACCESS_KEY_ID` | your aws access key with permissions to create resources | `AKIA1234567890ABCDEF` |
-| `AWS_SECRET_ACCESS_KEY` | your aws secret key | `abcdefghijklmnopqrstuvwxyz1234567890/abc` |
-| `RAILS_MASTER_KEY` | rails master key (from config/master.key) | `1234567890abcdef1234567890abcdef` |
-| `DB_PASSWORD` | password for the database (will be set in rds) | `strongpassword123` |
-| `OPENAI_API_KEY` | your openai api key for tarot readings | `sk-1234567890abcdefghijklmnopqrstuvwxyz` |
-| `PULUMI_ACCESS_TOKEN` | pulumi access token for state management | `pul-1234567890abcdefghijklmnopqrst` |
-| `SECURITY_EMAIL` | security notifications email | `abdulachik@icloud.com` |
-
-### how to set up github secrets
-
-1. go to your github repository
-2. click on "settings" tab
-3. in the left sidebar, click on "secrets and variables" then "actions"
-4. click on "new repository secret"
-5. enter the name and value for each secret listed above
-6. click "add secret"
-
-## Deployment Approach
-
-this project uses a hybrid deployment approach:
-
-1. **infrastructure**: provisioned using pulumi for infrastructure-as-code
-   - aws vpc, subnets, security groups, etc.
-   - rds database instances
-   - elasticache redis instances
-   - s3 buckets and cdn
-   - dns configuration
-
-2. **application**: deployed using kamal for container orchestration
-   - blue-green deployments for zero downtime
-   - automatic ssl certificate provisioning
-   - health checks and monitoring
-   - scalable and reliable container management
-
-this hybrid approach gives us the best of both worlds - robust infrastructure management and flexible container deployments.
-
-## Running CI Locally
-
-This project includes rake tasks to run GitHub Actions workflows locally using [act](https://github.com/nektos/act).
-
-### Prerequisites
-
-1. Install [act](https://github.com/nektos/act#installation)
-2. Docker installed and running
-
-### Available CI Commands
-
-```bash
-# Run linting (fastest)
-rake ci:lint
-
-# Run tests
-rake ci:test
-
-# Generate API docs
-rake ci:docs
-
-# Run all CI jobs
-rake ci
-```
-
-These commands will:
-1. Build a custom Docker image with Ruby and llama.cpp pre-installed
-2. Run the GitHub Actions workflow locally using that image
-3. Use bind mounts for caching to improve performance on subsequent runs
-
-### Troubleshooting
-
-If you encounter any issues:
-- Check Docker is running
-- Make sure `.env` file exists with required environment variables
-- You may need to run `docker system prune` to clear out old images
+3. Monitor application logs:
+   ```bash
+   bundle exec rake deploy:logs[environment]
+   ```

@@ -1,12 +1,98 @@
 namespace :api do
-  desc "generate api documentation"
+  desc "generate and validate api documentation"
   task :docs do
     puts "generating api documentation..."
 
     if system("RAILS_ENV=test bundle exec rake rswag:specs:swaggerize")
       puts "api documentation generated successfully"
+      
+      # Validate the generated documentation
+      Rake::Task["api:validate"].invoke
     else
       puts "failed to generate api documentation"
+      exit 1
+    end
+  end
+
+  desc "validate openapi specification"
+  task :validate do
+    require "yaml"
+    require "openapi_parser"
+
+    puts "validating openapi specification..."
+
+    spec_file = Rails.root.join("public/api/v1/spec.yaml")
+    
+    begin
+      spec = YAML.load_file(spec_file)
+      config = OpenAPIParser::Config.new(
+        strict_reference_validation: false,
+        validate_required_security_schemes: false
+      )
+      OpenAPIParser.parse(spec, config)
+
+      # Additional custom validations
+      validate_security_schemes(spec)
+      validate_error_responses(spec)
+      validate_rate_limiting(spec)
+      validate_examples(spec)
+
+      puts "openapi specification is valid!"
+    rescue OpenAPIParser::OpenAPIError => e
+      puts "openapi specification validation failed:"
+      puts e.message
+      exit 1
+    end
+  end
+
+  desc "setup redoc ui for api documentation"
+  task :setup_redoc do
+    puts "setting up redoc ui for api documentation..."
+
+    # Create public/docs directory if it doesn't exist
+    FileUtils.mkdir_p("public/docs")
+
+    # Create index.html with ReDoc
+    redoc_html = <<~HTML
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>tarot api documentation</title>
+          <meta charset="utf-8"/>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
+          <style>
+            body {
+              margin: 0;
+              padding: 0;
+            }
+          </style>
+        </head>
+        <body>
+          <redoc spec-url="/api/v1/spec.yaml" theme="dark"></redoc>
+          <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+        </body>
+      </html>
+    HTML
+
+    File.write("public/docs/index.html", redoc_html)
+
+    puts "redoc ui setup complete"
+    puts "documentation will be available at /docs"
+  end
+
+  desc "run integration tests against a deployed api"
+  task :test, [ :base_url ] => :environment do |_, args|
+    base_url = args[:base_url] || ENV["API_BASE_URL"] || "http://localhost:3000"
+
+    puts "running integration tests against #{base_url}..."
+
+    ENV["API_BASE_URL"] = base_url
+
+    if system("bundle exec cucumber features/api")
+      puts "integration tests passed"
+    else
+      puts "integration tests failed"
       exit 1
     end
   end
@@ -38,78 +124,6 @@ namespace :api do
     end
   end
 
-  desc "setup redoc ui for api documentation"
-  task :setup_redoc do
-    puts "setting up redoc ui for api documentation..."
-
-    # Create public/docs directory if it doesn't exist
-    FileUtils.mkdir_p("public/docs")
-
-    # Create index.html with ReDoc
-    redoc_html = <<~HTML
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>tarot api documentation</title>
-          <meta charset="utf-8"/>
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
-          <style>
-            body {
-              margin: 0;
-              padding: 0;
-            }
-          </style>
-        </head>
-        <body>
-          <redoc spec-url="/api-docs/v1/spec.yaml"></redoc>
-          <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
-        </body>
-      </html>
-    HTML
-
-    File.write("public/docs/index.html", redoc_html)
-
-    puts "redoc ui setup complete"
-    puts "add the following to your routes.rb to serve the docs:"
-    puts
-    puts "  # redoc api documentation"
-    puts '  get "/api-docs", to: redirect("/docs/index.html")'
-    puts
-    puts "ensure your spec files are available at /api-docs/v1/spec.yaml"
-  end
-
-  desc "run integration tests against a deployed api"
-  task :test_integration, [ :base_url ] => :environment do |_, args|
-    base_url = args[:base_url] || ENV["API_BASE_URL"] || "http://localhost:3000"
-
-    puts "running integration tests against #{base_url}..."
-
-    # Set environment variable for tests
-    ENV["API_BASE_URL"] = base_url
-
-    # Run the integration tests
-    if system("bundle exec cucumber features/api")
-      puts "integration tests passed"
-    else
-      puts "integration tests failed"
-      exit 1
-    end
-  end
-
-  desc "validate api responses against api schema"
-  task :validate do
-    puts "validating api responses against api schema..."
-
-    # Run the RSpec tests with RSwag
-    if system("bundle exec rake rswag:specs:swaggerize")
-      puts "api schema validation passed"
-    else
-      puts "api schema validation failed"
-      exit 1
-    end
-  end
-
   desc "generate api documentation for specific version"
   task :generate_docs, [ :version ] => :environment do |_, args|
     version = args[:version] || "v1"
@@ -126,48 +140,6 @@ namespace :api do
       puts "  - #{spec_dir}"
     else
       puts "failed to generate api documentation for version #{version}"
-      exit 1
-    end
-  end
-
-  desc "validate openapi specification"
-  task validate_spec: :environment do
-    require "yaml"
-    require "openapi_parser"
-
-    puts "validating openapi specification..."
-
-    spec_file = Rails.root.join("public/api/v1/spec.yaml")
-    unless File.exist?(spec_file)
-      puts "generating api documentation first..."
-      # Use system call to avoid loading the current Rails environment
-      if system("RAILS_ENV=test bundle exec rake rswag:specs:swaggerize")
-        puts "api documentation generated successfully"
-      else
-        puts "failed to generate api documentation"
-        exit 1
-      end
-    end
-
-    begin
-      spec = YAML.load_file(spec_file)
-      # Configure the parser to be more lenient
-      config = OpenAPIParser::Config.new(
-        strict_reference_validation: false,
-        validate_required_security_schemes: false
-      )
-      OpenAPIParser.parse(spec, config)
-
-      # Additional custom validations
-      validate_security_schemes(spec)
-      validate_error_responses(spec)
-      validate_rate_limiting(spec)
-      validate_examples(spec)
-
-      puts "openapi specification is valid!"
-    rescue OpenAPIParser::OpenAPIError => e
-      puts "openapi specification validation failed:"
-      puts e.message
       exit 1
     end
   end
@@ -203,10 +175,73 @@ namespace :api do
     end
   end
 
+  namespace :version do
+    desc "create a new api version"
+    task :create, [ :version ] => :environment do |_, args|
+      version = args[:version] || abort("version required (e.g., v2)")
+
+      puts "creating new api version: #{version}..."
+
+      # Create directory structure
+      controllers_dir = "app/controllers/api/#{version}"
+      serializers_dir = "app/serializers/api/#{version}"
+      spec_dir = "public/api/#{version}"
+      test_dir = "spec/requests/api/#{version}"
+      route_file = "config/routes/api_#{version}.rb"
+
+      # Create directories
+      FileUtils.mkdir_p(controllers_dir)
+      FileUtils.mkdir_p(serializers_dir)
+      FileUtils.mkdir_p(spec_dir)
+      FileUtils.mkdir_p(test_dir)
+
+      # Create base controller
+      base_controller = File.join(controllers_dir, "base_controller.rb")
+      File.open(base_controller, "w") do |f|
+        f.puts "class Api::#{version.upcase}::BaseController < ApplicationController"
+        f.puts "  # Add version-specific controller logic here"
+        f.puts "end"
+      end
+
+      # Create routes file
+      File.open(route_file, "w") do |f|
+        f.puts "# API #{version.upcase} routes"
+        f.puts "namespace :api do"
+        f.puts "  namespace :#{version} do"
+        f.puts "    # Add your #{version} routes here"
+        f.puts "  end"
+        f.puts "end"
+      end
+
+      # Update main routes file to include new version
+      routes_file = "config/routes.rb"
+      routes_content = File.read(routes_file)
+
+      unless routes_content.include?("draw \"api_#{version}\"")
+        if routes_content =~ /(Rails\.application\.routes\.draw do.+?end)/m
+          match = $1
+          updated_routes = match.sub(/(\s*end\s*\Z)/, "  draw \"api_#{version}\"\n\\1")
+          File.write(routes_file, routes_content.sub(match, updated_routes))
+        end
+      end
+
+      puts "created new api version: #{version}"
+      puts "directories created:"
+      puts "  - #{controllers_dir}"
+      puts "  - #{serializers_dir}"
+      puts "  - #{spec_dir}"
+      puts "  - #{test_dir}"
+      puts "files created:"
+      puts "  - #{base_controller}"
+      puts "  - #{route_file}"
+      puts "updated:"
+      puts "  - #{routes_file}"
+    end
+  end
+
   private
 
   def validate_security_schemes(spec)
-    # Skip if we don't have security schemes defined yet
     return unless spec["security"] && spec["security"].any? { |s| s.key?("bearerAuth") }
 
     unless spec["components"] &&
@@ -278,73 +313,6 @@ namespace :api do
              (schema["properties"] && schema["properties"].values.all? { |p| p["example"] })
         raise "#{context} is missing examples"
       end
-    end
-  end
-
-  namespace :version do
-    desc "create a new api version"
-    task :create, [ :version ] => :environment do |_, args|
-      version = args[:version] || abort("version required (e.g., v2)")
-
-      puts "creating new api version: #{version}..."
-
-      # Create directory structure
-      controllers_dir = "app/controllers/api/#{version}"
-      serializers_dir = "app/serializers/api/#{version}"
-      spec_dir = "public/api/#{version}"
-      test_dir = "spec/requests/api/#{version}"
-      route_file = "config/routes/api_#{version}.rb"
-
-      # Create directories
-      FileUtils.mkdir_p(controllers_dir)
-      FileUtils.mkdir_p(serializers_dir)
-      FileUtils.mkdir_p(spec_dir)
-      FileUtils.mkdir_p(test_dir)
-
-      # Create base controller
-      base_controller = File.join(controllers_dir, "base_controller.rb")
-      File.open(base_controller, "w") do |f|
-        f.puts "class Api::#{version.upcase}::BaseController < ApplicationController"
-        f.puts "  # Add version-specific controller logic here"
-        f.puts "end"
-      end
-
-      # Create routes file
-      File.open(route_file, "w") do |f|
-        f.puts "# API #{version.upcase} routes"
-        f.puts "namespace :api do"
-        f.puts "  namespace :#{version} do"
-        f.puts "    # Add your #{version} routes here"
-        f.puts "  end"
-        f.puts "end"
-      end
-
-      # Update main routes file to include new version
-      routes_file = "config/routes.rb"
-      routes_content = File.read(routes_file)
-
-      unless routes_content.include?("draw \"api_#{version}\"")
-        # Find the Rails.application.routes.draw block
-        if routes_content =~ /(Rails\.application\.routes\.draw do.+?end)/m
-          match = $1
-          # Add the new version to the routes
-          updated_routes = match.sub(/(\s*end\s*\Z)/, "  draw \"api_#{version}\"\n\\1")
-          # Replace the old routes block with the updated one
-          File.write(routes_file, routes_content.sub(match, updated_routes))
-        end
-      end
-
-      puts "created new api version: #{version}"
-      puts "directories created:"
-      puts "  - #{controllers_dir}"
-      puts "  - #{serializers_dir}"
-      puts "  - #{spec_dir}"
-      puts "  - #{test_dir}"
-      puts "files created:"
-      puts "  - #{base_controller}"
-      puts "  - #{route_file}"
-      puts "updated:"
-      puts "  - #{routes_file}"
     end
   end
 end

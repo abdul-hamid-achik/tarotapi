@@ -1,3 +1,5 @@
+require "rainbow"
+
 namespace :ci do
   desc "Build the CI Docker image"
   task :build_image do

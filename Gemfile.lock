@@ -537,6 +537,7 @@ DEPENDENCIES
   rack-attack
   rack-cors
   rails (~> 8.0.2)
+  rainbow (~> 3.1)
   redis (>= 4.0.1)
   redoc-rails
   rspec-rails
