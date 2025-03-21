@@ -69,13 +69,13 @@ class ReadingService
       accumulated_interpretation += chunk
       yield chunk if block_given?
     end
-    
+
     # If we have a saved reading and interpretation was successful, save it
     if reading.present? && !accumulated_interpretation.empty?
       # Save interpretation to reading
       reading.update(interpretation: accumulated_interpretation)
     end
-    
+
     accumulated_interpretation
   end
 
@@ -90,13 +90,13 @@ class ReadingService
     )
 
     interpretation = service.interpret(readings)
-    
+
     # If we have a saved reading session and interpretation was successful, save it
     if (spread.present? || reading.present?) && readings.any?
       # Save interpretation to reading if it exists
       reading.update(interpretation: interpretation) if reading.present?
     end
-    
+
     interpretation
   end
 
@@ -199,7 +199,7 @@ class ReadingService
 
   def get_reading_context
     context = {}
-    
+
     # Add spread name if available
     if spread.present?
       context[:spread_name] = spread.name
@@ -208,24 +208,24 @@ class ReadingService
     else
       context[:spread_name] = "Custom Spread"
     end
-    
+
     # Add question if available
     question = reading&.question
     context[:question] = question if question.present?
-    
+
     # Add astrological context if available
     if params[:astrological_context].present?
       context[:astrological_context] = params[:astrological_context]
     elsif reading&.astrological_context.present?
       context[:astrological_context] = reading.astrological_context
     end
-    
+
     # Add birth date if available for numerological insights
     context[:birth_date] = birth_date if birth_date.present?
-    
+
     # Add name if available
     context[:name] = name if name.present?
-    
+
     context
   end
 end

@@ -208,6 +208,9 @@ GEM
       pp (>= 0.6.0)
       rdoc (>= 4.0.0)
       reline (>= 0.4.2)
+    jbuilder (2.13.0)
+      actionview (>= 5.0.0)
+      activesupport (>= 5.0.0)
     jmespath (1.6.2)
     json (2.10.2)
     json-schema (5.1.1)
@@ -231,6 +234,7 @@ GEM
     langchain (0.1.0)
     language_server-protocol (3.17.0.4)
     lint_roller (1.1.0)
+    llama_cpp (0.19.0)
     logger (1.6.6)
     loofah (2.24.0)
       crass (~> 1.0.2)
@@ -421,6 +425,12 @@ GEM
     securerandom (0.4.1)
     shoulda-matchers (6.4.0)
       activesupport (>= 5.2.0)
+    sidekiq (8.0.1)
+      connection_pool (>= 2.5.0)
+      json (>= 2.9.0)
+      logger (>= 1.6.2)
+      rack (>= 3.1.0)
+      redis-client (>= 0.23.2)
     simplecov (0.22.0)
       docile (~> 1.1)
       simplecov-html (~> 0.11)
@@ -513,17 +523,19 @@ DEPENDENCIES
   dotenv-rails (~> 3.1.7)
   factory_bot_rails
   faker
+  jbuilder
   jsonapi-serializer
   jwt
   kamal
   langchain
+  llama_cpp
   oj
   pg (~> 1.1)
   puma (>= 5.0)
   rack-attack
   rack-cors
   rails (~> 8.0.2)
-  redis
+  redis (>= 4.0.1)
   redoc-rails
   rspec-rails
   rswag-api
@@ -532,6 +544,7 @@ DEPENDENCIES
   ruby-openai (~> 6.3.0)
   ruby_audit
   shoulda-matchers
+  sidekiq
   simplecov
   solid_cable
   solid_cache

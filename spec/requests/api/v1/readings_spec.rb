@@ -178,4 +178,4 @@ RSpec.describe "Api::V1::Readings", type: :request do
   def json_response
     JSON.parse(response.body)
   end
-end 
+end

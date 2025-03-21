@@ -7,7 +7,7 @@ class CreateReadingQuotas < ActiveRecord::Migration[7.1]
       t.datetime :reset_date, null: false
       t.timestamps
     end
-    
+
     add_index :reading_quotas, :reset_date
   end
-end 
+end

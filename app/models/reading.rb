@@ -94,4 +94,4 @@ class Reading < ApplicationRecord
 
     self.name = generated_name
   end
-end 
+end

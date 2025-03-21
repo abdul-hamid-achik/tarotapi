@@ -5,7 +5,7 @@ When('i submit valid registration details') do
     password_confirmation: 'secure_password123',
     username: 'test_user'
   }
-  
+
   post '/api/v1/users', user: @user_params
 end
 
@@ -53,7 +53,7 @@ When('i update my profile information') do
     username: 'updated_username',
     email: 'updated@example.com'
   }
-  
+
   put '/api/v1/users/profile', user: @updated_params
 end
 
@@ -138,4 +138,4 @@ Then('i should receive a list of my past readings') do
   expect(json_response['data']).to be_an(Array)
   expect(json_response['data'].length).to eq(@readings.length)
   expect(json_response['data'].first['type']).to eq('reading_session')
-end 
+end

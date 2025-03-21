@@ -59,19 +59,19 @@ class Api::V1::AuthController < ApplicationController
       render json: { error: "unauthorized" }, status: :unauthorized
     end
   end
-  
+
   # Create or manage agent API credentials
   def create_agent
     # Ensure the current user has permission to create agents
     user = User.from_token(request.headers["Authorization"]&.split(" ")&.last)
-    
+
     unless user && user.registered?
       return render json: { error: "unauthorized" }, status: :unauthorized
     end
-    
+
     # Generate an external_id for the agent
     external_id = SecureRandom.hex(12)
-    
+
     # Create the agent user
     agent_user = User.create!(
       identity_provider: IdentityProvider.agent,
@@ -81,11 +81,11 @@ class Api::V1::AuthController < ApplicationController
       password_confirmation: params[:password_confirmation],
       created_by_user_id: user.id
     )
-    
+
     if agent_user.persisted?
       # Generate a long-lived token for API access
       api_token = agent_user.generate_token(expiry: 1.year.from_now)
-      
+
       render json: {
         agent_id: agent_user.id,
         external_id: external_id,

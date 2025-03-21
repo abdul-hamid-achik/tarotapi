@@ -41,21 +41,21 @@ namespace :aws do
     # Verify credentials work
     if system("aws sts get-caller-identity > /dev/null 2>&1")
       puts "aws credentials verified successfully"
-      
+
       # Get current region
       region = `aws configure get region`.strip
       puts "using aws region: #{region}"
-      
+
       # Check if the region is available
       if region == "mx-central-1"
         region_check = system("aws ec2 describe-regions --region-names mx-central-1 > /dev/null 2>&1")
-        unless region_check
-          puts "warning: mx-central-1 region might not be available for your account"
-          puts "consider using a different region by setting AWS_DEFAULT_REGION"
+        if !region_check
+          puts "warning: region mx-central-1 might not be available yet"
+          puts "if you encounter issues, switch to a different region like us-east-1"
         end
       end
     else
-      abort "aws credentials are invalid"
+      abort "aws credentials verification failed\nplease check your credentials and try again"
     end
   end
 
@@ -63,7 +63,7 @@ namespace :aws do
   task check_region: :verify_credentials do
     region = `aws configure get region`.strip
     puts "checking aws region #{region} capabilities..."
-    
+
     # Check service availability
     services = {
       "ec2" => "describe-instances",
@@ -75,27 +75,27 @@ namespace :aws do
       "budgets" => "describe-budgets",
       "lambda" => "list-functions"
     }
-    
+
     puts "\nservice availability in #{region}:"
-    
+
     services.each do |service, command|
       available = system("aws #{service} #{command} > /dev/null 2>&1")
       status = available ? "✅" : "❌"
       puts "#{status} #{service}"
     end
-    
+
     # If using Mexico region, check additional details
     if region == "mx-central-1"
       puts "\n#{region} region details:"
       puts "- availability zones: 3 (mx-central-1a, mx-central-1b, mx-central-1c)"
       puts "- data residency: supports data sovereignty requirements in Mexico"
       puts "- latency: improved performance for users in Mexico and Latin America"
-      
+
       # Check availability zones
       puts "\navailability zones:"
       system("aws ec2 describe-availability-zones --region #{region} | grep ZoneName")
     end
-    
+
     puts "\nregion capability check complete"
   end
 
@@ -143,148 +143,24 @@ namespace :aws do
     end
   end
 
-  desc "setup infrastructure using kamal"
-  task setup_infra: :verify_credentials do
-    # Check if kamal is installed
-    unless system("which kamal > /dev/null 2>&1")
-      abort "kamal is not installed\nplease install kamal with: gem install kamal"
-    end
+  desc "create a cloudfront distribution for the s3 bucket"
+  task :create_cdn, [ :bucket_name ] => :verify_credentials do |t, args|
+    bucket_name = args[:bucket_name]
+    abort "bucket name is required" unless bucket_name
 
-    # Check if required environment variables are set
-    required_envs = {
-      "rails_master_key" => "RAILS_MASTER_KEY"
-    }
+    puts "creating cloudfront distribution for bucket: #{bucket_name}"
 
-    missing_envs = required_envs.select { |_, env_var| ENV[env_var].to_s.empty? }
-
-    unless missing_envs.empty?
-      puts "missing required environment variables:"
-      missing_envs.each { |name, env_var| puts "  - #{env_var} (#{name})" }
-      abort "please set the required environment variables and try again"
-    end
-
-    # Determine environment
-    deploy_env = ENV["DEPLOY_ENV"] || "staging"
-    app_name = ENV["APP_NAME"] || "tarotapi"
-    
-    puts "setting up infrastructure for #{app_name} in #{deploy_env} environment..."
-    
-    # Build and push Docker image
-    puts "building and pushing docker image..."
-    unless system("kamal build")
-      abort "failed to build docker image"
-    end
-    
-    unless system("kamal push")
-      abort "failed to push docker image"
-    end
-    
-    # Deploy the application with blue-green strategy
-    puts "deploying application with blue-green deployment strategy..."
-    
-    deploy_cmd = "kamal deploy"
-    deploy_cmd += " -d #{deploy_env}" if deploy_env
-    
-    unless system(deploy_cmd)
-      abort "deployment failed"
-    end
-    
-    puts "deployed #{app_name} to #{deploy_env} successfully"
-    
-    # Show deployment status
-    system("kamal status -d #{deploy_env}")
+    # This should now use Pulumi instead
+    puts "this task has been moved to Pulumi infrastructure code"
+    puts "run 'bundle exec rake deploy:infra:staging' to provision infrastructure including CDN"
   end
 
-  desc "provision servers for kamal deployment"
-  task provision_servers: :verify_credentials do
-    # Check if required environment variables are set
-    required_envs = {
-      "ssh_key_path" => "SSH_KEY_PATH"
-    }
+  desc "cleanup orphaned aws resources"
+  task cleanup: :verify_credentials do
+    puts "cleaning up orphaned aws resources..."
 
-    missing_envs = required_envs.select { |_, env_var| ENV[env_var].to_s.empty? }
-
-    unless missing_envs.empty?
-      puts "missing required environment variables:"
-      missing_envs.each { |name, env_var| puts "  - #{env_var} (#{name})" }
-      abort "please set the required environment variables and try again"
-    end
-
-    # Determine environment
-    deploy_env = ENV["DEPLOY_ENV"] || "staging"
-    
-    puts "provisioning servers for #{deploy_env} environment..."
-    
-    # Run Kamal setup to prepare servers
-    setup_cmd = "kamal setup"
-    setup_cmd += " -d #{deploy_env}" if deploy_env
-    
-    unless system(setup_cmd)
-      abort "server setup failed"
-    end
-    
-    puts "servers provisioned successfully for #{deploy_env} environment"
-  end
-
-  desc "create preview environment"
-  task create_preview: :verify_credentials do
-    # Check if required environment variables are set
-    required_envs = {
-      "rails_master_key" => "RAILS_MASTER_KEY",
-      "branch_or_preview_name" => "BRANCH_NAME"
-    }
-
-    missing_envs = required_envs.select { |_, env_var| ENV[env_var].to_s.empty? }
-
-    unless missing_envs.empty?
-      puts "missing required environment variables:"
-      missing_envs.each { |name, env_var| puts "  - #{env_var} (#{name})" }
-      abort "please set the required environment variables and try again"
-    end
-
-    branch_name = ENV["BRANCH_NAME"]
-    sanitized_branch = branch_name.gsub(/[^a-zA-Z0-9]/, '-')
-    preview_name = "preview-#{sanitized_branch}"
-    
-    puts "creating preview environment for branch: #{branch_name}"
-    puts "preview name: #{preview_name}"
-    
-    # Build and push Docker image
-    puts "building and pushing docker image..."
-    unless system("kamal build")
-      abort "failed to build docker image"
-    end
-    
-    unless system("kamal push")
-      abort "failed to push docker image"
-    end
-    
-    # Deploy with preview destination
-    deploy_cmd = "kamal deploy -d #{preview_name}"
-    
-    unless system(deploy_cmd)
-      abort "preview deployment failed"
-    end
-    
-    puts "preview environment deployed successfully: #{preview_name}"
-    system("kamal status -d #{preview_name}")
-  end
-
-  desc "clean up preview environment"
-  task cleanup_preview: :verify_credentials do
-    preview_name = ENV["PREVIEW_NAME"]
-    
-    if preview_name.nil? || preview_name.empty?
-      abort "PREVIEW_NAME environment variable must be set"
-    end
-    
-    puts "cleaning up preview environment: #{preview_name}"
-    
-    # Destroy the preview environment
-    unless system("kamal destroy -d #{preview_name}")
-      abort "failed to destroy preview environment"
-    end
-    
-    puts "preview environment cleaned up successfully: #{preview_name}"
+    # This task is now better handled by Pulumi's state tracking
+    puts "recommended: use pulumi to manage resources and avoid orphaned resources"
+    puts "run 'bundle exec rake pulumi:deploy' with the appropriate environment to ensure resources are tracked"
   end
 end

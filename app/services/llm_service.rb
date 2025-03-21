@@ -19,7 +19,7 @@ class LlmService
 
     cache_key = generate_cache_key(prompt_context)
     cached_response = Rails.cache.read(cache_key)
-    
+
     if cached_response
       chunks = cached_response.scan(/.{1,20}/m)
       chunks.each do |chunk|
@@ -28,11 +28,11 @@ class LlmService
       end
       return cached_response
     end
-    
+
     prompt = PromptService.get_prompt(PromptService::PROMPT_TYPES[:tarot_reading], prompt_context)
-    
+
     full_response = ""
-    
+
     @client.chat(
       parameters: {
         model: "gpt-4-turbo-preview",
@@ -51,9 +51,9 @@ class LlmService
         yield content if block_given?
       end
     end
-    
+
     Rails.cache.write(cache_key, full_response, expires_in: 24.hours)
-    
+
     full_response
   end
 
@@ -72,7 +72,7 @@ class LlmService
     cache_key = generate_cache_key(prompt_context)
     cached_response = Rails.cache.read(cache_key)
     return cached_response if cached_response
-    
+
     prompt = PromptService.get_prompt(PromptService::PROMPT_TYPES[:tarot_reading], prompt_context)
 
     response = @client.chat(
@@ -88,9 +88,9 @@ class LlmService
     )
 
     content = response.dig("choices", 0, "message", "content")
-    
+
     Rails.cache.write(cache_key, content, expires_in: 24.hours) if content
-    
+
     content
   end
 
@@ -292,7 +292,7 @@ class LlmService
   end
 
   private
-  
+
   def generate_cache_key(context)
     context_string = context.to_json
     digest = Digest::MD5.hexdigest(context_string)

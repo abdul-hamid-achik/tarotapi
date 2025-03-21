@@ -52,14 +52,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Ruby
+      - name: set up ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.4'
           bundler-cache: true
-
-      - name: Install Kamal
+      
+      - name: set up pulumi
+        uses: pulumi/actions@v4
+      
+      - name: set up kamal
         run: gem install kamal
+      
+      - name: configure aws credentials
+        run: |
+          echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" >> $GITHUB_ENV
+          echo "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION" >> $GITHUB_ENV
+          echo "RAILS_MASTER_KEY=$RAILS_MASTER_KEY" >> $GITHUB_ENV
+          echo "KAMAL_REGISTRY_USERNAME=$KAMAL_REGISTRY_USERNAME" >> $GITHUB_ENV
+          echo "KAMAL_REGISTRY_PASSWORD=$KAMAL_REGISTRY_PASSWORD" >> $GITHUB_ENV
+          echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
+          echo "DOMAIN_NAME=$DOMAIN_NAME" >> $GITHUB_ENV
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
       
       - name: Create preview environment name
         run: |
@@ -67,13 +81,13 @@ jobs:
           PREVIEW_NAME="preview-${SANITIZED_BRANCH}"
           echo "PREVIEW_NAME=$PREVIEW_NAME" >> $GITHUB_ENV
       
-      - name: Build and push Docker image
+      - name: deploy preview environment
         run: |
-          kamal build
-          kamal push
-      
-      - name: Deploy preview environment
-        run: kamal deploy -d $PREVIEW_NAME
+          # First deploy infrastructure with Pulumi
+          bundle exec rake deploy:infra:preview[${{ steps.extract_name.outputs.preview_name }}]
+          
+          # Then deploy app with Kamal
+          bundle exec rake deploy:app:preview[${{ steps.extract_name.outputs.preview_name }}]
 
       - name: Comment on PR
         uses: actions/github-script@v7
@@ -108,14 +122,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Ruby
+      - name: set up ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.4'
           bundler-cache: true
-
-      - name: Install Kamal
+      
+      - name: set up pulumi
+        uses: pulumi/actions@v4
+      
+      - name: set up kamal
         run: gem install kamal
+      
+      - name: configure aws credentials
+        run: |
+          echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" >> $GITHUB_ENV
+          echo "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION" >> $GITHUB_ENV
+          echo "RAILS_MASTER_KEY=$RAILS_MASTER_KEY" >> $GITHUB_ENV
+          echo "KAMAL_REGISTRY_USERNAME=$KAMAL_REGISTRY_USERNAME" >> $GITHUB_ENV
+          echo "KAMAL_REGISTRY_PASSWORD=$KAMAL_REGISTRY_PASSWORD" >> $GITHUB_ENV
+          echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
+          echo "DOMAIN_NAME=$DOMAIN_NAME" >> $GITHUB_ENV
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
       
       - name: Set preview name
         run: |
@@ -123,13 +151,13 @@ jobs:
           PREVIEW_NAME="${TAG_NAME}"
           echo "PREVIEW_NAME=$PREVIEW_NAME" >> $GITHUB_ENV
       
-      - name: Build and push Docker image
+      - name: deploy preview environment
         run: |
-          kamal build
-          kamal push
-      
-      - name: Deploy preview environment
-        run: kamal deploy -d $PREVIEW_NAME
+          # First deploy infrastructure with Pulumi
+          bundle exec rake deploy:infra:preview[${{ steps.extract_name.outputs.preview_name }}]
+          
+          # Then deploy app with Kamal
+          bundle exec rake deploy:app:preview[${{ steps.extract_name.outputs.preview_name }}]
 
       - name: Notify Slack
         uses: 8398a7/action-slack@v3
@@ -166,14 +194,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Ruby
+      - name: set up ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.4'
           bundler-cache: true
-
-      - name: Install Kamal
+      
+      - name: set up pulumi
+        uses: pulumi/actions@v4
+      
+      - name: set up kamal
         run: gem install kamal
+      
+      - name: configure aws credentials
+        run: |
+          echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" >> $GITHUB_ENV
+          echo "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION" >> $GITHUB_ENV
+          echo "RAILS_MASTER_KEY=$RAILS_MASTER_KEY" >> $GITHUB_ENV
+          echo "KAMAL_REGISTRY_USERNAME=$KAMAL_REGISTRY_USERNAME" >> $GITHUB_ENV
+          echo "KAMAL_REGISTRY_PASSWORD=$KAMAL_REGISTRY_PASSWORD" >> $GITHUB_ENV
+          echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
+          echo "DOMAIN_NAME=$DOMAIN_NAME" >> $GITHUB_ENV
+          echo "ENV_NAME=$ENV_NAME" >> $GITHUB_ENV
       
       - name: Validate environment name
         run: |
@@ -185,13 +227,13 @@ jobs:
           PREVIEW_NAME="preview-${ENV_NAME}"
           echo "PREVIEW_NAME=$PREVIEW_NAME" >> $GITHUB_ENV
       
-      - name: Build and push Docker image
+      - name: deploy preview environment
         run: |
-          kamal build
-          kamal push
-      
-      - name: Deploy preview environment
-        run: kamal deploy -d $PREVIEW_NAME
+          # First deploy infrastructure with Pulumi
+          bundle exec rake deploy:infra:preview[${{ steps.extract_name.outputs.preview_name }}]
+          
+          # Then deploy app with Kamal
+          bundle exec rake deploy:app:preview[${{ steps.extract_name.outputs.preview_name }}]
 
       - name: Notify Slack
         uses: 8398a7/action-slack@v3

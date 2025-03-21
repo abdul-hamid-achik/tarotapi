@@ -60,7 +60,7 @@ tarot_data["cards"].each do |card_data|
     # Add default image_url if needed - look for PNG first, then JPG
     if card_data["image_url"].blank?
       if card_data["arcana"].downcase == "major"
-        c.image_url = "cards/#{file_name}.png" 
+        c.image_url = "cards/#{file_name}.png"
       else
         c.image_url = "cards/#{card_data['arcana'].downcase}_#{card_data['suit']}_#{card_data['rank']}.png"
       end
@@ -68,7 +68,7 @@ tarot_data["cards"].each do |card_data|
       c.image_url = card_data["image_url"]
     end
   end
-  
+
   # Try to attach the image if it's not already attached
   unless card.image.attached?
     card.attach_image_from_file_system
@@ -245,14 +245,14 @@ puts "Setting up reading quotas for existing users..."
 if ActiveRecord::Base.connection.table_exists?("reading_quotas")
   default_limit = ENV.fetch("DEFAULT_FREE_TIER_LIMIT", 100).to_i
   reset_date = Date.today.end_of_month + 1.day
-  
-  User.where(subscription_status: [nil, "inactive"]).find_each do |user|
+
+  User.where(subscription_status: [ nil, "inactive" ]).find_each do |user|
     ReadingQuota.find_or_create_by(user_id: user.id) do |quota|
       quota.monthly_limit = default_limit
       quota.readings_this_month = 0
       quota.reset_date = reset_date
     end
   end
-  
-  puts "Reading quotas initialized for #{User.where(subscription_status: [nil, "inactive"]).count} free users"
+
+  puts "Reading quotas initialized for #{User.where(subscription_status: [ nil, "inactive" ]).count} free users"
 end

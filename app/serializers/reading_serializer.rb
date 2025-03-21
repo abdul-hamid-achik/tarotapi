@@ -38,4 +38,4 @@ class ReadingSerializer
   attribute :name_number do |reading|
     reading.name.present? ? NumerologyService.calculate_name_number(reading.name) : nil
   end
-end 
+end

@@ -12,7 +12,7 @@ module AuthenticateRequest
   def authenticate_request
     # Try JWT authentication first
     @current_user = authenticate_with_jwt
-    
+
     # If JWT fails, try HTTP Basic Auth (especially for agent access)
     @current_user ||= authenticate_with_http_basic
 
@@ -25,12 +25,12 @@ module AuthenticateRequest
 
   def authenticate_with_http_basic
     user = nil
-    
+
     # Use Rails HTTP Basic Authentication
     ActionController::HttpAuthentication::Basic.authenticate(request) do |email, password|
       # Find user by email
       user = User.find_by(email: email)
-      
+
       if user&.authenticate(password)
         # If it's an agent user with valid credentials, use it
         if user.agent?
@@ -40,10 +40,10 @@ module AuthenticateRequest
           return user
         end
       end
-      
+
       nil
     end
-    
+
     user
   end
 

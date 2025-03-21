@@ -10,4 +10,4 @@ class Api::V1::CardsController < ApplicationController
   rescue ActiveRecord::RecordNotFound
     render json: { error: "Card not found" }, status: :not_found
   end
-end 
+end

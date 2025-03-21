@@ -17,14 +17,14 @@ class ReadingQuota < ApplicationRecord
 
   def increment_usage!
     return if user.subscription_status == "active"
-    
+
     self.readings_this_month += 1
     save!
   end
 
   def increment_llm_call!(multiplier = 1)
     return if user.subscription_status == "active" && unlimited_llm_tier?
-    
+
     self.llm_calls_this_month += multiplier
     self.last_llm_call_at = Time.current
     save!
@@ -67,7 +67,7 @@ class ReadingQuota < ApplicationRecord
   private
 
   def unlimited_llm_tier?
-    user.subscription_plan&.name == "unlimited" || 
+    user.subscription_plan&.name == "unlimited" ||
     (user.subscription_status == "active" && user.subscription_plan&.features&.include?("unlimited_llm"))
   end
-end 
+end

@@ -27,6 +27,9 @@ jobs:
       - name: set up pulumi
         uses: pulumi/actions@v4
       
+      - name: set up kamal
+        run: gem install kamal
+      
       - name: configure aws credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -35,11 +38,13 @@ jobs:
           aws-region: mx-central-1
       
       - name: run cleanup task
-        run: bundle exec rake pulumi:cleanup_previews
+        run: bundle exec rake deploy:cleanup_previews
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          KAMAL_REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          KAMAL_REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
       
       - name: notify about deleted environments
         uses: actions/github-script@v6

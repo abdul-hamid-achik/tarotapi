@@ -8,7 +8,7 @@ FactoryBot.define do
     symbols { Faker::Lorem.words(number: 3).join(', ') }
     image_url { Faker::Internet.url }
   end
-  
+
   # Define tarot_card as an alias to card for backwards compatibility
   factory :tarot_card, parent: :card
 end

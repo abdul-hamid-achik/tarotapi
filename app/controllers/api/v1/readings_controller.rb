@@ -1,14 +1,14 @@
 class Api::V1::ReadingsController < Api::V1::BaseController
   include ActionController::Live
   include AuthenticateRequest
-  
+
   # Headers
   # - X-Stream-Response: true - Enable streaming response if subscribed (returns SSE stream)
-  
+
   # Add check_reading_limit before action before creating a new reading and getting interpretations
-  before_action :check_reading_limit, only: [:create, :create_with_spread, :interpret, :interpret_streaming, :numerology, :symbolism]
-  before_action :set_reading, only: [:show, :update, :destroy]
-  before_action :check_subscription_for_streaming, only: [:interpret_streaming]
+  before_action :check_reading_limit, only: [ :create, :create_with_spread, :interpret, :interpret_streaming, :numerology, :symbolism ]
+  before_action :set_reading, only: [ :show, :update, :destroy ]
+  before_action :check_subscription_for_streaming, only: [ :interpret_streaming ]
 
   def index
     @readings = current_user.readings.order(created_at: :desc)
@@ -26,7 +26,7 @@ class Api::V1::ReadingsController < Api::V1::BaseController
     if @reading.save
       # Increment reading count for the user
       current_user.increment_reading_count!
-      
+
       render json: @reading, status: :created
     else
       render json: { errors: @reading.errors.full_messages }, status: :unprocessable_entity
@@ -48,16 +48,16 @@ class Api::V1::ReadingsController < Api::V1::BaseController
     if @reading.save
       # Draw cards for each position in the spread
       cards = Card.all.sample(spread.positions.count)
-      
+
       spread.positions.each_with_index do |position, index|
         @reading.card_readings.create(
           user: current_user,
           card: cards[index],
           position: position["name"],
-          is_reversed: [true, false].sample
+          is_reversed: [ true, false ].sample
         )
       end
-      
+
       # Increment reading count for the user
       current_user.increment_reading_count!
 
@@ -98,10 +98,10 @@ class Api::V1::ReadingsController < Api::V1::BaseController
     reading.update(birth_date: params[:birth_date]) if params[:birth_date].present?
     reading.update(name: params[:name]) if params[:name].present?
 
-    response.headers['Content-Type'] = 'text/event-stream'
-    response.headers['Cache-Control'] = 'no-cache'
-    response.headers['Connection'] = 'keep-alive'
-    
+    response.headers["Content-Type"] = "text/event-stream"
+    response.headers["Cache-Control"] = "no-cache"
+    response.headers["Connection"] = "keep-alive"
+
     # Create an SSE object
     sse = ActionController::Live::SSE.new(response.stream, retry: 300, event: "interpretation")
 
@@ -125,7 +125,7 @@ class Api::V1::ReadingsController < Api::V1::BaseController
         current_user.increment_reading_count!
         reading.update(usage_counted: true)
       end
-      
+
       sse.close
     end
   end
@@ -269,12 +269,12 @@ class Api::V1::ReadingsController < Api::V1::BaseController
   end
 
   private
-  
+
   # Check if the user has reached their reading limit
   def check_reading_limit
     if current_user.reading_limit_exceeded?
       subscription_url = "#{request.base_url}/api/v1/subscriptions"
-      render json: { 
+      render json: {
         error: "reading limit exceeded for your subscription plan",
         message: "please upgrade your subscription to continue",
         subscription_url: subscription_url
@@ -295,20 +295,20 @@ class Api::V1::ReadingsController < Api::V1::BaseController
   # Check if the user has permission to use streaming features
   def check_subscription_for_streaming
     # Allow streaming for users with active subscriptions only
-    unless current_user.subscriptions.find_by(status: 'active')
-      render json: { 
-        error: "streaming requires an active subscription", 
+    unless current_user.subscriptions.find_by(status: "active")
+      render json: {
+        error: "streaming requires an active subscription",
         message: "please upgrade to a paid plan to access streaming features"
       }, status: :payment_required
       return
     end
-    
+
     # Check for streaming header
-    unless request.headers['X-Stream-Response'] == 'true'
-      render json: { 
-        error: "streaming header missing", 
+    unless request.headers["X-Stream-Response"] == "true"
+      render json: {
+        error: "streaming header missing",
         message: "set X-Stream-Response: true header to use streaming"
       }, status: :bad_request
     end
   end
-end 
+end

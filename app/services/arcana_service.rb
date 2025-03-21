@@ -434,42 +434,42 @@ class ArcanaService
 
     def get_card_info(card_name)
       card_lower = card_name.to_s.downcase
-      
+
       # Check Major Arcana
       major_arcana_info = {
-        "the fool" => { number: 0, element: "air", keywords: ["beginnings", "innocence", "spontaneity"] },
-        "the magician" => { number: 1, element: "air", keywords: ["manifestation", "power", "action"] },
-        "the high priestess" => { number: 2, element: "water", keywords: ["intuition", "unconscious", "mystery"] },
-        "the empress" => { number: 3, element: "earth", keywords: ["fertility", "nurturing", "abundance"] },
-        "the emperor" => { number: 4, element: "fire", keywords: ["authority", "structure", "control"] },
-        "the hierophant" => { number: 5, element: "earth", keywords: ["tradition", "conformity", "morality"] },
-        "the lovers" => { number: 6, element: "air", keywords: ["choice", "relationships", "alignment"] },
-        "the chariot" => { number: 7, element: "water", keywords: ["direction", "control", "willpower"] },
-        "strength" => { number: 8, element: "fire", keywords: ["courage", "patience", "compassion"] },
-        "the hermit" => { number: 9, element: "earth", keywords: ["introspection", "solitude", "wisdom"] },
-        "wheel of fortune" => { number: 10, element: "fire", keywords: ["change", "cycles", "fate"] },
-        "justice" => { number: 11, element: "air", keywords: ["fairness", "truth", "cause and effect"] },
-        "the hanged man" => { number: 12, element: "water", keywords: ["surrender", "new perspective", "sacrifice"] },
-        "death" => { number: 13, element: "water", keywords: ["transformation", "endings", "transition"] },
-        "temperance" => { number: 14, element: "fire", keywords: ["balance", "moderation", "patience"] },
-        "the devil" => { number: 15, element: "earth", keywords: ["bondage", "materialism", "addiction"] },
-        "the tower" => { number: 16, element: "fire", keywords: ["sudden change", "revelation", "awakening"] },
-        "the star" => { number: 17, element: "air", keywords: ["hope", "faith", "purpose"] },
-        "the moon" => { number: 18, element: "water", keywords: ["illusion", "fear", "subconscious"] },
-        "the sun" => { number: 19, element: "fire", keywords: ["joy", "success", "vitality"] },
-        "judgement" => { number: 20, element: "fire", keywords: ["rebirth", "inner calling", "absolution"] },
-        "the world" => { number: 21, element: "earth", keywords: ["completion", "accomplishment", "integration"] }
+        "the fool" => { number: 0, element: "air", keywords: [ "beginnings", "innocence", "spontaneity" ] },
+        "the magician" => { number: 1, element: "air", keywords: [ "manifestation", "power", "action" ] },
+        "the high priestess" => { number: 2, element: "water", keywords: [ "intuition", "unconscious", "mystery" ] },
+        "the empress" => { number: 3, element: "earth", keywords: [ "fertility", "nurturing", "abundance" ] },
+        "the emperor" => { number: 4, element: "fire", keywords: [ "authority", "structure", "control" ] },
+        "the hierophant" => { number: 5, element: "earth", keywords: [ "tradition", "conformity", "morality" ] },
+        "the lovers" => { number: 6, element: "air", keywords: [ "choice", "relationships", "alignment" ] },
+        "the chariot" => { number: 7, element: "water", keywords: [ "direction", "control", "willpower" ] },
+        "strength" => { number: 8, element: "fire", keywords: [ "courage", "patience", "compassion" ] },
+        "the hermit" => { number: 9, element: "earth", keywords: [ "introspection", "solitude", "wisdom" ] },
+        "wheel of fortune" => { number: 10, element: "fire", keywords: [ "change", "cycles", "fate" ] },
+        "justice" => { number: 11, element: "air", keywords: [ "fairness", "truth", "cause and effect" ] },
+        "the hanged man" => { number: 12, element: "water", keywords: [ "surrender", "new perspective", "sacrifice" ] },
+        "death" => { number: 13, element: "water", keywords: [ "transformation", "endings", "transition" ] },
+        "temperance" => { number: 14, element: "fire", keywords: [ "balance", "moderation", "patience" ] },
+        "the devil" => { number: 15, element: "earth", keywords: [ "bondage", "materialism", "addiction" ] },
+        "the tower" => { number: 16, element: "fire", keywords: [ "sudden change", "revelation", "awakening" ] },
+        "the star" => { number: 17, element: "air", keywords: [ "hope", "faith", "purpose" ] },
+        "the moon" => { number: 18, element: "water", keywords: [ "illusion", "fear", "subconscious" ] },
+        "the sun" => { number: 19, element: "fire", keywords: [ "joy", "success", "vitality" ] },
+        "judgement" => { number: 20, element: "fire", keywords: [ "rebirth", "inner calling", "absolution" ] },
+        "the world" => { number: 21, element: "earth", keywords: [ "completion", "accomplishment", "integration" ] }
       }
-      
+
       # Return info if it's a major arcana card
       major_arcana_info.each do |name, info|
         return { name: name, arcana_type: "major", info: info } if card_lower.include?(name)
       end
-      
+
       # Check if it's a minor arcana card
       if card_lower.match?(/(\w+) of (\w+)/)
         rank, suit = card_lower.split(" of ")
-        
+
         # Define suit information
         suit_info = {
           "wands" => { element: "fire", domain: "creativity, passion, energy" },
@@ -477,7 +477,7 @@ class ArcanaService
           "swords" => { element: "air", domain: "intellect, communication, conflict" },
           "pentacles" => { element: "earth", domain: "material world, work, body" }
         }
-        
+
         # Define rank information
         rank_info = {
           "ace" => { meaning: "new beginnings, opportunities, potential" },
@@ -495,7 +495,7 @@ class ArcanaService
           "queen" => { meaning: "nurturing mastery, inner focus, expression" },
           "king" => { meaning: "mastery, control, leadership" }
         }
-        
+
         # Return combined info for minor arcana
         if suit_info[suit] && rank_info[rank]
           return {
@@ -511,9 +511,9 @@ class ArcanaService
           }
         end
       end
-      
+
       # Return generic info if card not recognized
-      { name: card_name, arcana_type: "unknown", info: { keywords: ["unknown card"] } }
+      { name: card_name, arcana_type: "unknown", info: { keywords: [ "unknown card" ] } }
     end
 
     def get_card_symbolism(card_name)

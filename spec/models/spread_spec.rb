@@ -12,7 +12,7 @@ RSpec.describe Spread, type: :model do
     it { should validate_uniqueness_of(:name) }
     it { should validate_presence_of(:description) }
     it { should validate_presence_of(:positions) }
-    it { should validate_inclusion_of(:is_public).in_array([true, false]) }
+    it { should validate_inclusion_of(:is_public).in_array([ true, false ]) }
   end
 
   describe 'scopes' do
@@ -50,23 +50,23 @@ RSpec.describe Spread, type: :model do
       end
     end
   end
-  
+
   describe '.default_spread' do
     it 'delegates to SpreadService.default_spread' do
       default_spread = double('default_spread')
       allow(SpreadService).to receive(:default_spread).and_return(default_spread)
-      
+
       expect(Spread.default_spread).to eq(default_spread)
       expect(SpreadService).to have_received(:default_spread)
     end
   end
-  
+
   describe '#system?' do
     it 'returns true if spread is a system spread' do
       spread = build(:spread, is_system: true)
       expect(spread.system?).to be true
     end
-    
+
     it 'returns false if spread is not a system spread' do
       spread = build(:spread, is_system: false)
       expect(spread.system?).to be false
@@ -78,4 +78,4 @@ RSpec.describe Spread, type: :model do
       expect(build(:spread)).to be_valid
     end
   end
-end 
+end

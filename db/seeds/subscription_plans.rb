@@ -21,8 +21,8 @@ SubscriptionPlan.find_or_create_by(name: "professional") do |plan|
   plan.price_cents = 1995
   plan.reading_limit = nil # unlimited
   plan.interval = "month"
-  plan.features = ["priority_support", "api_access", "custom_integrations"]
+  plan.features = [ "priority_support", "api_access", "custom_integrations" ]
   puts "Created PROFESSIONAL plan with unlimited readings and additional features for $19.95/month"
 end
 
-puts "Subscription plans created successfully!" 
+puts "Subscription plans created successfully!"

@@ -43,7 +43,7 @@ class Api::V1::SpreadsController < Api::V1::BaseController
   def spread_params
     # Parse the positions JSON if it's a string
     params_with_parsed_positions = spread_params_base
-    
+
     if params_with_parsed_positions[:positions].is_a?(String)
       begin
         params_with_parsed_positions[:positions] = JSON.parse(params_with_parsed_positions[:positions])
@@ -52,10 +52,10 @@ class Api::V1::SpreadsController < Api::V1::BaseController
         Rails.logger.error("Failed to parse positions JSON: #{e.message}")
       end
     end
-    
+
     params_with_parsed_positions
   end
-  
+
   def spread_params_base
     params.require(:spread).permit(:name, :description, :is_public, :user_id, :positions)
   end

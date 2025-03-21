@@ -1,4 +1,4 @@
-name: pulumi deployment
+name: infrastructure and app deployment
 
 on:
   push:

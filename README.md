@@ -28,6 +28,7 @@ this project uses aws infrastructure deployed via pulumi to provide a scalable, 
 - **redis**: an in-memory data structure store, used as a database, cache, and message broker.
 - **docker**: for containerization and consistent environments across development, staging, and production.
 - **pulumi**: infrastructure as code tool for aws resource provisioning.
+- **kamal**: zero-downtime container deployments using docker and traefik.
 - **aws**: cloud infrastructure provider (ecs, rds, elasticache, s3, cloudfront, route53).
 
 ### system architecture
@@ -67,13 +68,63 @@ this project uses pulumi for infrastructure provisioning. the infrastructure is 
 - `dns.yaml` - route53 for domain management
 - `ecs.yaml` - container orchestration and load balancing
 
+### pulumi state management
+
+by default, pulumi uses an aws s3 bucket to store state:
+
+- bucket name: `tarotapi-pulumi-state`
+- versioning: enabled
+- encryption: aes-256
+- lifecycle policy: noncurrent versions expire after 30 days
+- public access: blocked
+
+the bootstrap process automatically creates and configures this bucket if it doesn't exist when you run `pulumi:init`.
+
+for local development or testing, you can use local state storage instead of s3:
+
+```sh
+pulumi login --local
+```
+
+to switch back to s3 state storage:
+
+```sh
+pulumi login s3://tarotapi-pulumi-state
+```
+
+it's recommended to periodically backup your pulumi state:
+
+```sh
+# backup all stacks
+bundle exec rake pulumi:backup_state
+
+# restore from backup
+bundle exec rake pulumi:restore_state[backup_file.tar.gz]
+```
+
 ### environments
 
-the project supports multiple deployment environments:
+the project supports multiple deployment environments with their own domains:
 
-- **production**: high-availability, production-grade environment
-- **staging**: pre-production environment for testing, with cost-saving features
-- **preview**: temporary environments for feature testing, automatically cleaned up when inactive
+- **production**: https://tarotapi.cards
+- **staging**: https://staging.tarotapi.cards
+- **preview**: https://preview-{feature-name}.tarotapi.cards
+
+all environments are subdomains of tarotapi.cards:
+
+```
+# production
+tarotapi.cards
+cdn.tarotapi.cards
+
+# staging
+staging.tarotapi.cards
+cdn-staging.tarotapi.cards
+
+# preview environments
+preview-my-feature.tarotapi.cards
+cdn-preview-my-feature.tarotapi.cards
+```
 
 ### deployment workflow
 
@@ -82,6 +133,13 @@ deployments are handled via github actions workflows:
 1. **staging deployment**: automatically triggered when code is merged to the main branch
 2. **preview environments**: created when a branch is tagged with `preview-*`
 3. **production deployment**: triggered when a version tag (`v*`) is created or through manual approval
+
+#### github actions integration
+
+the infrastructure is automatically deployed via github actions workflows:
+
+- `pulumi-deploy.yml`: handles deployments to staging and production
+- `cleanup-previews.yml`: cleans up inactive preview environments
 
 ### zero-downtime deployments
 
@@ -113,9 +171,10 @@ the domain `tarotapi.cards` is managed through aws route53:
 #### prerequisites
 
 - aws account with appropriate permissions
-- aws cli configured with access credentials
-- pulumi cli installed
+- aws cli installed and configured with appropriate credentials
+- pulumi cli installed (`brew install pulumi` or visit [pulumi.com](https://www.pulumi.com/docs/install/))
 - ruby 3.4+
+- appropriate github secrets for github actions workflows
 
 #### initial setup
 
@@ -125,13 +184,19 @@ the domain `tarotapi.cards` is managed through aws route53:
 bundle exec rake pulumi:init
 ```
 
-2. set required secrets:
+this command will:
+- bootstrap an s3 bucket (`tarotapi-pulumi-state`) for pulumi state storage
+- configure pulumi to use this bucket as the backend
+- create stacks for all environments (production, staging, preview)
+- set up initial configuration for each stack
+
+2. set up secrets for your environment:
 
 ```sh
 bundle exec rake pulumi:set_secrets[staging]
 ```
 
-3. deploy the staging environment:
+3. deploy the infrastructure:
 
 ```sh
 bundle exec rake pulumi:deploy[staging]
@@ -411,4 +476,45 @@ this domain structure is configured through:
 2. **pulumi infrastructure**: configured in `infra/pulumi/dns.yaml`
 3. **github actions**: workflows in `.github/workflows/`
 
-for more details, see the [pulumi guide](docs/pulumi-guide.md) and [github secrets guide](docs/github-secrets-guide.md).
+## github secrets setup
+
+for the pulumi infrastructure and github actions workflows to function correctly, you'll need to set up the following secrets in your github repository:
+
+### required github secrets
+
+| secret name | description | example |
+|-------------|-------------|---------|
+| `AWS_ACCESS_KEY_ID` | your aws access key with permissions to create resources | `AKIA1234567890ABCDEF` |
+| `AWS_SECRET_ACCESS_KEY` | your aws secret key | `abcdefghijklmnopqrstuvwxyz1234567890/abc` |
+| `RAILS_MASTER_KEY` | rails master key (from config/master.key) | `1234567890abcdef1234567890abcdef` |
+| `DB_PASSWORD` | password for the database (will be set in rds) | `strongpassword123` |
+| `OPENAI_API_KEY` | your openai api key for tarot readings | `sk-1234567890abcdefghijklmnopqrstuvwxyz` |
+| `PULUMI_ACCESS_TOKEN` | pulumi access token for state management | `pul-1234567890abcdefghijklmnopqrst` |
+
+### how to set up github secrets
+
+1. go to your github repository
+2. click on "settings" tab
+3. in the left sidebar, click on "secrets and variables" then "actions"
+4. click on "new repository secret"
+5. enter the name and value for each secret listed above
+6. click "add secret"
+
+## deployment approach
+
+this project uses a hybrid deployment approach:
+
+1. **infrastructure**: provisioned using pulumi for infrastructure-as-code
+   - aws vpc, subnets, security groups, etc.
+   - rds database instances
+   - elasticache redis instances
+   - s3 buckets and cdn
+   - dns configuration
+
+2. **application**: deployed using kamal for container orchestration
+   - blue-green deployments for zero downtime
+   - automatic ssl certificate provisioning
+   - health checks and monitoring
+   - scalable and reliable container management
+
+this hybrid approach gives us the best of both worlds - robust infrastructure management and flexible container deployments.

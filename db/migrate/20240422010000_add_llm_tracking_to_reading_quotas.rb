@@ -4,4 +4,4 @@ class AddLlmTrackingToReadingQuotas < ActiveRecord::Migration[7.1]
     add_column :reading_quotas, :llm_calls_limit, :integer, default: 1000, null: false
     add_column :reading_quotas, :last_llm_call_at, :datetime
   end
-end 
+end

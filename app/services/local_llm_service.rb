@@ -1,7 +1,7 @@
 class LocalLlmService
   def initialize(quota = nil)
-    @llm_path = ENV.fetch('LOCAL_LLM_PATH', '/opt/llama.cpp/main')
-    @model_path = ENV.fetch('LOCAL_LLM_MODEL', '/opt/llama.cpp/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf')
+    @llm_path = ENV.fetch("LOCAL_LLM_PATH", "/opt/llama.cpp/main")
+    @model_path = ENV.fetch("LOCAL_LLM_MODEL", "/opt/llama.cpp/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf")
     @quota = quota
   end
 
@@ -21,7 +21,7 @@ class LocalLlmService
         Rails.logger.warn("LLM call quota exceeded for user ##{@quota.user_id}")
         return { error: "llm_quota_exceeded", message: "You have exceeded your monthly LLM call limit" }
       end
-      
+
       @quota.increment_llm_call!
     end
 
@@ -46,7 +46,7 @@ class LocalLlmService
     Rails.logger.info("LLM request completed in #{duration.round(2)}s")
 
     if result[:success]
-      { 
+      {
         content: result[:output].strip,
         model: "local-tinyllama-1.1b",
         tokens: estimate_token_count(prompt, result[:output])
@@ -73,19 +73,19 @@ class LocalLlmService
       ]
 
       # Execute command
-      output = IO.popen(command, 'r', err: [:child, :out]) { |io| io.read }
-      
+      output = IO.popen(command, "r", err: [ :child, :out ]) { |io| io.read }
+
       # Check for errors in output
       if output.include?("error") || output.include?("Error") || output.include?("failed")
-        { success: false, error: output.lines.first(3).join(' ').strip }
+        { success: false, error: output.lines.first(3).join(" ").strip }
       else
         # Extract only the assistant's response
-        response = output.gsub(prompt, '')
-        
+        response = output.gsub(prompt, "")
+
         # Remove any trailing tokens or unfinished sequences
-        response = response.gsub(/<\|im_start\|>.*$/m, '')
-          .gsub(/<\|im_end\|>.*$/m, '')
-        
+        response = response.gsub(/<\|im_start\|>.*$/m, "")
+          .gsub(/<\|im_end\|>.*$/m, "")
+
         { success: true, output: response }
       end
     rescue => e
@@ -97,7 +97,7 @@ class LocalLlmService
     # Rough estimation: ~1.3 tokens per word
     prompt_tokens = (prompt.split.size * 1.3).round
     response_tokens = (response.split.size * 1.3).round
-    
+
     { prompt: prompt_tokens, completion: response_tokens, total: prompt_tokens + response_tokens }
   end
-end 
+end

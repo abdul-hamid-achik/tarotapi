@@ -178,11 +178,11 @@ class SymbolismService
       # Get the elements associated with each card
       element1 = get_card_element(card1)
       element2 = get_card_element(card2)
-      
+
       if element1 == element2
         "These cards share the same elemental energy (#{element1}), reinforcing each other's qualities."
       else
-        case [element1, element2].sort.join("_")
+        case [ element1, element2 ].sort.join("_")
         when "air_fire"
           "Air feeds Fire, suggesting that thoughts and communication enhance passion and creativity."
         when "air_water"
@@ -203,18 +203,18 @@ class SymbolismService
 
     def analyze_spread_pattern(cards)
       # Analyze patterns across all cards in a spread
-      
+
       # Count card types
       major_count = cards.count { |c| c.arcana&.downcase == "major" }
       minor_count = cards.count { |c| c.arcana&.downcase == "minor" }
-      
+
       # Count elements
       elements = cards.map { |c| get_card_element(c.name) }
       dominant_element = elements.tally.max_by { |_, count| count }&.first
-      
+
       # Count reversed cards
       # Note: This would need to be passed in from the card_readings if implemented
-      
+
       {
         major_arcana_count: major_count,
         minor_arcana_count: minor_count,
@@ -228,102 +228,102 @@ class SymbolismService
       # Return common symbols associated with each card
       case card_name.to_s.downcase
       when /fool/
-        ["cliff", "small dog", "knapsack", "white rose", "mountains", "sun"]
+        [ "cliff", "small dog", "knapsack", "white rose", "mountains", "sun" ]
       when /magician/
-        ["infinity symbol", "table", "pentacle", "cup", "sword", "wand", "lemniscate"]
+        [ "infinity symbol", "table", "pentacle", "cup", "sword", "wand", "lemniscate" ]
       when /high priestess/
-        ["moon crown", "veil", "pillars", "pomegranates", "scroll", "water"]
+        [ "moon crown", "veil", "pillars", "pomegranates", "scroll", "water" ]
       when /empress/
-        ["crown of stars", "venus symbol", "cushion", "heart", "wheat", "trees", "waterfall"]
+        [ "crown of stars", "venus symbol", "cushion", "heart", "wheat", "trees", "waterfall" ]
       when /emperor/
-        ["throne", "ram heads", "ankh scepter", "red robe", "mountains", "armor"]
+        [ "throne", "ram heads", "ankh scepter", "red robe", "mountains", "armor" ]
       when /hierophant/
-        ["triple crown", "staff", "two acolytes", "keys", "pillars", "religious symbols"]
+        [ "triple crown", "staff", "two acolytes", "keys", "pillars", "religious symbols" ]
       when /lovers/
-        ["angel", "man", "woman", "tree", "serpent", "flames", "mountains"]
+        [ "angel", "man", "woman", "tree", "serpent", "flames", "mountains" ]
       when /chariot/
-        ["chariot", "sphinxes", "armor", "square", "staff", "stars", "crown", "city"]
+        [ "chariot", "sphinxes", "armor", "square", "staff", "stars", "crown", "city" ]
       when /strength/
-        ["lion", "infinity symbol", "woman", "flowers", "white dress", "mountains"]
+        [ "lion", "infinity symbol", "woman", "flowers", "white dress", "mountains" ]
       when /hermit/
-        ["lantern", "staff", "gray robe", "snow", "mountains", "star", "hood"]
+        [ "lantern", "staff", "gray robe", "snow", "mountains", "star", "hood" ]
       when /wheel of fortune/
-        ["wheel", "sphinx", "anubis", "serpent", "four figures", "hebrew letters", "clouds"]
+        [ "wheel", "sphinx", "anubis", "serpent", "four figures", "hebrew letters", "clouds" ]
       when /justice/
-        ["scales", "sword", "throne", "crown", "pillars", "square"]
+        [ "scales", "sword", "throne", "crown", "pillars", "square" ]
       when /hanged man/
-        ["gallows", "upside-down man", "halo", "crossed legs", "blue clothing", "rope"]
+        [ "gallows", "upside-down man", "halo", "crossed legs", "blue clothing", "rope" ]
       when /death/
-        ["skeleton", "armor", "horse", "flag", "bodies", "sunset", "boat", "river"]
+        [ "skeleton", "armor", "horse", "flag", "bodies", "sunset", "boat", "river" ]
       when /temperance/
-        ["angel", "cups", "flowing water", "path", "mountains", "sun", "crown", "wings"]
+        [ "angel", "cups", "flowing water", "path", "mountains", "sun", "crown", "wings" ]
       when /devil/
-        ["horns", "wings", "pentagram", "chains", "naked figures", "tail", "altar", "torch"]
+        [ "horns", "wings", "pentagram", "chains", "naked figures", "tail", "altar", "torch" ]
       when /tower/
-        ["lightning", "crown", "falling people", "flames", "rocks", "waves", "darkness"]
+        [ "lightning", "crown", "falling people", "flames", "rocks", "waves", "darkness" ]
       when /star/
-        ["nude woman", "seven stars", "two vessels", "bird", "pool", "land", "tree"]
+        [ "nude woman", "seven stars", "two vessels", "bird", "pool", "land", "tree" ]
       when /moon/
-        ["moon", "dog and wolf", "crawfish", "water", "path", "towers", "drops"]
+        [ "moon", "dog and wolf", "crawfish", "water", "path", "towers", "drops" ]
       when /sun/
-        ["sun", "child", "horse", "sunflowers", "wall", "rays", "flag"]
+        [ "sun", "child", "horse", "sunflowers", "wall", "rays", "flag" ]
       when /judgement/
-        ["angel", "trumpet", "figures rising", "waves", "coffins", "mountains", "clouds"]
+        [ "angel", "trumpet", "figures rising", "waves", "coffins", "mountains", "clouds" ]
       when /world/
-        ["dancing figure", "wreath", "four figures", "wand", "sky", "clouds", "stars"]
+        [ "dancing figure", "wreath", "four figures", "wand", "sky", "clouds", "stars" ]
       else
         # For minor arcana or unknown cards, return generic symbols
         if card_name.match?(/(\w+) of (\w+)/)
           rank, suit = card_name.split(" of ")
           suit_symbols = case suit.downcase
-                         when "wands"
-                           ["staffs", "fire", "growth", "energy"]
-                         when "cups"
-                           ["chalices", "water", "emotions", "relationships"]
-                         when "swords"
-                           ["blades", "air", "thought", "conflict"]
-                         when "pentacles"
-                           ["coins", "earth", "material", "work"]
-                         else
-                           ["unknown suit"]
-                         end
-                         
+          when "wands"
+                           [ "staffs", "fire", "growth", "energy" ]
+          when "cups"
+                           [ "chalices", "water", "emotions", "relationships" ]
+          when "swords"
+                           [ "blades", "air", "thought", "conflict" ]
+          when "pentacles"
+                           [ "coins", "earth", "material", "work" ]
+          else
+                           [ "unknown suit" ]
+          end
+
           rank_symbols = case rank.downcase
-                         when "ace"
-                           ["single", "beginning", "potential"]
-                         when "two"
-                           ["balance", "duality", "choice"]
-                         when "three"
-                           ["creation", "growth", "collaboration"]
-                         when "four"
-                           ["stability", "foundation", "structure"]
-                         when "five"
-                           ["conflict", "challenge", "change"]
-                         when "six"
-                           ["harmony", "cooperation", "transition"]
-                         when "seven"
-                           ["reflection", "assessment", "vision"]
-                         when "eight"
-                           ["movement", "progress", "speed"]
-                         when "nine"
-                           ["fruition", "culmination", "readiness"]
-                         when "ten"
-                           ["completion", "fulfillment", "ending"]
-                         when "page"
-                           ["youth", "student", "messenger"]
-                         when "knight"
-                           ["action", "adventure", "pursuit"]
-                         when "queen"
-                           ["nurturing", "intuition", "inner power"]
-                         when "king"
-                           ["mastery", "authority", "control"]
-                         else
-                           ["unknown rank"]
-                         end
-                         
+          when "ace"
+                           [ "single", "beginning", "potential" ]
+          when "two"
+                           [ "balance", "duality", "choice" ]
+          when "three"
+                           [ "creation", "growth", "collaboration" ]
+          when "four"
+                           [ "stability", "foundation", "structure" ]
+          when "five"
+                           [ "conflict", "challenge", "change" ]
+          when "six"
+                           [ "harmony", "cooperation", "transition" ]
+          when "seven"
+                           [ "reflection", "assessment", "vision" ]
+          when "eight"
+                           [ "movement", "progress", "speed" ]
+          when "nine"
+                           [ "fruition", "culmination", "readiness" ]
+          when "ten"
+                           [ "completion", "fulfillment", "ending" ]
+          when "page"
+                           [ "youth", "student", "messenger" ]
+          when "knight"
+                           [ "action", "adventure", "pursuit" ]
+          when "queen"
+                           [ "nurturing", "intuition", "inner power" ]
+          when "king"
+                           [ "mastery", "authority", "control" ]
+          else
+                           [ "unknown rank" ]
+          end
+
           suit_symbols + rank_symbols
         else
-          ["unknown card"]
+          [ "unknown card" ]
         end
       end
     end
@@ -368,55 +368,55 @@ class SymbolismService
     end
 
     private
-    
+
     def is_opposing_pair?(card1, card2)
       opposing_pairs = [
-        ["the fool", "the world"],
-        ["the magician", "the high priestess"],
-        ["the empress", "the emperor"],
-        ["the hierophant", "the lovers"],
-        ["the chariot", "the hermit"],
-        ["wheel of fortune", "justice"],
-        ["the hanged man", "death"],
-        ["temperance", "the devil"],
-        ["the tower", "the star"],
-        ["the moon", "the sun"]
+        [ "the fool", "the world" ],
+        [ "the magician", "the high priestess" ],
+        [ "the empress", "the emperor" ],
+        [ "the hierophant", "the lovers" ],
+        [ "the chariot", "the hermit" ],
+        [ "wheel of fortune", "justice" ],
+        [ "the hanged man", "death" ],
+        [ "temperance", "the devil" ],
+        [ "the tower", "the star" ],
+        [ "the moon", "the sun" ]
       ]
-      
+
       card1_lower = card1.to_s.downcase
       card2_lower = card2.to_s.downcase
-      
+
       opposing_pairs.any? do |pair|
         (pair[0] == card1_lower && pair[1] == card2_lower) ||
         (pair[0] == card2_lower && pair[1] == card1_lower)
       end
     end
-    
+
     def is_complementary_pair?(card1, card2)
       complementary_pairs = [
-        ["the magician", "the sun"],
-        ["the high priestess", "the moon"],
-        ["the empress", "temperance"],
-        ["the emperor", "justice"],
-        ["the hierophant", "judgement"],
-        ["the lovers", "the world"],
-        ["the chariot", "strength"],
-        ["the hermit", "the star"],
-        ["wheel of fortune", "the world"],
-        ["the hanged man", "the star"],
-        ["death", "judgement"],
-        ["the devil", "the tower"]
+        [ "the magician", "the sun" ],
+        [ "the high priestess", "the moon" ],
+        [ "the empress", "temperance" ],
+        [ "the emperor", "justice" ],
+        [ "the hierophant", "judgement" ],
+        [ "the lovers", "the world" ],
+        [ "the chariot", "strength" ],
+        [ "the hermit", "the star" ],
+        [ "wheel of fortune", "the world" ],
+        [ "the hanged man", "the star" ],
+        [ "death", "judgement" ],
+        [ "the devil", "the tower" ]
       ]
-      
+
       card1_lower = card1.to_s.downcase
       card2_lower = card2.to_s.downcase
-      
+
       complementary_pairs.any? do |pair|
         (pair[0] == card1_lower && pair[1] == card2_lower) ||
         (pair[0] == card2_lower && pair[1] == card1_lower)
       end
     end
-    
+
     def is_sequential_pair?(card1, card2)
       # Check if cards are sequential in the major arcana
       major_arcana = [
@@ -425,32 +425,32 @@ class SymbolismService
         "wheel of fortune", "justice", "the hanged man", "death", "temperance",
         "the devil", "the tower", "the star", "the moon", "the sun", "judgement", "the world"
       ]
-      
+
       card1_lower = card1.to_s.downcase
       card2_lower = card2.to_s.downcase
-      
+
       card1_index = major_arcana.index(card1_lower)
       card2_index = major_arcana.index(card2_lower)
-      
+
       if card1_index && card2_index
         (card1_index - card2_index).abs == 1
       else
         false
       end
     end
-    
+
     def get_card_element(card_name)
       card_lower = card_name.to_s.downcase
-      
+
       # Major Arcana
       case card_lower
-      when "the fool", "the magician", "the emperor", "the hierophant", 
+      when "the fool", "the magician", "the emperor", "the hierophant",
            "the chariot", "justice", "death", "temperance", "the sun", "judgement"
         "fire"
-      when "the high priestess", "the empress", "the lovers", 
+      when "the high priestess", "the empress", "the lovers",
            "the hanged man", "the moon"
         "water"
-      when "the hermit", "wheel of fortune", "the devil", 
+      when "the hermit", "wheel of fortune", "the devil",
            "the star", "the world"
         "earth"
       when "strength", "the tower"
@@ -470,10 +470,10 @@ class SymbolismService
         end
       end
     end
-    
+
     def generate_pattern_description(major_count, minor_count, dominant_element)
       description = []
-      
+
       # Analyze major/minor balance
       if major_count > minor_count * 2
         description << "This spread is heavily dominated by Major Arcana cards, suggesting significant life events and powerful external forces at work."
@@ -486,7 +486,7 @@ class SymbolismService
       else
         description << "The balance between Major and Minor Arcana suggests a mix of everyday concerns and significant life themes."
       end
-      
+
       # Analyze elemental balance
       if dominant_element
         case dominant_element
@@ -502,7 +502,7 @@ class SymbolismService
       else
         description << "The elements are relatively balanced, suggesting a holistic situation involving multiple aspects of life."
       end
-      
+
       description.join(" ")
     end
   end

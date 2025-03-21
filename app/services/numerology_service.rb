@@ -120,50 +120,50 @@ class NumerologyService
   class << self
     def calculate_life_path_number(birth_date)
       # Convert birth_date to a string if it's a Date object
-      date_string = birth_date.is_a?(Date) ? birth_date.strftime('%Y-%m-%d') : birth_date.to_s
-      
+      date_string = birth_date.is_a?(Date) ? birth_date.strftime("%Y-%m-%d") : birth_date.to_s
+
       # Extract year, month, day from the date string
       parts = date_string.split(/[-\/]/).map(&:to_i)
-      
+
       # Ensure we have 3 parts
       return nil unless parts.size == 3
-      
+
       year, month, day = parts
-      
+
       # Calculate the sum of all digits
       year_sum = sum_digits(year)
       month_sum = sum_digits(month)
       day_sum = sum_digits(day)
-      
+
       # Sum the reduced numbers
       total_sum = year_sum + month_sum + day_sum
-      
+
       # Reduce to a single digit (except master numbers 11, 22, 33)
       if total_sum == 11 || total_sum == 22 || total_sum == 33
-        return total_sum
+        total_sum
       else
-        return reduce_to_single_digit(total_sum)
+        reduce_to_single_digit(total_sum)
       end
     end
-    
+
     def calculate_name_number(name)
       # Remove any non-alphabetic characters and convert to lowercase
-      cleaned_name = name.to_s.gsub(/[^a-zA-Z]/, '').downcase
-      
+      cleaned_name = name.to_s.gsub(/[^a-zA-Z]/, "").downcase
+
       # Sum the values of each letter in the name
       total = 0
       cleaned_name.each_char do |char|
         total += letter_value(char)
       end
-      
+
       # Reduce to a single digit (except master numbers)
       if total == 11 || total == 22 || total == 33
-        return total
+        total
       else
-        return reduce_to_single_digit(total)
+        reduce_to_single_digit(total)
       end
     end
-    
+
     def get_life_path_meaning(number)
       case number
       when 1
@@ -194,7 +194,7 @@ class NumerologyService
         "Unknown or invalid numerological path"
       end
     end
-    
+
     def get_card_numerology(card_name)
       # Basic mapping of tarot cards to numerological meanings
       case card_name.to_s.downcase
@@ -247,14 +247,14 @@ class NumerologyService
         { number: nil, meaning: "No specific numerological association" }
       end
     end
-    
+
     private
-    
+
     def sum_digits(number)
       # Convert to string to handle digit by digit
       number.to_s.chars.map(&:to_i).sum
     end
-    
+
     def reduce_to_single_digit(number)
       # Keep reducing until we get a single digit
       while number > 9
@@ -262,17 +262,17 @@ class NumerologyService
       end
       number
     end
-    
+
     def letter_value(char)
       # Numerology assigns values 1-9 to letters A-Z
       # A=1, B=2, ..., I=9, J=1, ..., R=9, S=1, ...
       values = {
-        'a' => 1, 'b' => 2, 'c' => 3, 'd' => 4, 'e' => 5,
-        'f' => 6, 'g' => 7, 'h' => 8, 'i' => 9, 'j' => 1,
-        'k' => 2, 'l' => 3, 'm' => 4, 'n' => 5, 'o' => 6,
-        'p' => 7, 'q' => 8, 'r' => 9, 's' => 1, 't' => 2,
-        'u' => 3, 'v' => 4, 'w' => 5, 'x' => 6, 'y' => 7,
-        'z' => 8
+        "a" => 1, "b" => 2, "c" => 3, "d" => 4, "e" => 5,
+        "f" => 6, "g" => 7, "h" => 8, "i" => 9, "j" => 1,
+        "k" => 2, "l" => 3, "m" => 4, "n" => 5, "o" => 6,
+        "p" => 7, "q" => 8, "r" => 9, "s" => 1, "t" => 2,
+        "u" => 3, "v" => 4, "w" => 5, "x" => 6, "y" => 7,
+        "z" => 8
       }
       values[char] || 0
     end

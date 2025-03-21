@@ -13,7 +13,7 @@ FactoryBot.define do
     trait :anonymous do
       password { nil }
       password_confirmation { nil }
-      
+
       after(:build) do |user|
         user.identity_provider = IdentityProvider.anonymous
       end
@@ -22,7 +22,7 @@ FactoryBot.define do
     trait :agent do
       password { nil }
       password_confirmation { nil }
-      
+
       after(:build) do |user|
         user.identity_provider = IdentityProvider.agent
       end

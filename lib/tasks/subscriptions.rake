@@ -104,7 +104,7 @@ namespace :subscriptions do
   desc "setup stripe webhook endpoints"
   task setup_webhooks: :environment do
     puts "setting up stripe webhook endpoints..."
-    
+
     unless ENV["STRIPE_SECRET_KEY"]
       puts "error: STRIPE_SECRET_KEY environment variable is required"
       exit 1
@@ -116,7 +116,7 @@ namespace :subscriptions do
 
       # create or update webhook endpoint
       webhook_url = ENV["STRIPE_WEBHOOK_URL"] || "#{ENV['APP_URL']}/api/v1/webhooks/stripe"
-      
+
       endpoints = Stripe::WebhookEndpoint.list
       existing = endpoints.data.find { |e| e.url == webhook_url }
 
@@ -154,7 +154,7 @@ namespace :subscriptions do
   desc "sync stripe products and prices"
   task sync_products: :environment do
     puts "syncing stripe products and prices..."
-    
+
     unless ENV["STRIPE_SECRET_KEY"]
       puts "error: STRIPE_SECRET_KEY environment variable is required"
       exit 1
@@ -233,7 +233,7 @@ namespace :subscriptions do
       if user.has_unlimited_plan?
         # Reset the usage flag for all reading sessions
         Reading.where(user: user).update_all(usage_counted: false)
-        
+
         # Calculate readings count
         readings_count = user.readings.where(usage_counted: true).count
         puts "✓ reset usage counter for user #{user.id} with #{readings_count} readings"

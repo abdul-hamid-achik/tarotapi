@@ -51,6 +51,6 @@ module TarotApi
     config.hosts << "localhost"
 
     # Load middleware for reading quota enforcement
-    config.middleware.use "ReadingQuotaMiddleware"
+    config.middleware.use ReadingQuotaMiddleware
   end
 end

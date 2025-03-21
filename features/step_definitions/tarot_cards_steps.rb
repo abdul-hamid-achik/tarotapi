@@ -44,7 +44,7 @@ Then('i should receive complete card information') do
 end
 
 Given('there are cards of different suits') do
-  @suits = ['wands', 'cups', 'swords', 'pentacles']
+  @suits = [ 'wands', 'cups', 'swords', 'pentacles' ]
   @suits.each do |suit|
     create(:tarot_card, suit: suit)
   end
@@ -63,9 +63,9 @@ Then('i should only receive cards of that suit') do
 end
 
 Given('there are cards with different meanings') do
-  create(:tarot_card, keywords: ['love', 'partnership'])
-  create(:tarot_card, keywords: ['career', 'success'])
-  create(:tarot_card, keywords: ['spiritual', 'growth'])
+  create(:tarot_card, keywords: [ 'love', 'partnership' ])
+  create(:tarot_card, keywords: [ 'career', 'success' ])
+  create(:tarot_card, keywords: [ 'spiritual', 'growth' ])
 end
 
 When('i search for cards with a specific keyword') do
@@ -81,7 +81,7 @@ Then('i should receive cards matching that keyword') do
 end
 
 Given('there is a card with reversed meaning') do
-  @card = create(:tarot_card, 
+  @card = create(:tarot_card,
     meaning_up: 'positive interpretation',
     meaning_reversed: 'challenging interpretation'
   )
@@ -97,7 +97,7 @@ Then('i should receive the reversed meaning') do
 end
 
 Given('there are cards of different categories') do
-  @categories = ['major_arcana', 'minor_arcana']
+  @categories = [ 'major_arcana', 'minor_arcana' ]
   @categories.each do |category|
     create(:tarot_card, arcana_type: category)
   end
@@ -113,4 +113,4 @@ Then('i should only receive cards of that category') do
   json_response['data'].each do |card|
     expect(card['attributes']['arcana_type']).to eq(@selected_category)
   end
-end 
+end
