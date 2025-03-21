@@ -1222,4 +1222,104 @@ namespace :pulumi do
 
     puts "domain protection enabled for tarot.cards"
   end
+
+  desc "Initialize infrastructure for both staging and production"
+  task :init_all do
+    puts Rainbow("Initializing Pulumi infrastructure for all environments").bright.green
+    
+    # Setup the S3 bucket for Pulumi state if needed
+    Rake::Task["pulumi:init"].invoke
+    
+    # Initialize staging environment
+    puts Rainbow("Initializing staging environment").yellow
+    sh "pulumi stack select staging"
+    Rake::Task["pulumi:set_secrets"].invoke("staging")
+    
+    # Initialize production environment
+    puts Rainbow("Initializing production environment").yellow
+    sh "pulumi stack select production"
+    Rake::Task["pulumi:set_secrets"].invoke("production")
+    
+    puts Rainbow("Infrastructure initialization complete!").bright.green
+    puts Rainbow("Next steps:").cyan
+    puts Rainbow("  1. Run 'rake pulumi:deploy_all' to deploy all environments").cyan
+    puts Rainbow("  2. Or run 'rake pulumi:deploy[staging]' to deploy only staging").cyan
+  end
+  
+  desc "Deploy infrastructure to staging, then gradually to production (blue/green deployment)"
+  task :deploy_all do
+    puts Rainbow("Starting full deployment pipeline").bright.green
+    
+    # First deploy to staging
+    puts Rainbow("Deploying to staging environment").yellow
+    Rake::Task["pulumi:deploy"].invoke("staging")
+    
+    # Wait for confirmation before proceeding to production
+    puts Rainbow("Staging deployment complete. Run tests on staging before proceeding.").cyan
+    print Rainbow("Deploy to production? (yes/no): ").bright.yellow
+    response = STDIN.gets.chomp.downcase
+    
+    if response == "yes"
+      puts Rainbow("Starting blue/green deployment to production").yellow
+      
+      # Deploy to production with blue/green strategy
+      puts Rainbow("Deploying new version (green) alongside existing version (blue)").cyan
+      sh "pulumi stack select production"
+      sh "pulumi config set deployment:strategy blue-green"
+      sh "pulumi config set deployment:traffic_split 0"
+      sh "pulumi up --yes"
+      
+      # Gradually shift traffic
+      [25, 50, 75, 100].each do |percentage|
+        puts Rainbow("Shifting #{percentage}% of traffic to new version").cyan
+        sh "pulumi config set deployment:traffic_split #{percentage}"
+        sh "pulumi up --yes"
+        
+        # Wait for monitoring before proceeding
+        puts Rainbow("Monitoring new deployment for 30 seconds...").yellow
+        sleep 30
+        
+        # Check if we should proceed
+        unless percentage == 100
+          print Rainbow("Continue with traffic shift? (yes/no): ").bright.yellow
+          response = STDIN.gets.chomp.downcase
+          break unless response == "yes"
+        end
+      end
+      
+      puts Rainbow("Deployment complete! 100% of traffic now on new version.").bright.green
+    else
+      puts Rainbow("Production deployment cancelled.").red
+    end
+  end
+  
+  desc "Destroy specified infrastructure (environment)"
+  task :nuke, [:environment] do |t, args|
+    environment = args[:environment] || "staging"
+    
+    puts Rainbow("⚠️  WARNING: This will DESTROY the '#{environment}' environment! ⚠️").bright.red
+    puts Rainbow("All resources will be permanently deleted!").red
+    print Rainbow("Type the environment name again to confirm: ").bright.yellow
+    confirmation = STDIN.gets.chomp
+    
+    if confirmation == environment
+      puts Rainbow("Destroying #{environment} environment...").yellow
+      sh "pulumi stack select #{environment}"
+      
+      # First export the state as backup
+      timestamp = Time.now.strftime("%Y%m%d-%H%M%S")
+      backup_file = "pulumi-#{environment}-backup-#{timestamp}.json"
+      puts Rainbow("Creating backup first: #{backup_file}").cyan
+      sh "pulumi stack export --file #{backup_file}"
+      
+      # Now destroy
+      puts Rainbow("Proceeding with destruction...").red
+      sh "pulumi destroy --yes"
+      
+      puts Rainbow("Infrastructure in #{environment} has been destroyed.").green
+      puts Rainbow("A backup of the state was saved to: #{backup_file}").cyan
+    else
+      puts Rainbow("Destruction cancelled. Confirmation did not match.").green
+    end
+  end
 end

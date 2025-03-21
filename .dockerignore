@@ -44,6 +44,10 @@
 /.dockerignore
 /Dockerfile*
 
+# Ignore vendor directory
+/vendor/
+/vendor/bundle
+
 .env*
 .flaskenv*
 !.env.project

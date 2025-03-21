@@ -1,23 +1,60 @@
-# tarot api
+# Tarot API
 
-[![ci](https://github.com/yourusername/tarot_api/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/tarot_api/actions/workflows/ci.yml)
-[![pulumi deployment](https://github.com/yourusername/tarot_api/actions/workflows/pulumi-deploy.yml/badge.svg)](https://github.com/yourusername/tarot_api/actions/workflows/pulumi-deploy.yml)
-[![preview environments](https://github.com/yourusername/tarot_api/actions/workflows/preview-environments.yml/badge.svg)](https://github.com/yourusername/tarot_api/actions/workflows/preview-environments.yml)
-[![security scan](https://github.com/yourusername/tarot_api/actions/workflows/security-scan.yml/badge.svg)](https://github.com/yourusername/tarot_api/actions/workflows/security-scan.yml)
-[![cleanup previews](https://github.com/yourusername/tarot_api/actions/workflows/cleanup-previews.yml/badge.svg)](https://github.com/yourusername/tarot_api/actions/workflows/cleanup-previews.yml)
+[![ci](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/ci.yml/badge.svg)](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/ci.yml)
+[![pulumi deployment](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/pulumi-deploy.yml/badge.svg)](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/pulumi-deploy.yml)
+[![preview environments](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/preview-environments.yml/badge.svg)](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/preview-environments.yml)
+[![security scan](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/security-scan.yml/badge.svg)](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/security-scan.yml)
+[![cleanup previews](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/cleanup-previews.yml/badge.svg)](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/cleanup-previews.yml)
 
 ![ruby](https://img.shields.io/badge/ruby-3.4-ruby.svg)
 ![rails](https://img.shields.io/badge/rails-8.0-rails.svg)
 ![license](https://img.shields.io/badge/license-MIT-green.svg)
 ![docker](https://img.shields.io/badge/docker-compose-blue.svg)
 
-a ruby on rails api for tarot card reading and interpretation, leveraging openai technologies.
+A Ruby on Rails API for tarot card reading and interpretation, leveraging OpenAI technologies.
 
-## overview
+## Table of Contents
+- [Quick Start](#quick-start)
+- [Overview](#overview)
+- [Infrastructure](#infrastructure)
+- [Development](#development)
+- [Deployment](#deployment)
+- [API Documentation](#api-documentation)
+- [Command Reference](#command-reference)
+- [Contributing](#contributing)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+
+## Quick Start
+
+Get up and running in minutes:
+
+```bash
+# Clone the repository
+git clone https://github.com/abdul-hamid-achik/tarot-api.git
+cd tarot-api
+
+# Install dependencies
+bundle install
+
+# Copy and configure environment variables
+cp .env.example .env
+
+# Set up the development environment with Docker
+bundle exec rake dev:setup
+
+# Start the API server
+bundle exec rake dev
+
+# Visit the API at http://localhost:3000
+# API documentation at http://localhost:3000/api-docs
+```
+
+## Overview
 
 this api provides endpoints for tarot card readings, user management, and ai-powered interpretations. it is designed to be scalable, secure, and user-friendly.
 
-## infrastructure
+## Infrastructure
 
 this project uses aws infrastructure deployed via pulumi to provide a scalable, reliable application environment.
 
@@ -246,7 +283,7 @@ protect the domain from accidental deletion:
 bundle exec rake pulumi:protect_domain
 ```
 
-## development
+## Development
 
 ### prerequisites
 
@@ -260,8 +297,8 @@ bundle exec rake pulumi:protect_domain
 
 1. clone the repository
 ```bash
-git clone https://github.com/yourusername/tarot_api.git
-cd tarot_api
+git clone https://github.com/abdul-hamid-achik/tarot-api.git
+cd tarot-api
 ```
 
 2. install dependencies
@@ -320,7 +357,7 @@ bundle exec cucumber
 bundle exec rubocop
 ```
 
-## deployment
+## Deployment
 
 this project can be deployed to aws using pulumi for infrastructure as code:
 
@@ -385,25 +422,139 @@ bundle exec rake data:restore[filename]
 bundle exec rake data:analyze
 ```
 
-## api endpoints
+## API Documentation
 
-the api follows jsonapi specification and includes the following main endpoints:
+The API follows JSONapi specification. Full OpenAPI documentation is available at `/api-docs`.
 
-- `/api/v1/readings` - tarot readings
-- `/api/v1/cards` - tarot card information
-- `/api/v1/spreads` - tarot spread layouts
-- `/api/v1/users` - user management
-- `/api/v1/auth` - authentication
+### Authentication Methods
 
-see the swagger documentation for details: `/api-docs`
+The API supports three authentication methods:
 
-## license
+1. **JWT Bearer Token**
+```bash
+# Register a new user
+curl -X POST \
+  "https://api.tarotapi.cards/api/v1/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "abdulachik@icloud.com", "password": "securepassword"}'
+
+# Login to get JWT token
+curl -X POST \
+  "https://api.tarotapi.cards/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "abdulachik@icloud.com", "password": "securepassword"}'
+```
+
+2. **HTTP Basic Authentication**
+```bash
+curl -X GET \
+  "https://api.tarotapi.cards/api/v1/cards" \
+  -H "Authorization: Basic $(echo -n 'abdulachik@icloud.com:password' | base64)"
+```
+
+3. **API Key Authentication**
+```bash
+curl -X GET \
+  "https://api.tarotapi.cards/api/v1/cards" \
+  -H "X-API-Key: your-api-key"
+```
+
+### Key Endpoints
+
+| Endpoint | Description | Authentication Required |
+|----------|-------------|-------------------------|
+| `GET /api/v1/cards` | List all tarot cards | No |
+| `GET /api/v1/spreads` | List available spreads | No |
+| `POST /api/v1/readings` | Create a new reading | Yes |
+| `GET /api/v1/readings/{id}` | Get a specific reading | Yes |
+
+## Command Reference
+
+### Infrastructure Management
+
+| Command | Description |
+|---------|-------------|
+| `bundle exec rake pulumi:init_all` | Initialize infrastructure for staging and production |
+| `bundle exec rake pulumi:deploy[staging]` | Deploy to staging environment |
+| `bundle exec rake pulumi:deploy_all` | Deploy to staging, then gradually to production |
+| `bundle exec rake pulumi:create_preview[feature]` | Create preview environment |
+| `bundle exec rake pulumi:cleanup_previews` | Clean up inactive preview environments |
+
+### Development Commands
+
+| Command | Description |
+|---------|-------------|
+| `bundle exec rake dev:setup` | Set up development environment |
+| `bundle exec rake dev` | Start development server |
+| `bundle exec rake dev:console` | Open Rails console |
+| `bundle exec rake dev:test` | Run tests |
+| `bundle exec rake dev:logs` | View logs |
+| `bundle exec rake dev:rebuild` | Rebuild all containers |
+
+### Data Management
+
+| Command | Description |
+|---------|-------------|
+| `bundle exec rake data:backup` | Backup database |
+| `bundle exec rake data:restore[filename]` | Restore from backup |
+| `bundle exec rake data:analyze` | Analyze database performance |
+
+## Contributing
+
+Contributions are welcome! Here's how you can help:
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b my-new-feature`
+3. Make your changes and commit: `git commit -am 'Add some feature'`
+4. Push to the branch: `git push origin my-new-feature`
+5. Submit a pull request
+
+### Development Workflow
+
+We use GitHub flow for development:
+- Feature branches should be created from `main`
+- Pull requests should target `main`
+- After review and approval, PRs will be merged to `main`
+- Releases are created by tagging the `main` branch
+
+## Troubleshooting
+
+### Common Issues
+
+#### Docker Container Won't Start
+```
+ERROR: for api  Cannot start service api: network XXXXX not found
+```
+**Solution**: Run `docker network prune` and then try again with `rake dev:setup`.
+
+#### Database Connection Issues
+```
+PG::ConnectionBad: could not connect to server
+```
+**Solution**: Ensure Postgres is running with `docker compose ps postgres`. If not, restart with `docker compose start postgres`.
+
+#### API Key Authentication Fails
+**Solution**: Verify the API key is active in the database and hasn't expired. Create a new key with:
+```ruby
+bundle exec rails console
+ApiKey.create(user: User.find_by(email: "abdulachik@icloud.com"), name: "New Key")
+```
+
+### Security Best Practices
+
+1. Never commit `.env` files or sensitive credentials
+2. Use environment variables for all sensitive configuration
+3. Regularly rotate API keys and access tokens
+4. Keep dependencies up to date with `bundle update`
+5. Run security scans regularly with `bundle exec rake ci:security`
+
+## License
 
 this project is licensed under the mit license - see the license file for details.
 
-## api features
+## API Features
 
-### streaming responses
+### Streaming Responses
 
 Paid subscribers can receive streaming responses for tarot reading interpretations:
 
@@ -462,7 +613,7 @@ curl -X POST \
   -d '{"birth_date": "1990-01-01", "name": "John Doe"}'
 ```
 
-## domain and environment setup
+## Domain and Environment Setup
 
 the project is configured to deploy to the following domains:
 
@@ -476,7 +627,7 @@ this domain structure is configured through:
 2. **pulumi infrastructure**: configured in `infra/pulumi/dns.yaml`
 3. **github actions**: workflows in `.github/workflows/`
 
-## github secrets setup
+## Github Secrets Setup
 
 for the pulumi infrastructure and github actions workflows to function correctly, you'll need to set up the following secrets in your github repository:
 
@@ -490,6 +641,7 @@ for the pulumi infrastructure and github actions workflows to function correctly
 | `DB_PASSWORD` | password for the database (will be set in rds) | `strongpassword123` |
 | `OPENAI_API_KEY` | your openai api key for tarot readings | `sk-1234567890abcdefghijklmnopqrstuvwxyz` |
 | `PULUMI_ACCESS_TOKEN` | pulumi access token for state management | `pul-1234567890abcdefghijklmnopqrst` |
+| `SECURITY_EMAIL` | security notifications email | `abdulachik@icloud.com` |
 
 ### how to set up github secrets
 
@@ -500,7 +652,7 @@ for the pulumi infrastructure and github actions workflows to function correctly
 5. enter the name and value for each secret listed above
 6. click "add secret"
 
-## deployment approach
+## Deployment Approach
 
 this project uses a hybrid deployment approach:
 

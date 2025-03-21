@@ -155,6 +155,33 @@ namespace :dev do
       puts "3. Run 'bundle install' again"
     end
   end
+
+  desc "Clean up vendor directory to prevent local gem installations"
+  task :clean_vendor do
+    puts Rainbow("Cleaning up vendor directory...").yellow
+    
+    # Check if running in Docker
+    in_docker = File.exist?('/.dockerenv')
+    
+    if in_docker
+      puts Rainbow("Running inside Docker container, skipping vendor cleanup").cyan
+    else
+      if Dir.exist?(File.join(Rails.root, 'vendor'))
+        puts Rainbow("Removing vendor directory content").yellow
+        sh "rm -rf #{Rails.root}/vendor/bundle"
+        puts Rainbow("Vendor directory cleaned").green
+      else
+        puts Rainbow("No vendor directory found, nothing to clean").green
+      end
+    end
+    
+    puts Rainbow("Tip: Make sure your Docker setup mounts gems in a volume, not in the local vendor directory").cyan
+    puts Rainbow("Add this to your docker-compose.yml:").cyan
+    puts Rainbow("  volumes:").cyan
+    puts Rainbow("    - gem_cache:/usr/local/bundle").cyan
+    puts Rainbow("  # Instead of:").cyan
+    puts Rainbow("  # - ./vendor/bundle:/usr/local/bundle").cyan
+  end
 end
 
 # Default task for development

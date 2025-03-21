@@ -29,6 +29,8 @@ services:
       - DB_NAME=tarot_api_development
       - DB_USERNAME=tarot_api
       - DB_PASSWORD=password
+    volumes:
+      - gem_cache:/usr/local/bundle
     develop:
       watch:
         - action: sync+restart
@@ -146,6 +148,7 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+  gem_cache:
 
 networks:
   default:

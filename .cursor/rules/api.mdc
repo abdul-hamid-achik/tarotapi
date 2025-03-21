@@ -1,1 +1,69 @@
- 
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Tarot API Documentation
+
+## API Structure
+
+The Tarot API follows RESTful principles and is organized as follows:
+
+- All endpoints are under the `/api/v1/` prefix
+- Resources are named using plural nouns (e.g., `/cards`, `/readings`)
+- Standard HTTP methods are used (GET, POST, PATCH, DELETE)
+- Response format follows JSON:API specification
+
+## Authentication
+
+Three authentication methods are supported:
+
+1. **JWT Bearer Token**
+   - Standard for user authentication
+   - Format: `Authorization: Bearer <token>`
+   - Obtain via `/api/v1/auth/login` or `/api/v1/auth/register`
+   - Refresh via `/api/v1/auth/refresh` using the refresh token
+
+2. **HTTP Basic Authentication**
+   - Alternative for direct access
+   - Format: `Authorization: Basic <base64(email:password)>`
+   - Convenient for testing and simple integrations
+
+3. **API Key Authentication**
+   - For automated systems and agents
+   - Format: `X-API-Key: <api-key>`
+   - Create via `/api/v1/api_keys` endpoints
+   - Each key is tied to a specific user account
+   - Keys can have expiration dates and usage limits
+
+## API Keys Management
+
+- API keys are managed through dedicated endpoints
+- Only registered users can create and manage API keys
+- Each key has a name, description, and optional expiration
+- Keys are shown only once during creation
+- Inactive or expired keys are automatically rejected
+- Usage is tracked for analysis and rate limiting
+
+## Documentation
+
+- OpenAPI/Swagger documentation available at `/api/docs`
+- ReDoc UI provides a user-friendly interface
+- All authentication methods are documented
+- Response schemas and example payloads are included
+
+## Rate Limiting
+
+- All API endpoints have rate limits
+- Rates vary by authentication method and user tier
+- Headers include rate limit information:
+  - `X-RateLimit-Limit`: Maximum requests per period
+  - `X-RateLimit-Remaining`: Remaining requests
+  - `X-RateLimit-Reset`: Time until limit resets
+
+## Versioning
+
+- API versioning is done through the URL path (`/api/v1/`)
+- Breaking changes require a new API version
+- Multiple versions can be maintained simultaneously
+- Deprecated endpoints should include sunset information 

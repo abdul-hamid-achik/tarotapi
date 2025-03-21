@@ -152,3 +152,7 @@ Guardfile
 
 # API documentation
 /doc/api/
+
+# Bundle vendor directory
+/vendor/
+/vendor/bundle

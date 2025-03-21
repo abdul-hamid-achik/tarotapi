@@ -1,9 +1,14 @@
-name: ci
+name: CI
 
 on:
   pull_request:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+  workflow_dispatch:  # Allow manual triggering
 
 jobs:
   # Check if we should run the full CI suite
@@ -24,28 +29,53 @@ jobs:
             echo "run_full_ci=true" >> $GITHUB_OUTPUT
             echo "Running full CI suite"
           fi
-  
-  build_image:
-    name: Build CI image
+
+  build_and_push_image:
+    name: Build and push CI image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/tarot-api-ci
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
       - name: Build and cache CI image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile.ci
           target: ci
-          tags: tarot-api-ci:latest
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           outputs: type=docker,dest=/tmp/tarot-api-ci.tar
-          cache-from: type=gha
+          cache-from: |
+            type=gha
+            type=registry,ref=ghcr.io/${{ github.repository }}/tarot-api-ci:latest
           cache-to: type=gha,mode=max
-      
+
       - name: Upload image as artifact
         uses: actions/upload-artifact@v4
         with:
@@ -54,9 +84,9 @@ jobs:
           retention-days: 1
 
   lint:
-    name: code quality
+    name: Code Quality
     runs-on: ubuntu-latest
-    needs: build_image
+    needs: build_and_push_image
     # Always run linting even for Dependabot PRs
     steps:
       - name: Checkout code
@@ -71,22 +101,30 @@ jobs:
       - name: Load CI image
         run: docker load --input /tmp/tarot-api-ci.tar
       
+      - name: Cache RuboCop results
+        uses: actions/cache@v4
+        with:
+          path: tmp/rubocop_cache
+          key: ${{ runner.os }}-rubocop-${{ hashFiles('**/.rubocop.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-rubocop-
+      
       - name: Lint code
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/app \
+            -v rubocop_cache:/app/tmp/rubocop_cache \
             tarot-api-ci:latest \
-            bundle exec rake test:lint:rubocop test:lint:brakeman test:lint:ruby_audit
+            bundle exec rake test:lint:all
 
   test:
-    name: tests
-    needs: [check_ci_requirements, build_image]
-    # Only run tests if not a Dependabot PR or explicitly needed
+    name: Tests
+    needs: [check_ci_requirements, build_and_push_image]
     if: needs.check_ci_requirements.outputs.run_full_ci == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres
+        image: postgres:16-bookworm
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -95,7 +133,7 @@ jobs:
         options: --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=3
 
       redis:
-        image: redis
+        image: redis:7-alpine
         ports:
           - 6379:6379
         options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
@@ -112,11 +150,20 @@ jobs:
       
       - name: Load CI image
         run: docker load --input /tmp/tarot-api-ci.tar
+
+      - name: Cache test results
+        uses: actions/cache@v4
+        with:
+          path: tmp/test_cache
+          key: ${{ runner.os }}-test-${{ hashFiles('**/*.rb') }}
+          restore-keys: |
+            ${{ runner.os }}-test-
       
       - name: Run tests
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/app \
+            -v test_cache:/app/tmp/test_cache \
             --network host \
             -e RAILS_ENV=test \
             -e DATABASE_URL=postgres://postgres:postgres@localhost:5432 \
@@ -125,13 +172,7 @@ jobs:
             -e COVERAGE=true \
             -e SIMPLECOV_FORMATTER=SimpleCov::Formatter::HTMLFormatter \
             tarot-api-ci:latest \
-            sh -c "bundle exec rake test:prepare && \
-                  bundle exec rake test:verify_coverage && \
-                  bundle exec rake test:models:all && \
-                  bundle exec rake test:services:all && \
-                  bundle exec rake test:features:all && \
-                  bundle exec rake test:subscriptions:all && \
-                  bundle exec rake test:coverage"
+            sh -c "bundle exec rake test:all"
       
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
@@ -140,15 +181,21 @@ jobs:
           path: coverage/
           retention-days: 7
 
+      - name: Check test coverage
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/app \
+            tarot-api-ci:latest \
+            bundle exec rake test:verify_coverage
+
   docs:
-    name: api documentation
-    needs: [check_ci_requirements, build_image]
-    # Only run docs generation if not a Dependabot PR or explicitly needed
+    name: API Documentation
+    needs: [check_ci_requirements, build_and_push_image]
     if: needs.check_ci_requirements.outputs.run_full_ci == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres
+        image: postgres:16-bookworm
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -177,9 +224,14 @@ jobs:
             -e RAILS_ENV=test \
             -e DATABASE_URL=postgres://postgres:postgres@localhost:5432 \
             tarot-api-ci:latest \
-            sh -c "bundle exec rake test:prepare && \
-                  bundle exec rake api:docs && \
-                  bundle exec rake api:validate"
+            bundle exec rake api:docs:generate
+
+      - name: Validate API docs
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/app \
+            tarot-api-ci:latest \
+            bundle exec rake api:docs:validate
       
       - name: Upload API documentation
         uses: actions/upload-artifact@v4
@@ -189,13 +241,12 @@ jobs:
           retention-days: 7
 
   ci_completed:
-    name: ci workflow completed
+    name: CI Workflow Completed
     needs: [lint, test, docs]
-    # We need to modify the if condition to consider both normal and dependabot cases
     if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.docs.result == 'success' || needs.docs.result == 'skipped') && needs.lint.result == 'success'
     runs-on: ubuntu-latest
     steps:
-      - name: ci completed successfully
-        run: echo "ci workflow completed successfully!"
+      - name: CI completed successfully
+        run: echo "CI workflow completed successfully!"
     outputs:
       status: success

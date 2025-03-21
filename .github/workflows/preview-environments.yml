@@ -2,281 +2,133 @@ name: Preview Environments
 
 on:
   pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened]
+    types: [opened, reopened, synchronize, closed]
   push:
-    tags:
-      - 'preview-*'  # Only run for tags that start with preview-
+    branches:
+      - 'preview-*'
   workflow_dispatch:
     inputs:
-      environment_name:
-        description: 'Name for the preview environment'
+      branch:
+        description: 'Branch to create preview for'
         required: true
         type: string
 
 jobs:
-  check_permissions:
-    name: Check permissions
+  check_requirements:
+    name: Check Requirements
     runs-on: ubuntu-latest
-    # Skip the entire workflow for Dependabot PRs
-    if: github.actor != 'dependabot[bot]'
     outputs:
-      allowed: ${{ steps.check.outputs.allowed }}
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+      preview_name: ${{ steps.check.outputs.preview_name }}
     steps:
       - id: check
-        name: Check if user is allowed
+        name: Check deployment requirements
         run: |
-          if [[ "${{ github.actor }}" == "abdul-hamid-achik" ]]; then
-            echo "allowed=true" >> $GITHUB_OUTPUT
+          # Don't create previews for Dependabot PRs
+          if [[ "${{ github.actor }}" == "dependabot[bot]" ]]; then
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+            echo "Skipping preview for Dependabot PR"
+            exit 0
+          fi
+
+          # Get the branch name
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            BRANCH="${{ github.event.inputs.branch }}"
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BRANCH="${{ github.head_ref }}"
           else
-            echo "allowed=false" >> $GITHUB_OUTPUT
+            BRANCH="${{ github.ref_name }}"
           fi
 
-  deploy_pr_preview:
-    name: Deploy PR preview
-    needs: check_permissions
-    if: github.event_name == 'pull_request' && needs.check_permissions.outputs.allowed == 'true'
-    runs-on: ubuntu-latest
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: us-west-2
-      RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-      KAMAL_REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
-      KAMAL_REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
-      APP_NAME: tarotapi
-      DOMAIN_NAME: tarotapi.cards
-      BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
+          # Clean branch name for preview URL
+          PREVIEW_NAME=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')
+          echo "preview_name=$PREVIEW_NAME" >> $GITHUB_OUTPUT
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: set up ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          bundler-cache: true
-      
-      - name: set up pulumi
-        uses: pulumi/actions@v4
-      
-      - name: set up kamal
-        run: gem install kamal
-      
-      - name: configure aws credentials
-        run: |
-          echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" >> $GITHUB_ENV
-          echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" >> $GITHUB_ENV
-          echo "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION" >> $GITHUB_ENV
-          echo "RAILS_MASTER_KEY=$RAILS_MASTER_KEY" >> $GITHUB_ENV
-          echo "KAMAL_REGISTRY_USERNAME=$KAMAL_REGISTRY_USERNAME" >> $GITHUB_ENV
-          echo "KAMAL_REGISTRY_PASSWORD=$KAMAL_REGISTRY_PASSWORD" >> $GITHUB_ENV
-          echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
-          echo "DOMAIN_NAME=$DOMAIN_NAME" >> $GITHUB_ENV
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
-      
-      - name: Create preview environment name
-        run: |
-          SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/-/g')
-          PREVIEW_NAME="preview-${SANITIZED_BRANCH}"
-          echo "PREVIEW_NAME=$PREVIEW_NAME" >> $GITHUB_ENV
-      
-      - name: deploy preview environment
-        run: |
-          # First deploy infrastructure with Pulumi
-          bundle exec rake deploy:infra:preview[${{ steps.extract_name.outputs.preview_name }}]
-          
-          # Then deploy app with Kamal
-          bundle exec rake deploy:app:preview[${{ steps.extract_name.outputs.preview_name }}]
-
-      - name: Comment on PR
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const url = `https://${{ env.PREVIEW_NAME }}.${{ env.DOMAIN_NAME }}`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `🔮 Preview environment deployed: [${url}](${url})\nThis environment will be automatically cleaned up after 24 hours.`
-            })
-
-  deploy_tag_preview:
-    name: Deploy tag preview
-    needs: check_permissions
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/preview-') && needs.check_permissions.outputs.allowed == 'true'
-    runs-on: ubuntu-latest
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: us-west-2
-      RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-      KAMAL_REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
-      KAMAL_REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
-      APP_NAME: tarotapi
-      DOMAIN_NAME: tarotapi.cards
-      TAG_NAME: ${{ github.ref_name }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: set up ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          bundler-cache: true
-      
-      - name: set up pulumi
-        uses: pulumi/actions@v4
-      
-      - name: set up kamal
-        run: gem install kamal
-      
-      - name: configure aws credentials
-        run: |
-          echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" >> $GITHUB_ENV
-          echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" >> $GITHUB_ENV
-          echo "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION" >> $GITHUB_ENV
-          echo "RAILS_MASTER_KEY=$RAILS_MASTER_KEY" >> $GITHUB_ENV
-          echo "KAMAL_REGISTRY_USERNAME=$KAMAL_REGISTRY_USERNAME" >> $GITHUB_ENV
-          echo "KAMAL_REGISTRY_PASSWORD=$KAMAL_REGISTRY_PASSWORD" >> $GITHUB_ENV
-          echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
-          echo "DOMAIN_NAME=$DOMAIN_NAME" >> $GITHUB_ENV
-          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
-      
-      - name: Set preview name
-        run: |
-          # Tag name is already validated by the trigger condition
-          PREVIEW_NAME="${TAG_NAME}"
-          echo "PREVIEW_NAME=$PREVIEW_NAME" >> $GITHUB_ENV
-      
-      - name: deploy preview environment
-        run: |
-          # First deploy infrastructure with Pulumi
-          bundle exec rake deploy:infra:preview[${{ steps.extract_name.outputs.preview_name }}]
-          
-          # Then deploy app with Kamal
-          bundle exec rake deploy:app:preview[${{ steps.extract_name.outputs.preview_name }}]
-
-      - name: Notify Slack
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          fields: repo,message,commit,author,action,eventName,workflow,job
-          text: |
-            🔮 *Tag Preview Environment Deployed*
-            
-            *Tag:* ${{ env.TAG_NAME }}
-            *Preview:* ${{ env.PREVIEW_NAME }}
-            *URL:* https://${{ env.PREVIEW_NAME }}.${{ env.DOMAIN_NAME }}
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        if: success()
-
-  deploy_manual_preview:
-    name: Deploy manual preview
-    needs: check_permissions
-    if: github.event_name == 'workflow_dispatch' && needs.check_permissions.outputs.allowed == 'true'
-    runs-on: ubuntu-latest
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: us-west-2
-      RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-      KAMAL_REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
-      KAMAL_REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
-      APP_NAME: tarotapi
-      DOMAIN_NAME: tarotapi.cards
-      ENV_NAME: ${{ github.event.inputs.environment_name }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: set up ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          bundler-cache: true
-      
-      - name: set up pulumi
-        uses: pulumi/actions@v4
-      
-      - name: set up kamal
-        run: gem install kamal
-      
-      - name: configure aws credentials
-        run: |
-          echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" >> $GITHUB_ENV
-          echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" >> $GITHUB_ENV
-          echo "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION" >> $GITHUB_ENV
-          echo "RAILS_MASTER_KEY=$RAILS_MASTER_KEY" >> $GITHUB_ENV
-          echo "KAMAL_REGISTRY_USERNAME=$KAMAL_REGISTRY_USERNAME" >> $GITHUB_ENV
-          echo "KAMAL_REGISTRY_PASSWORD=$KAMAL_REGISTRY_PASSWORD" >> $GITHUB_ENV
-          echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
-          echo "DOMAIN_NAME=$DOMAIN_NAME" >> $GITHUB_ENV
-          echo "ENV_NAME=$ENV_NAME" >> $GITHUB_ENV
-      
-      - name: Validate environment name
-        run: |
-          if [[ ! "$ENV_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]]; then
-            echo "::error::Environment name must contain only alphanumeric characters and hyphens, and cannot start with a hyphen"
-            exit 1
+          # Set deployment flag based on event
+          if [[ "${{ github.event.action }}" == "closed" ]]; then
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+            echo "PR closed, will cleanup preview environment"
+          else
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "Will deploy preview environment"
           fi
-          
-          PREVIEW_NAME="preview-${ENV_NAME}"
-          echo "PREVIEW_NAME=$PREVIEW_NAME" >> $GITHUB_ENV
-      
-      - name: deploy preview environment
-        run: |
-          # First deploy infrastructure with Pulumi
-          bundle exec rake deploy:infra:preview[${{ steps.extract_name.outputs.preview_name }}]
-          
-          # Then deploy app with Kamal
-          bundle exec rake deploy:app:preview[${{ steps.extract_name.outputs.preview_name }}]
 
-      - name: Notify Slack
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          fields: repo,message,commit,author,action,eventName,workflow,job
-          text: |
-            🔮 *Manual Preview Environment Deployed*
-            
-            *Name:* ${{ env.ENV_NAME }}
-            *Preview:* ${{ env.PREVIEW_NAME }}
-            *URL:* https://${{ env.PREVIEW_NAME }}.${{ env.DOMAIN_NAME }}
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        if: success()
-
-  notify_unauthorized:
-    name: Notify unauthorized user
-    needs: check_permissions
-    if: needs.check_permissions.outputs.allowed == 'false'
+  deploy_preview:
+    name: Deploy Preview
+    needs: check_requirements
+    if: needs.check_requirements.outputs.should_deploy == 'true'
     runs-on: ubuntu-latest
+    environment:
+      name: preview-${{ needs.check_requirements.outputs.preview_name }}
+      url: https://preview-${{ needs.check_requirements.outputs.preview_name }}.tarotapi.cards
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy preview environment
+        run: |
+          bundle exec rake preview:deploy[${{ needs.check_requirements.outputs.preview_name }}]
+
       - name: Comment on PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const url = 'https://preview-${{ needs.check_requirements.outputs.preview_name }}.tarotapi.cards';
+            const message = `🚀 Preview environment deployed!\n\nYou can access it at: ${url}\n\nThis environment will be automatically cleaned up when the PR is closed or after 3 days of inactivity.`;
             github.rest.issues.createComment({
-              issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `⚠️ Only @abdul-hamid-achik can create preview environments. Please contact them if you need a preview environment.`
-            })
-            
-      - name: Log unauthorized tag attempt
-        if: github.event_name == 'push'
+              issue_number: context.issue.number,
+              body: message
+            });
+
+  cleanup_preview:
+    name: Cleanup Preview
+    needs: check_requirements
+    if: github.event.action == 'closed' || needs.check_requirements.outputs.should_deploy == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Cleanup preview environment
         run: |
-          echo "⚠️ Unauthorized user ${{ github.actor }} attempted to create a tag preview environment"
-          exit 1
-            
-      - name: Log unauthorized manual attempt
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          echo "⚠️ Unauthorized user ${{ github.actor }} attempted to create a manual preview environment"
-          exit 1 
+          bundle exec rake preview:cleanup[${{ needs.check_requirements.outputs.preview_name }}]
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const message = `🧹 Preview environment has been cleaned up.`;
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: message
+            }); 
