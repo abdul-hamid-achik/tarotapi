@@ -40,7 +40,7 @@ gem "jwt"
 gem "stripe"
 
 # llm and ai related gems
-gem "ruby-openai", "~> 6.3.0"
+gem "ruby-openai", "~> 8.0.0"
 gem "langchain"
 gem "tokenizers"
 gem "redis", ">= 4.0.1"
