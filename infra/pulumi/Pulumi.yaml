@@ -1,12 +1,15 @@
 name: tarot-api-infra
 runtime: yaml
-description: infrastructure for tarot api project with zero-downtime deployments
+description: infrastructure for tarot api project with zero-downtime deployments and protected domain registration
+main: config.yaml
 config:
   aws:region: mx-central-1  # mexico region
   environment:
     default: dev
   domain:
     default: tarotapi.cards
+  alt-domain: 
+    default: tarot.cards
   project-name:
     default: tarot-api
   enable-cost-saving:
