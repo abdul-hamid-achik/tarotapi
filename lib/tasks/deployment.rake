@@ -6,16 +6,58 @@ namespace :deploy do
   desc "Deploy the application with zero downtime"
   task :production do
     TaskLogger.info("Starting zero-downtime deployment to production...")
+    TaskLogger.info("Checking if production infrastructure exists...")
+    
+    # First check if we need to deploy infrastructure
+    infra_exists = false
+    Dir.chdir(File.expand_path("../../infrastructure", __dir__)) do
+      # Switch to production stack
+      system("pulumi stack select production")
+      # Check if we have any outputs (indicating resources were deployed)
+      output = `pulumi stack output --json`.strip
+      infra_exists = output != "{}" && !output.empty?
+    end
+    
+    unless infra_exists
+      TaskLogger.info("Production infrastructure not found. Deploying infrastructure first...")
+      Rake::Task["infra:deploy"].invoke("production")
+    end
+    
+    # Now proceed with application deployment
     Rake::Task["deploy:check_prerequisites"].invoke
-    Rake::Task["deploy:build"].invoke
-    Rake::Task["deploy:push"].invoke
-    Rake::Task["deploy:update_registry"].invoke
-    TaskLogger.info("Deployment completed successfully!")
+    Rake::Task["deploy:build"].invoke("production")
+    Rake::Task["deploy:push"].invoke("production")
+    
+    # Try to update registry but don't fail if cluster doesn't exist yet
+    begin
+      Rake::Task["deploy:update_registry"].invoke("production")
+    rescue StandardError => e
+      TaskLogger.warn("Could not update ECS service: #{e.message}")
+      TaskLogger.warn("You may need to manually update the ECS service or run 'rake infra:deploy[production]' first.")
+    end
+    
+    TaskLogger.info("Deployment completed!")
   end
 
   desc "Deploy to staging environment"
   task :staging do
     TaskLogger.info("Starting deployment to staging...")
+    
+    # Check if we need to deploy infrastructure
+    infra_exists = false
+    Dir.chdir(File.expand_path("../../infrastructure", __dir__)) do
+      # Switch to staging stack
+      system("pulumi stack select staging")
+      # Check if we have any outputs (indicating resources were deployed)
+      output = `pulumi stack output --json`.strip
+      infra_exists = output != "{}" && !output.empty?
+    end
+    
+    unless infra_exists
+      TaskLogger.info("Staging infrastructure not found. Deploying infrastructure first...")
+      Rake::Task["infra:deploy"].invoke("staging")
+    end
+    
     Rake::Task["deploy:check_prerequisites"].invoke
     Rake::Task["deploy:build"].invoke("staging")
     Rake::Task["deploy:push"].invoke("staging")
@@ -154,8 +196,21 @@ namespace :deploy do
       end
     end
     
-    # Raise error if still not set
-    raise "#{cluster_var_name} not set" if cluster.nil?
+    # Raise error if still not set but only if specific resources exist in this environment
+    if cluster.nil?
+      # Check if we have any resources deployed at all
+      Dir.chdir(File.expand_path("../../infrastructure", __dir__)) do
+        output = `pulumi stack output --json --stack #{env} 2>/dev/null`.strip
+        if output == "{}" || output.empty?
+          TaskLogger.warn("No resources found in #{env} environment")
+          TaskLogger.warn("You may need to run 'rake infra:deploy[#{env}]' first to create the infrastructure")
+          return # Exit the task without raising an error
+        else
+          raise "#{cluster_var_name} not set and could not be determined from Pulumi outputs"
+        end
+      end
+    end
+    
     raise "#{service_var_name} not set" if service.nil?
 
     TaskLogger.info("Updating container registry in #{env}...")
