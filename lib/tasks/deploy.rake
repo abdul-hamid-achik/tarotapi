@@ -139,4 +139,4 @@ namespace :deploy do
       TaskLogger.info("2. run 'bundle exec rake deploy:app:staging' to deploy the application")
     end
   end
-  # Rest of the code remains the same...
+end
