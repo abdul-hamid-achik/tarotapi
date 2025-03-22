@@ -21,8 +21,24 @@ Rails.application.routes.draw do
 
   namespace :api do
     namespace :v1 do
-      # API Keys management
-      resources :api_keys, only: [ :index, :show, :create ] do
+      # OAuth endpoints
+      get 'oauth/authorize', to: 'oauth#authorize'
+      post 'oauth/token', to: 'oauth#token'
+      
+      # Organization management
+      resources :organizations do
+        member do
+          post 'members', to: 'organizations#add_member'
+          delete 'members/:user_id', to: 'organizations#remove_member'
+          get 'usage', to: 'organizations#usage'
+          get 'analytics', to: 'organizations#analytics'
+        end
+        
+        resources :api_keys, only: [:index, :show, :create, :update, :destroy]
+      end
+
+      # Personal API Keys management
+      resources :api_keys, only: [:index, :show, :create] do
         member do
           delete :revoke
         end

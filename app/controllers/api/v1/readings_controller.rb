@@ -7,21 +7,24 @@ class Api::V1::ReadingsController < Api::V1::BaseController
 
   # Add check_reading_limit before action before creating a new reading and getting interpretations
   before_action :check_reading_limit, only: [ :create, :create_with_spread, :interpret, :interpret_streaming, :numerology, :symbolism ]
-  before_action :set_reading, only: [ :show, :update, :destroy ]
+  before_action :set_reading, only: [ :show, :update, :destroy, :export_pdf, :advanced_interpretation ]
   before_action :check_subscription_for_streaming, only: [ :interpret_streaming ]
+  after_action :verify_authorized, except: :index
+  after_action :verify_policy_scoped, only: :index
 
   def index
-    @readings = current_user.readings.order(created_at: :desc)
-
+    @readings = policy_scope(Reading)
     render json: @readings
   end
 
   def show
+    authorize @reading
     render json: @reading
   end
 
   def create
-    @reading = current_user.readings.new(reading_params)
+    @reading = current_user.readings.build(reading_params)
+    authorize @reading
 
     if @reading.save
       # Increment reading count for the user
@@ -68,6 +71,8 @@ class Api::V1::ReadingsController < Api::V1::BaseController
   end
 
   def update
+    authorize @reading
+
     if @reading.update(reading_params)
       render json: @reading
     else
@@ -76,27 +81,13 @@ class Api::V1::ReadingsController < Api::V1::BaseController
   end
 
   def destroy
+    authorize @reading
     @reading.destroy
     head :no_content
   end
 
   def interpret_streaming
-    reading = current_user.readings.find_by(session_id: params[:id])
-
-    unless reading
-      render json: {
-        errors: [ {
-          status: "404",
-          title: "not found",
-          detail: "reading not found"
-        } ]
-      }, status: :not_found
-      return
-    end
-
-    # Update birth_date and name if provided
-    reading.update(birth_date: params[:birth_date]) if params[:birth_date].present?
-    reading.update(name: params[:name]) if params[:name].present?
+    authorize @reading, :stream?
 
     response.headers["Content-Type"] = "text/event-stream"
     response.headers["Cache-Control"] = "no-cache"
@@ -106,24 +97,24 @@ class Api::V1::ReadingsController < Api::V1::BaseController
     sse = ActionController::Live::SSE.new(response.stream, retry: 300, event: "interpretation")
 
     service = ReadingService.new(
-      user: reading.user,
-      spread: reading.spread,
-      reading: reading,
-      birth_date: reading.birth_date,
-      name: reading.name
+      user: @reading.user,
+      spread: @reading.spread,
+      reading: @reading,
+      birth_date: @reading.birth_date,
+      name: @reading.name
     )
 
     begin
-      service.generate_interpretation_streaming(reading.card_readings) do |chunk|
+      service.generate_interpretation_streaming(@reading.card_readings) do |chunk|
         sse.write({ chunk: chunk })
       end
     rescue IOError
       # Client disconnected
     ensure
       # Count this as usage for subscription purposes if not already counted
-      unless reading.usage_counted
+      unless @reading.usage_counted
         current_user.increment_reading_count!
-        reading.update(usage_counted: true)
+        @reading.update(usage_counted: true)
       end
 
       sse.close
@@ -131,62 +122,40 @@ class Api::V1::ReadingsController < Api::V1::BaseController
   end
 
   def interpret
-    reading = current_user.readings.find_by(session_id: params[:id])
-
-    unless reading
-      render json: {
-        errors: [ {
-          status: "404",
-          title: "not found",
-          detail: "reading not found"
-        } ]
-      }, status: :not_found
-      return
-    end
+    authorize @reading, :interpret?
 
     # Update birth_date and name if provided
-    reading.update(birth_date: params[:birth_date]) if params[:birth_date].present?
-    reading.update(name: params[:name]) if params[:name].present?
+    @reading.update(birth_date: params[:birth_date]) if params[:birth_date].present?
+    @reading.update(name: params[:name]) if params[:name].present?
 
     service = ReadingService.new(
-      user: reading.user,
-      spread: reading.spread,
-      reading: reading,
-      birth_date: reading.birth_date,
-      name: reading.name
+      user: @reading.user,
+      spread: @reading.spread,
+      reading: @reading,
+      birth_date: @reading.birth_date,
+      name: @reading.name
     )
 
-    interpretation = service.generate_interpretation(reading.card_readings)
-    reading.update(interpretation: interpretation)
+    interpretation = service.generate_interpretation(@reading.card_readings)
+    @reading.update(interpretation: interpretation)
 
     # Count this as usage for subscription purposes if not already counted
-    unless reading.usage_counted
+    unless @reading.usage_counted
       current_user.increment_reading_count!
-      reading.update(usage_counted: true)
+      @reading.update(usage_counted: true)
     end
 
     render json: { interpretation: interpretation }
   end
 
   def numerology
-    reading = current_user.readings.find_by(session_id: params[:id])
-
-    unless reading
-      render json: {
-        errors: [ {
-          status: "404",
-          title: "not found",
-          detail: "reading not found"
-        } ]
-      }, status: :not_found
-      return
-    end
+    authorize @reading, :numerology?
 
     # Update birth_date and name if provided
-    reading.update(birth_date: params[:birth_date]) if params[:birth_date].present?
-    reading.update(name: params[:name]) if params[:name].present?
+    @reading.update(birth_date: params[:birth_date]) if params[:birth_date].present?
+    @reading.update(name: params[:name]) if params[:name].present?
 
-    unless reading.birth_date.present?
+    unless @reading.birth_date.present?
       render json: {
         errors: [ {
           status: "422",
@@ -198,56 +167,47 @@ class Api::V1::ReadingsController < Api::V1::BaseController
     end
 
     service = ReadingService.new(
-      user: reading.user,
-      reading: reading,
-      birth_date: reading.birth_date,
-      name: reading.name
+      user: @reading.user,
+      reading: @reading,
+      birth_date: @reading.birth_date,
+      name: @reading.name
     )
 
     insight = service.get_numerological_insight
 
     # Count this as usage for subscription purposes if not already counted
-    unless reading.usage_counted
+    unless @reading.usage_counted
       current_user.increment_reading_count!
-      reading.update(usage_counted: true)
+      @reading.update(usage_counted: true)
     end
 
     render json: { numerological_insight: insight }
   end
 
   def symbolism
-    reading = current_user.readings.find_by(session_id: params[:id])
+    authorize @reading, :symbolism?
 
-    unless reading
-      render json: {
-        errors: [ {
-          status: "404",
-          title: "not found",
-          detail: "reading not found"
-        } ]
-      }, status: :not_found
-      return
-    end
-
-    card_ids = reading.card_readings.pluck(:card_id)
+    card_ids = @reading.card_readings.pluck(:card_id)
 
     service = ReadingService.new(
-      user: reading.user,
-      reading: reading
+      user: @reading.user,
+      reading: @reading
     )
 
     analysis = service.get_symbolism_analysis(card_ids)
 
     # Count this as usage for subscription purposes if not already counted
-    unless reading.usage_counted
+    unless @reading.usage_counted
       current_user.increment_reading_count!
-      reading.update(usage_counted: true)
+      @reading.update(usage_counted: true)
     end
 
     render json: { symbolism_analysis: analysis }
   end
 
   def arcana_explanation
+    authorize @reading, :arcana_explanation?
+
     arcana_type = params[:arcana_type]
 
     unless [ "major", "minor" ].include?(arcana_type)
@@ -268,6 +228,46 @@ class Api::V1::ReadingsController < Api::V1::BaseController
     render json: { arcana_explanation: explanation }
   end
 
+  def stream
+    authorize @reading, :stream?
+
+    response.headers['Content-Type'] = 'text/event-stream'
+    response.headers['Last-Modified'] = Time.now.httpdate
+
+    # Stream the interpretation
+    begin
+      LlmService.instance.generate_streaming_response(
+        @reading.generate_prompt,
+        { stream: true }
+      ) do |chunk|
+        response.stream.write("data: #{chunk}\n\n")
+      end
+    ensure
+      response.stream.close
+    end
+  end
+
+  def export_pdf
+    authorize @reading, :export_pdf?
+    
+    pdf = ReadingPdfService.new(@reading).generate
+    send_data pdf.render,
+              filename: "reading_#{@reading.id}.pdf",
+              type: 'application/pdf',
+              disposition: 'attachment'
+  end
+
+  def advanced_interpretation
+    authorize @reading, :advanced_interpretation?
+    
+    interpretation = LlmService.instance.generate_response(
+      @reading.generate_advanced_prompt,
+      { model: "claude-3-7-sonnet@20250219" }
+    )
+    
+    render json: { interpretation: interpretation[:content] }
+  end
+
   private
 
   # Check if the user has reached their reading limit
@@ -283,7 +283,7 @@ class Api::V1::ReadingsController < Api::V1::BaseController
   end
 
   def set_reading
-    @reading = current_user.readings.find(params[:id])
+    @reading = Reading.find(params[:id])
   rescue ActiveRecord::RecordNotFound
     render json: { error: "reading not found" }, status: :not_found
   end
