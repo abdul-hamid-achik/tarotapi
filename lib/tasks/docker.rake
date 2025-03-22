@@ -2,25 +2,25 @@ namespace :docker do
   desc "Verify ARM architecture (required for this project)"
   task :verify_arm do
     arch = `uname -m`.strip
-    puts Rainbow("Detected architecture: #{arch}").cyan
+    TaskLogger.info("Detected architecture: #{arch}")
 
     if arch =~ /arm|aarch64/i
-      puts Rainbow("ARM architecture detected. Build can proceed.").green
+      TaskLogger.info("ARM architecture detected. Build can proceed.")
     else
-      puts Rainbow("WARNING: Non-ARM architecture detected (#{arch})").bright.red
-      puts Rainbow("This project is optimized for ARM (M1/M2/M3/M4) chips only.").bright.red
-      puts Rainbow("Building on other architectures is not supported.").bright.red
+      TaskLogger.warn("WARNING: Non-ARM architecture detected (#{arch})")
+      TaskLogger.warn("This project is optimized for ARM (M1/M2/M3/M4) chips only.")
+      TaskLogger.warn("Building on other architectures is not supported.")
       exit 1 unless ENV["FORCE_BUILD"] == "true"
-      puts Rainbow("Proceeding anyway due to FORCE_BUILD=true").yellow
+      TaskLogger.warn("Proceeding anyway due to FORCE_BUILD=true")
     end
   end
 
   desc "Clean up Docker resources (volumes, containers) for a fresh start"
   task :clean do
-    puts Rainbow("Cleaning up Docker resources...").yellow
+    TaskLogger.info("Cleaning up Docker resources...")
 
     # Stop all containers first
-    puts "Stopping containers..."
+    TaskLogger.info("Stopping containers...")
     sh "docker-compose down" do |ok, status|
       # It's okay if this fails
     end
@@ -29,19 +29,19 @@ namespace :docker do
     Rake::Task["dev:clean_vendor"].invoke
 
     # Remove dangling volumes
-    puts Rainbow("Removing unused Docker volumes...").yellow
+    TaskLogger.info("Removing unused Docker volumes...")
     sh "docker volume prune -f" do |ok, status|
       # It's okay if this fails
     end
 
     # Pull fresh images
-    puts Rainbow("Pulling latest base images...").yellow
+    TaskLogger.info("Pulling latest base images...")
     sh "docker-compose pull" do |ok, status|
       # It's okay if this fails
     end
 
-    puts Rainbow("Docker cleanup complete!").green
-    puts Rainbow("To rebuild completely, run: docker-compose up --build").cyan
+    TaskLogger.info("Docker cleanup complete!")
+    TaskLogger.info("To rebuild completely, run: docker-compose up --build")
   end
 
   desc "Build Docker image (ARM-only) with optional target [development|production] and registry [ghcr|ecr|both]"
@@ -51,7 +51,7 @@ namespace :docker do
     tag = target == "production" ? "tarot_api:production" : "tarot_api:latest"
     registry = args[:registry]
 
-    puts Rainbow("Building ARM-optimized Docker image for #{target}").bright.green
+    TaskLogger.info("Building ARM-optimized Docker image for #{target}")
     sh "docker build -t #{tag} --target #{target} --build-arg BUILDKIT_INLINE_CACHE=1 ."
 
     # Push to registry if requested
@@ -65,15 +65,15 @@ namespace :docker do
         push_to_ghcr(tag, target)
         push_to_ecr(tag, target)
       else
-        puts Rainbow("Unknown registry: #{registry}. Use 'ghcr', 'ecr', or 'both'.").red
+        TaskLogger.error("Unknown registry: #{registry}. Use 'ghcr', 'ecr', or 'both'.")
       end
     end
 
-    puts Rainbow("Build complete. To run the image: docker run -p 3000:3000 #{tag}").green
+    TaskLogger.info("Build complete. To run the image: docker run -p 3000:3000 #{tag}")
   end
 
   def push_to_ghcr(tag, target)
-    puts Rainbow("Pushing to GitHub Container Registry...").cyan
+    TaskLogger.info("Pushing to GitHub Container Registry...")
     repo = ENV["GITHUB_REPOSITORY"] || "your-org/tarot-api"
     ghcr_tag = "ghcr.io/#{repo}:#{target}"
 
@@ -81,26 +81,26 @@ namespace :docker do
     sh "docker tag #{tag} #{ghcr_tag}"
     sh "docker push #{ghcr_tag}" do |ok, status|
       if ok
-        puts Rainbow("✓ Successfully pushed #{ghcr_tag} to GitHub Container Registry").green
+        TaskLogger.info("✓ Successfully pushed #{ghcr_tag} to GitHub Container Registry")
       else
-        puts Rainbow("✗ Failed to push to GitHub Container Registry. Make sure you're logged in: docker login ghcr.io").red
+        TaskLogger.error("✗ Failed to push to GitHub Container Registry. Make sure you're logged in: docker login ghcr.io")
       end
     end
   end
 
   def push_to_ecr(tag, target)
-    puts Rainbow("Pushing to Amazon ECR...").cyan
+    TaskLogger.info("Pushing to Amazon ECR...")
 
     # Get AWS region from environment or default
     region = ENV["AWS_REGION"] || ENV["AWS_DEFAULT_REGION"] || "mx-central-1"
     account_id = ENV["AWS_ACCOUNT_ID"]
 
     if !account_id
-      puts Rainbow("⚠️ AWS_ACCOUNT_ID not set. Attempting to retrieve from AWS CLI...").yellow
+      TaskLogger.warn("⚠️ AWS_ACCOUNT_ID not set. Attempting to retrieve from AWS CLI...")
       # Try to get the AWS account ID
       account_id = `aws sts get-caller-identity --query Account --output text 2>/dev/null`.strip
       if account_id.empty?
-        puts Rainbow("✗ Failed to get AWS account ID. Set AWS_ACCOUNT_ID or ensure AWS CLI is configured.").red
+        TaskLogger.error("✗ Failed to get AWS account ID. Set AWS_ACCOUNT_ID or ensure AWS CLI is configured.")
         return
       end
     end
@@ -110,11 +110,11 @@ namespace :docker do
     ecr_tag = "#{account_id}.dkr.ecr.#{region}.amazonaws.com/#{ecr_repo}:#{target}"
 
     # Log in to ECR
-    puts "Logging in to Amazon ECR..."
+    TaskLogger.info("Logging in to Amazon ECR...")
     login_cmd = "aws ecr get-login-password --region #{region} | docker login --username AWS --password-stdin #{account_id}.dkr.ecr.#{region}.amazonaws.com"
     sh login_cmd do |ok, status|
       if !ok
-        puts Rainbow("✗ Failed to log in to Amazon ECR. Check your AWS credentials.").red
+        TaskLogger.error("✗ Failed to log in to Amazon ECR. Check your AWS credentials.")
         return
       end
 
@@ -122,9 +122,9 @@ namespace :docker do
       sh "docker tag #{tag} #{ecr_tag}"
       sh "docker push #{ecr_tag}" do |push_ok, push_status|
         if push_ok
-          puts Rainbow("✓ Successfully pushed #{ecr_tag} to Amazon ECR").green
+          TaskLogger.info("✓ Successfully pushed #{ecr_tag} to Amazon ECR")
         else
-          puts Rainbow("✗ Failed to push to Amazon ECR. Check if repository exists: #{ecr_repo}").red
+          TaskLogger.error("✗ Failed to push to Amazon ECR. Check if repository exists: #{ecr_repo}")
         end
       end
     end
@@ -133,7 +133,7 @@ namespace :docker do
   # Legacy tasks that use the new unified build task
   desc "[DEPRECATED] Build production Docker image (use docker:build[production] instead)"
   task build_production: [ :verify_arm ] do
-    puts Rainbow("WARNING: This task is deprecated. Use docker:build[production] instead.").yellow
+    TaskLogger.warn("WARNING: This task is deprecated. Use docker:build[production] instead.")
     Rake::Task["docker:build"].invoke("production")
   end
 
@@ -144,11 +144,11 @@ namespace :docker do
 
     # Check if the image exists locally
     if system("docker image inspect #{tag} >/dev/null 2>&1")
-      puts Rainbow("Found #{tag} locally, pushing to registries...").green
+      TaskLogger.info("Found #{tag} locally, pushing to registries...")
       push_to_ghcr(tag, target)
       push_to_ecr(tag, target)
     else
-      puts Rainbow("Image #{tag} not found locally. Building first...").yellow
+      TaskLogger.warn("Image #{tag} not found locally. Building first...")
       Rake::Task["docker:build"].invoke(target, "both")
     end
   end
@@ -157,18 +157,18 @@ namespace :docker do
   task :rebuild do
     Rake::Task["docker:clean"].invoke
 
-    puts Rainbow("Rebuilding containers...").yellow
+    TaskLogger.info("Rebuilding containers...")
     sh "docker-compose build --no-cache"
 
-    puts Rainbow("Starting services...").yellow
+    TaskLogger.info("Starting services...")
     sh "docker-compose up -d"
 
-    puts Rainbow("Containers rebuilt and started!").green
+    TaskLogger.info("Containers rebuilt and started!")
   end
 
   desc "Run tests in Docker container"
   task :test do
-    puts Rainbow("Running tests in Docker container").bright.green
+    TaskLogger.info("Running tests in Docker container")
 
     # Make sure we have the latest image
     Rake::Task["docker:build"].invoke unless ENV["CI"]
@@ -179,13 +179,13 @@ namespace :docker do
 
   desc "Start development environment with Docker Compose"
   task :start do
-    puts Rainbow("Starting development environment with Docker Compose").bright.green
+    TaskLogger.info("Starting development environment with Docker Compose")
     sh "docker-compose up -d"
   end
 
   desc "Stop development environment"
   task :stop do
-    puts Rainbow("Stopping development environment").yellow
+    TaskLogger.info("Stopping development environment")
     sh "docker-compose down"
   end
 
@@ -197,17 +197,16 @@ namespace :docker do
 
   desc "Show status of Docker containers"
   task :status do
-    puts Rainbow("Docker container status:").cyan
+    TaskLogger.info("Docker container status:")
     sh "docker-compose ps"
 
-    puts "\n"
-    puts Rainbow("Docker volume status:").cyan
+    TaskLogger.info("\nDocker volume status:")
     sh "docker volume ls | grep tarot_api"
   end
 
   desc "Import data and models to Docker volumes"
   task :import_resources do
-    puts Rainbow("No resources to import - llama_cpp is disabled.").yellow
+    TaskLogger.warn("No resources to import - llama_cpp is disabled.")
 
     # Add code here if you need to import other resources in the future
   end

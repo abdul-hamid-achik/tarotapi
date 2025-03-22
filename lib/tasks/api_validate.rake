@@ -4,19 +4,19 @@ task :validate_api_spec do
   require "json"
   require "openapi_parser"
 
-  puts "Validating OpenAPI specification (standalone)..."
+  TaskLogger.info("Validating OpenAPI specification (standalone)...")
 
   spec_file_yaml = File.join(Dir.pwd, "public/api/v1/spec.yaml")
   spec_file_json = File.join(Dir.pwd, "public/api/v1/spec.json")
 
   if File.exist?(spec_file_yaml)
-    puts "Using YAML spec file: #{spec_file_yaml}"
+    TaskLogger.info("Using YAML spec file: #{spec_file_yaml}")
     spec = YAML.load_file(spec_file_yaml)
   elsif File.exist?(spec_file_json)
-    puts "Using JSON spec file: #{spec_file_json}"
+    TaskLogger.info("Using JSON spec file: #{spec_file_json}")
     spec = JSON.parse(File.read(spec_file_json))
   else
-    puts "Error: Could not find OpenAPI spec file (tried #{spec_file_yaml} and #{spec_file_json})"
+    TaskLogger.error("Could not find OpenAPI spec file (tried #{spec_file_yaml} and #{spec_file_json})")
     exit 1
   end
 
@@ -26,15 +26,15 @@ task :validate_api_spec do
 
     validate_schema(spec)
 
-    puts "OpenAPI specification is valid!"
+    TaskLogger.info("OpenAPI specification is valid!")
     exit 0
   rescue OpenAPIParser::OpenAPIError => e
-    puts "OpenAPI specification validation failed:"
-    puts e.message
+    TaskLogger.error("OpenAPI specification validation failed:")
+    TaskLogger.error(e.message)
     exit 1
   rescue StandardError => e
-    puts "Error validating OpenAPI spec: #{e.message}"
-    puts e.backtrace[0..5]
+    TaskLogger.error("Error validating OpenAPI spec: #{e.message}")
+    TaskLogger.error(e.backtrace[0..5].join("\n"))
     exit 1
   end
 end
@@ -57,10 +57,10 @@ def validate_schema(spec)
   if spec["security"]
     validate_references(spec)
   else
-    puts "No global security requirements defined - skipping validation"
+    TaskLogger.info("No global security requirements defined - skipping validation")
   end
 
-  puts "Schema validation passed"
+  TaskLogger.info("Schema validation passed")
 end
 
 def validate_references(spec)
@@ -71,11 +71,11 @@ def validate_references(spec)
         unless spec["components"] &&
                spec["components"]["securitySchemes"] &&
                spec["components"]["securitySchemes"][scheme_name]
-          puts "Warning: Referenced security scheme '#{scheme_name}' not defined in components"
+          TaskLogger.warn("Referenced security scheme '#{scheme_name}' not defined in components")
         end
       end
     end
   end
 
-  puts "References validation passed"
+  TaskLogger.info("References validation passed")
 end

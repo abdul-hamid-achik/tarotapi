@@ -3,7 +3,7 @@ namespace :aws do
   task :setup_credentials do
     # Check if credentials are already set in environment
     if ENV["AWS_ACCESS_KEY_ID"] && ENV["AWS_SECRET_ACCESS_KEY"]
-      puts "using aws credentials from environment variables"
+      TaskLogger.info("using aws credentials from environment variables")
 
       # Create AWS credentials file to ensure aws-cli has access
       aws_dir = File.expand_path("~/.aws")
@@ -25,7 +25,7 @@ namespace :aws do
         f.puts "output = json"
       end
 
-      puts "aws credentials file created using #{region} region"
+      TaskLogger.info("aws credentials file created using #{region} region")
     else
       abort "aws credentials not found in environment variables\nset AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and optionally AWS_DEFAULT_REGION"
     end
@@ -40,18 +40,18 @@ namespace :aws do
 
     # Verify credentials work
     if system("aws sts get-caller-identity > /dev/null 2>&1")
-      puts "aws credentials verified successfully"
+      TaskLogger.info("aws credentials verified successfully")
 
       # Get current region
       region = `aws configure get region`.strip
-      puts "using aws region: #{region}"
+      TaskLogger.info("using aws region: #{region}")
 
       # Check if the region is available
       if region == "mx-central-1"
         region_check = system("aws ec2 describe-regions --region-names mx-central-1 > /dev/null 2>&1")
         if !region_check
-          puts "warning: region mx-central-1 might not be available yet"
-          puts "if you encounter issues, switch to a different region like us-east-1"
+          TaskLogger.warn("region mx-central-1 might not be available yet")
+          TaskLogger.warn("if you encounter issues, switch to a different region like us-east-1")
         end
       end
     else
@@ -62,7 +62,7 @@ namespace :aws do
   desc "check region capabilities"
   task check_region: :verify_credentials do
     region = `aws configure get region`.strip
-    puts "checking aws region #{region} capabilities..."
+    TaskLogger.info("checking aws region #{region} capabilities...")
 
     # Check service availability
     services = {
@@ -76,27 +76,27 @@ namespace :aws do
       "lambda" => "list-functions"
     }
 
-    puts "\nservice availability in #{region}:"
+    TaskLogger.info("\nservice availability in #{region}:")
 
     services.each do |service, command|
       available = system("aws #{service} #{command} > /dev/null 2>&1")
       status = available ? "✅" : "❌"
-      puts "#{status} #{service}"
+      TaskLogger.info("#{status} #{service}")
     end
 
     # If using US West region, check additional details
     if region == "mx-central-1"
-      puts "\n#{region} region details:"
-      puts "- availability zones: 6 (mx-central-1a, mx-central-1b, mx-central-1c, mx-central-1d, etc.)"
-      puts "- data residency: supports data sovereignty requirements in the US"
-      puts "- latency: improved performance for users in the US"
+      TaskLogger.info("\n#{region} region details:")
+      TaskLogger.info("- availability zones: 6 (mx-central-1a, mx-central-1b, mx-central-1c, mx-central-1d, etc.)")
+      TaskLogger.info("- data residency: supports data sovereignty requirements in the US")
+      TaskLogger.info("- latency: improved performance for users in the US")
 
       # Check availability zones
-      puts "\navailability zones:"
+      TaskLogger.info("\navailability zones:")
       system("aws ec2 describe-availability-zones --region #{region} | grep ZoneName")
     end
 
-    puts "\nregion capability check complete"
+    TaskLogger.info("\nregion capability check complete")
   end
 
   desc "setup aws s3 buckets"
@@ -104,21 +104,21 @@ namespace :aws do
     region = `aws configure get region`.strip
     bucket_name = ENV["AWS_S3_BUCKET"] || "tarot-api-#{region}-#{SecureRandom.hex(4)}"
 
-    puts "setting up s3 bucket #{bucket_name} in region #{region}..."
+    TaskLogger.info("setting up s3 bucket #{bucket_name} in region #{region}...")
 
     # Check if bucket exists
     if system("aws s3 ls s3://#{bucket_name} > /dev/null 2>&1")
-      puts "bucket #{bucket_name} already exists"
+      TaskLogger.info("bucket #{bucket_name} already exists")
     else
       # Create bucket
       if system("aws s3 mb s3://#{bucket_name} --region #{region}")
-        puts "bucket #{bucket_name} created successfully"
+        TaskLogger.info("bucket #{bucket_name} created successfully")
 
         # Set bucket for public read access for tarot card images
         if system("aws s3api put-bucket-policy --bucket #{bucket_name} --policy '{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"PublicReadForGetBucketObjects\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":\"s3:GetObject\",\"Resource\":\"arn:aws:s3:::#{bucket_name}/*\"}]}'")
-          puts "bucket policy set for public read access"
+          TaskLogger.info("bucket policy set for public read access")
         else
-          puts "warning: failed to set bucket policy"
+          TaskLogger.warn("failed to set bucket policy")
         end
       else
         abort "failed to create bucket #{bucket_name}"
@@ -139,7 +139,7 @@ namespace :aws do
       end
 
       File.write(env_file, new_content)
-      puts "updated #{env_file} with AWS_S3_BUCKET=#{bucket_name}"
+      TaskLogger.info("updated #{env_file} with AWS_S3_BUCKET=#{bucket_name}")
     end
   end
 
@@ -148,27 +148,27 @@ namespace :aws do
     bucket_name = args[:bucket_name]
     abort "bucket name is required" unless bucket_name
 
-    puts "creating cloudfront distribution for bucket: #{bucket_name}"
+    TaskLogger.info("creating cloudfront distribution for bucket: #{bucket_name}")
 
     # This should now use Pulumi instead
-    puts "this task has been moved to Pulumi infrastructure code"
-    puts "run 'bundle exec rake deploy:infra:staging' to provision infrastructure including CDN"
+    TaskLogger.info("this task has been moved to Pulumi infrastructure code")
+    TaskLogger.info("run 'bundle exec rake deploy:infra:staging' to provision infrastructure including CDN")
   end
 
   desc "cleanup orphaned aws resources"
   task cleanup: :verify_credentials do
-    puts "cleaning up orphaned aws resources..."
+    TaskLogger.info("cleaning up orphaned aws resources...")
 
     # This task is now better handled by Pulumi's state tracking
-    puts "recommended: use pulumi to manage resources and avoid orphaned resources"
-    puts "run 'bundle exec rake pulumi:deploy' with the appropriate environment to ensure resources are tracked"
+    TaskLogger.info("recommended: use pulumi to manage resources and avoid orphaned resources")
+    TaskLogger.info("run 'bundle exec rake pulumi:deploy' with the appropriate environment to ensure resources are tracked")
   end
 
   desc "Ensure AWS region is set correctly across all configurations"
   task :set_region, [ :region ] => :environment do |t, args|
     region = args[:region] || "mx-central-1"
 
-    puts "Setting AWS region to #{region} across all configurations..."
+    TaskLogger.info("Setting AWS region to #{region} across all configurations...")
 
     # Check if AWS CLI is installed
     unless system("which aws > /dev/null 2>&1")
@@ -176,11 +176,11 @@ namespace :aws do
     end
 
     # 1. Set AWS CLI config
-    puts "Setting AWS CLI default region..."
+    TaskLogger.info("Setting AWS CLI default region...")
     system("aws configure set region #{region}")
 
     # 2. Update Pulumi configs
-    puts "Updating Pulumi configuration files..."
+    TaskLogger.info("Updating Pulumi configuration files...")
 
     # Find all Pulumi.yaml files
     pulumi_files = Dir.glob(File.join(Rails.root, "infra", "pulumi", "**", "Pulumi.yaml"))
@@ -189,9 +189,9 @@ namespace :aws do
       if content.match?(/aws:region:/)
         updated_content = content.gsub(/aws:region:.*/, "aws:region: #{region}")
         File.write(file, updated_content)
-        puts "  ✅ Updated #{file}"
+        TaskLogger.info("  ✅ Updated #{file}")
       else
-        puts "  ⚠️ No aws:region found in #{file}"
+        TaskLogger.warn("  ⚠️ No aws:region found in #{file}")
       end
     end
 
@@ -202,14 +202,14 @@ namespace :aws do
       if content.match?(/region:.*/)
         updated_content = content.gsub(/region:.*/, "region: #{region}  # AWS region")
         File.write(config_file, updated_content)
-        puts "  ✅ Updated #{config_file}"
+        TaskLogger.info("  ✅ Updated #{config_file}")
       else
-        puts "  ⚠️ No region setting found in #{config_file}"
+        TaskLogger.warn("  ⚠️ No region setting found in #{config_file}")
       end
     end
 
     # 4. Update GitHub workflow files
-    puts "Updating GitHub workflow files..."
+    TaskLogger.info("Updating GitHub workflow files...")
 
     workflow_files = Dir.glob(File.join(Rails.root, ".github", "workflows", "*.yml"))
     workflow_files.each do |file|
@@ -219,7 +219,7 @@ namespace :aws do
       if content.match?(/aws-region:/)
         updated_content = content.gsub(/aws-region:.*/, "aws-region: #{region}  # AWS region")
         File.write(file, updated_content)
-        puts "  ✅ Updated aws-region in #{file}"
+        TaskLogger.info("  ✅ Updated aws-region in #{file}")
       end
 
       # Update environment variables
@@ -227,7 +227,7 @@ namespace :aws do
         updated_content = content.gsub(/AWS_REGION=.*/, "AWS_REGION=#{region}")
         updated_content = updated_content.gsub(/AWS_DEFAULT_REGION=.*/, "AWS_DEFAULT_REGION=#{region}")
         File.write(file, updated_content)
-        puts "  ✅ Updated AWS_REGION in #{file}"
+        TaskLogger.info("  ✅ Updated AWS_REGION in #{file}")
       end
     end
 
@@ -235,13 +235,13 @@ namespace :aws do
     ENV["AWS_REGION"] = region
     ENV["AWS_DEFAULT_REGION"] = region
 
-    puts "AWS region has been set to #{region} in all configurations."
-    puts "To verify the changes, run: rake aws:check_region"
+    TaskLogger.info("AWS region has been set to #{region} in all configurations.")
+    TaskLogger.info("To verify the changes, run: rake aws:check_region")
   end
 
   desc "Check current AWS region configuration"
   task check_region: :environment do
-    puts "Checking AWS region configuration..."
+    TaskLogger.info("Checking AWS region configuration...")
 
     # Check if AWS CLI is installed
     unless system("which aws > /dev/null 2>&1")
@@ -250,37 +250,37 @@ namespace :aws do
 
     # 1. Check AWS CLI config
     region = `aws configure get region`.strip
-    puts "AWS CLI default region: #{region.empty? ? 'not set' : region}"
+    TaskLogger.info("AWS CLI default region: #{region.empty? ? 'not set' : region}")
 
     # 2. Check environment variables
-    puts "AWS_REGION environment variable: #{ENV['AWS_REGION'] || 'not set'}"
-    puts "AWS_DEFAULT_REGION environment variable: #{ENV['AWS_DEFAULT_REGION'] || 'not set'}"
+    TaskLogger.info("AWS_REGION environment variable: #{ENV['AWS_REGION'] || 'not set'}")
+    TaskLogger.info("AWS_DEFAULT_REGION environment variable: #{ENV['AWS_DEFAULT_REGION'] || 'not set'}")
 
     # 3. Check Pulumi configurations
-    puts "\nPulumi configuration files:"
+    TaskLogger.info("\nPulumi configuration files:")
     pulumi_files = Dir.glob(File.join(Rails.root, "infra", "pulumi", "**", "Pulumi.yaml"))
     pulumi_files.each do |file|
       content = File.read(file)
       region_match = content.match(/aws:region: (.*)/)
       pulumi_region = region_match ? region_match[1].strip : "not found"
-      puts "  #{File.basename(file)}: #{pulumi_region}"
+      TaskLogger.info("  #{File.basename(file)}: #{pulumi_region}")
     end
 
     # 4. Check GitHub workflow files
-    puts "\nGitHub workflow files:"
+    TaskLogger.info("\nGitHub workflow files:")
     workflow_files = Dir.glob(File.join(Rails.root, ".github", "workflows", "*.yml"))
     workflow_files.each do |file|
       content = File.read(file)
       region_match = content.match(/aws-region: (.*)/)
       workflow_region = region_match ? region_match[1].strip : "not found"
-      puts "  #{File.basename(file)}: #{workflow_region}"
+      TaskLogger.info("  #{File.basename(file)}: #{workflow_region}")
     end
 
     # 5. Check AWS account access
-    puts "\nVerifying AWS account access:"
+    TaskLogger.info("\nVerifying AWS account access:")
     system("aws sts get-caller-identity")
 
-    puts "\nTo set a consistent region across all configurations, run: rake aws:set_region[region_name]"
-    puts "Example: rake aws:set_region[mx-central-1]"
+    TaskLogger.info("\nTo set a consistent region across all configurations, run: rake aws:set_region[region_name]")
+    TaskLogger.info("Example: rake aws:set_region[mx-central-1]")
   end
 end

@@ -7,14 +7,16 @@ class InterpretationService
     @reading = reading
     @birth_date = birth_date
     @name = name
+    
+    # Initialize LlmService with user
+    @llm_service = LlmService.instance
+    @llm_service.set_user(user)
   end
 
   def interpret(readings)
-    llm_service = LlmService.instance
-
     reading_context = prepare_context(readings)
 
-    llm_service.interpret_reading(
+    @llm_service.interpret_reading(
       cards: reading_context[:cards],
       positions: reading_context[:positions],
       spread_name: reading_context[:spread_name],
@@ -27,11 +29,9 @@ class InterpretationService
   end
 
   def interpret_streaming(readings, &block)
-    llm_service = LlmService.instance
-
     reading_context = prepare_context(readings)
 
-    llm_service.interpret_reading_streaming(
+    @llm_service.interpret_reading_streaming(
       cards: reading_context[:cards],
       positions: reading_context[:positions],
       spread_name: reading_context[:spread_name],

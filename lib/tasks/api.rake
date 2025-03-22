@@ -1,15 +1,15 @@
 namespace :api do
   desc "generate and validate api documentation"
   task :docs do
-    puts "generating api documentation..."
+    TaskLogger.info("generating api documentation...")
 
     if system("RAILS_ENV=test bundle exec rake rswag:specs:swaggerize")
-      puts "api documentation generated successfully"
+      TaskLogger.info("api documentation generated successfully")
 
       # Validate the generated documentation
       Rake::Task["api:validate"].invoke
     else
-      puts "failed to generate api documentation"
+      TaskLogger.error("failed to generate api documentation")
       exit 1
     end
   end
@@ -19,7 +19,7 @@ namespace :api do
     require "yaml"
     require "openapi_parser"
 
-    puts "validating openapi specification..."
+    TaskLogger.info("validating openapi specification...")
 
     spec_file = Rails.root.join("public/api/v1/spec.yaml")
 
@@ -37,17 +37,17 @@ namespace :api do
       validate_rate_limiting(spec)
       validate_examples(spec)
 
-      puts "openapi specification is valid!"
+      TaskLogger.info("openapi specification is valid!")
     rescue OpenAPIParser::OpenAPIError => e
-      puts "openapi specification validation failed:"
-      puts e.message
+      TaskLogger.error("openapi specification validation failed:")
+      TaskLogger.error(e.message)
       exit 1
     end
   end
 
   desc "setup redoc ui for api documentation"
   task :setup_redoc do
-    puts "setting up redoc ui for api documentation..."
+    TaskLogger.info("setting up redoc ui for api documentation...")
 
     # Create public/docs directory if it doesn't exist
     FileUtils.mkdir_p("public/docs")
@@ -77,29 +77,29 @@ namespace :api do
 
     File.write("public/docs/index.html", redoc_html)
 
-    puts "redoc ui setup complete"
-    puts "documentation will be available at /docs"
+    TaskLogger.info("redoc ui setup complete")
+    TaskLogger.info("documentation will be available at /docs")
   end
 
   desc "run integration tests against a deployed api"
   task :test, [ :base_url ] => :environment do |_, args|
     base_url = args[:base_url] || ENV["API_BASE_URL"] || "http://localhost:3000"
 
-    puts "running integration tests against #{base_url}..."
+    TaskLogger.info("running integration tests against #{base_url}...")
 
     ENV["API_BASE_URL"] = base_url
 
     if system("bundle exec cucumber features/api")
-      puts "integration tests passed"
+      TaskLogger.info("integration tests passed")
     else
-      puts "integration tests failed"
+      TaskLogger.error("integration tests failed")
       exit 1
     end
   end
 
   desc "publish api documentation to s3"
   task publish: [ :docs ] do
-    puts "publishing api documentation to s3..."
+    TaskLogger.info("publishing api documentation to s3...")
 
     # Check for required environment variables
     unless ENV["AWS_ACCESS_KEY_ID"] && ENV["AWS_SECRET_ACCESS_KEY"] && ENV["AWS_S3_BUCKET"]
@@ -113,13 +113,13 @@ namespace :api do
     cmd = "aws s3 sync #{spec_dir} s3://#{ENV['AWS_S3_BUCKET']}/#{s3_prefix} --acl public-read"
 
     if system(cmd)
-      puts "api documentation published to s3://#{ENV['AWS_S3_BUCKET']}/#{s3_prefix}"
+      TaskLogger.info("api documentation published to s3://#{ENV['AWS_S3_BUCKET']}/#{s3_prefix}")
 
       # Print URL to documentation
       region = ENV["AWS_DEFAULT_REGION"] || "mx-central-1"
-      puts "access documentation at: https://#{ENV['AWS_S3_BUCKET']}.s3.#{region}.amazonaws.com/#{s3_prefix}/v1/spec.json"
+      TaskLogger.info("access documentation at: https://#{ENV['AWS_S3_BUCKET']}.s3.#{region}.amazonaws.com/#{s3_prefix}/v1/spec.json")
     else
-      puts "failed to publish api documentation"
+      TaskLogger.error("failed to publish api documentation")
       exit 1
     end
   end
@@ -128,18 +128,18 @@ namespace :api do
   task :generate_docs, [ :version ] => :environment do |_, args|
     version = args[:version] || "v1"
     spec_dir = "public/api/#{version}"
-    puts "generating api documentation for version #{version}..."
+    TaskLogger.info("generating api documentation for version #{version}...")
 
     # Create directory if it doesn't exist
     FileUtils.mkdir_p(spec_dir)
 
     # Generate documentation
     if system("RAILS_ENV=test VERSION=#{version} bundle exec rake rswag:specs:swaggerize")
-      puts "api documentation for version #{version} generated successfully"
-      puts "documentation available in:"
-      puts "  - #{spec_dir}"
+      TaskLogger.info("api documentation for version #{version} generated successfully")
+      TaskLogger.info("documentation available in:")
+      TaskLogger.info("  - #{spec_dir}")
     else
-      puts "failed to generate api documentation for version #{version}"
+      TaskLogger.error("failed to generate api documentation for version #{version}")
       exit 1
     end
   end
@@ -150,11 +150,11 @@ namespace :api do
     require "yaml"
     require "openapi_parser"
 
-    puts "validating openapi specification (standalone mode)..."
+    TaskLogger.info("validating openapi specification (standalone mode)...")
 
     spec_file = File.join(Dir.pwd, "public/api/v1/spec.yaml")
     unless File.exist?(spec_file)
-      puts "spec file not found at #{spec_file}"
+      TaskLogger.error("spec file not found at #{spec_file}")
       exit 1
     end
 
@@ -167,10 +167,10 @@ namespace :api do
       )
       OpenAPIParser.parse(spec, config)
 
-      puts "openapi specification is valid!"
+      TaskLogger.info("openapi specification is valid!")
     rescue OpenAPIParser::OpenAPIError => e
-      puts "openapi specification validation failed:"
-      puts e.message
+      TaskLogger.error("openapi specification validation failed:")
+      TaskLogger.error(e.message)
       exit 1
     end
   end
@@ -180,7 +180,7 @@ namespace :api do
     task :create, [ :version ] => :environment do |_, args|
       version = args[:version] || abort("version required (e.g., v2)")
 
-      puts "creating new api version: #{version}..."
+      TaskLogger.info("creating new api version: #{version}...")
 
       # Create directory structure
       controllers_dir = "app/controllers/api/#{version}"
@@ -225,17 +225,17 @@ namespace :api do
         end
       end
 
-      puts "created new api version: #{version}"
-      puts "directories created:"
-      puts "  - #{controllers_dir}"
-      puts "  - #{serializers_dir}"
-      puts "  - #{spec_dir}"
-      puts "  - #{test_dir}"
-      puts "files created:"
-      puts "  - #{base_controller}"
-      puts "  - #{route_file}"
-      puts "updated:"
-      puts "  - #{routes_file}"
+      TaskLogger.info("created new api version: #{version}")
+      TaskLogger.info("directories created:")
+      TaskLogger.info("  - #{controllers_dir}")
+      TaskLogger.info("  - #{serializers_dir}")
+      TaskLogger.info("  - #{spec_dir}")
+      TaskLogger.info("  - #{test_dir}")
+      TaskLogger.info("files created:")
+      TaskLogger.info("  - #{base_controller}")
+      TaskLogger.info("  - #{route_file}")
+      TaskLogger.info("updated:")
+      TaskLogger.info("  - #{routes_file}")
     end
   end
 
