@@ -28,8 +28,20 @@ on:
           - destroy
           - backup-state
           - restore-state
+          - release
+          - hotfix
+          - rollback
       state_file:
         description: 'path to state file (for restore-state action)'
+        required: false
+        type: string
+      auto_confirm:
+        description: 'automatically confirm production deployment in pipeline (use carefully)'
+        required: false
+        default: false
+        type: boolean
+      version:
+        description: 'version tag for release/hotfix/rollback (optional for release/hotfix)'
         required: false
         type: string
 
@@ -96,9 +108,10 @@ jobs:
         id: get_aws_account
         run: echo "aws_account_id=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
       
-      - name: build and push to both registries
+      - name: build and push container image
         run: |
-          bundle exec rake "docker:build[${{ env.TARGET }},both]"
+          # For production/staging, use AWS ECR
+          bundle exec rake container:deploy[${{ env.TARGET }},aws]
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           AWS_ACCOUNT_ID: ${{ env.aws_account_id }}
@@ -354,7 +367,7 @@ jobs:
   dispatch-action:
     name: run dispatched action
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.action == 'destroy' || github.event.inputs.action == 'backup-state' || github.event.inputs.action == 'restore-state')
+    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.action == 'destroy' || github.event.inputs.action == 'backup-state' || github.event.inputs.action == 'restore-state' || github.event.inputs.action == 'release' || github.event.inputs.action == 'hotfix' || github.event.inputs.action == 'rollback')
     
     steps:
       - name: checkout code
@@ -407,5 +420,55 @@ jobs:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: mx-central-1
+          AWS_DEFAULT_REGION: mx-central-1
+          
+      - name: execute release
+        if: github.event.inputs.action == 'release'
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          AUTO_CONFIRM=${{ github.event.inputs.auto_confirm && 'y' || 'n' }}
+          bundle exec rake "release:execute[$VERSION,$AUTO_CONFIRM]"
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AWS_REGION: mx-central-1
+          AWS_DEFAULT_REGION: mx-central-1
+          
+      - name: execute hotfix
+        if: github.event.inputs.action == 'hotfix'
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          bundle exec rake "release:hotfix[$VERSION]"
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AWS_REGION: mx-central-1
+          AWS_DEFAULT_REGION: mx-central-1
+          
+      - name: execute rollback
+        if: github.event.inputs.action == 'rollback'
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            echo "::error::Version is required for rollback"
+            exit 1
+          fi
+          bundle exec rake "release:rollback[$VERSION,${{ github.event.inputs.environment }}]"
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           AWS_REGION: mx-central-1
           AWS_DEFAULT_REGION: mx-central-1 

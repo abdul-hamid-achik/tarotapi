@@ -281,6 +281,58 @@ namespace :deploy do
       system("aws logs tail #{cluster}-#{service} --follow")
     end
   end
+
+  desc "Deploy to multiple environments with zero-downtime approach (staging then production)"
+  task :pipeline, [:confirm_prod] do |t, args|
+    confirm_prod = args[:confirm_prod]&.downcase == 'y'
+    
+    begin
+      TaskLogger.info("Starting deployment pipeline (staging first)...")
+      
+      # Deploy to staging first
+      Rake::Task["deploy:staging"].invoke
+      
+      # Check if staging deployment was successful
+      TaskLogger.info("Verifying staging deployment health...")
+      Rake::Task["deploy:health:check"].invoke("staging")
+      
+      # If staging is healthy, prompt for production deployment unless auto-confirmed
+      unless confirm_prod
+        puts "\n"
+        puts "======================================================================"
+        puts "✅ Staging deployment complete and healthy."
+        puts "Do you want to proceed with production deployment? (y/n)"
+        puts "======================================================================"
+        puts "\n"
+        
+        # Wait for user input
+        response = STDIN.gets.chomp.downcase
+        confirm_prod = response == 'y'
+      end
+      
+      if confirm_prod
+        TaskLogger.info("Proceeding with production deployment...")
+        # Reenable health check task so it can be called again
+        Rake::Task["deploy:health:check"].reenable
+        
+        # Deploy to production 
+        Rake::Task["deploy:production"].invoke
+        
+        # Check production health
+        TaskLogger.info("Verifying production deployment health...")
+        Rake::Task["deploy:health:check"].reenable
+        Rake::Task["deploy:health:check"].invoke("production")
+        
+        TaskLogger.info("✅ Full deployment pipeline completed successfully!")
+      else
+        TaskLogger.info("Production deployment skipped. Staging deployment is complete.")
+      end
+    rescue => e
+      TaskLogger.error("❌ Deployment pipeline failed: #{e.message}")
+      TaskLogger.error(e.backtrace.join("\n"))
+      exit 1
+    end
+  end
 end
 
 # Convenience aliases
@@ -293,4 +345,288 @@ namespace :container do
 
   desc "Alias for deploy:cleanup"
   task cleanup: "deploy:cleanup"
+end
+
+# Also add a complementary task for infrastructure deployment
+namespace :infra do
+  desc "Deploy infrastructure to multiple environments sequentially (staging then production)"
+  task :pipeline, [:confirm_prod] do |t, args|
+    confirm_prod = args[:confirm_prod]&.downcase == 'y'
+    
+    begin
+      TaskLogger.info("Starting infrastructure deployment pipeline (staging first)...")
+      
+      # Deploy staging infrastructure
+      Rake::Task["infra:deploy"].invoke("staging")
+      TaskLogger.info("✅ Staging infrastructure deployed successfully.")
+      
+      # Unless auto-confirmed, prompt for production deployment
+      unless confirm_prod
+        puts "\n"
+        puts "======================================================================"
+        puts "✅ Staging infrastructure deployment complete."
+        puts "Do you want to proceed with production infrastructure deployment? (y/n)"
+        puts "======================================================================"
+        puts "\n"
+        
+        # Wait for user input
+        response = STDIN.gets.chomp.downcase
+        confirm_prod = response == 'y'
+      end
+      
+      if confirm_prod
+        TaskLogger.info("Proceeding with production infrastructure deployment...")
+        # Reenable the infra:deploy task
+        Rake::Task["infra:deploy"].reenable
+        
+        # Deploy to production
+        Rake::Task["infra:deploy"].invoke("production")
+        TaskLogger.info("✅ Full infrastructure deployment pipeline completed successfully!")
+      else
+        TaskLogger.info("Production infrastructure deployment skipped. Staging deployment is complete.")
+      end
+    rescue => e
+      TaskLogger.error("❌ Infrastructure deployment pipeline failed: #{e.message}")
+      TaskLogger.error(e.backtrace.join("\n"))
+      exit 1
+    end
+  end
+end
+
+# Add a comprehensive release process that handles both infrastructure and application deployment
+namespace :release do
+  desc "Perform a full release (build, test, deploy to staging, then production)"
+  task :execute, [:version, :confirm_prod] do |t, args|
+    version = args[:version]
+    confirm_prod = args[:confirm_prod]&.downcase == 'y'
+    
+    if version.nil? || version.empty?
+      time_stamp = Time.now.strftime("%Y%m%d%H%M")
+      version = "v#{time_stamp}"
+      TaskLogger.info("No version specified, using generated version: #{version}")
+    end
+    
+    begin
+      TaskLogger.info("Starting release process for version: #{version}")
+      
+      # Step 1: Verify prerequisites
+      TaskLogger.info("Checking deployment prerequisites...")
+      Rake::Task["deploy:check_prerequisites"].invoke
+      
+      # Step 2: Run tests if available
+      if Rake::Task.task_defined?("test:all")
+        TaskLogger.info("Running tests...")
+        Rake::Task["test:all"].invoke
+      end
+      
+      # Step 3: Deploy infrastructure to staging
+      TaskLogger.info("Deploying infrastructure to staging...")
+      Rake::Task["infra:deploy"].invoke("staging")
+      TaskLogger.info("✅ Staging infrastructure deployed")
+      
+      # Step 4: Build and push the container
+      TaskLogger.info("Building and pushing container...")
+      if Rake::Task.task_defined?("container:deploy")
+        Rake::Task["container:deploy"].invoke("staging", "aws")
+      else
+        Rake::Task["deploy:build"].invoke("staging")
+        Rake::Task["deploy:push"].invoke("staging")
+      end
+      
+      # Step 5: Update the registry for staging
+      TaskLogger.info("Updating registry for staging...")
+      Rake::Task["deploy:update_registry"].invoke("staging")
+      
+      # Step 6: Health check on staging
+      TaskLogger.info("Checking staging deployment health...")
+      Rake::Task["deploy:health:check"].invoke("staging")
+      TaskLogger.info("✅ Staging deployment healthy")
+      
+      # Step 7: Prompt for production deployment unless auto-confirmed
+      unless confirm_prod
+        puts "\n"
+        puts "=============================================================="
+        puts "✅ Staging deployment complete and verified healthy."
+        puts "Do you want to proceed with production deployment? (y/n)"
+        puts "=============================================================="
+        puts "\n"
+        
+        response = STDIN.gets.chomp.downcase
+        confirm_prod = response == 'y'
+      end
+      
+      if confirm_prod
+        # Step 8: Deploy infrastructure to production
+        TaskLogger.info("Deploying infrastructure to production...")
+        Rake::Task["infra:deploy"].reenable
+        Rake::Task["infra:deploy"].invoke("production")
+        TaskLogger.info("✅ Production infrastructure deployed")
+        
+        # Step 9: Push container to production
+        TaskLogger.info("Pushing container to production...")
+        if Rake::Task.task_defined?("container:deploy")
+          Rake::Task["container:deploy"].reenable
+          Rake::Task["container:deploy"].invoke("production", "aws")
+        else
+          Rake::Task["deploy:build"].reenable
+          Rake::Task["deploy:push"].reenable
+          Rake::Task["deploy:build"].invoke("production")
+          Rake::Task["deploy:push"].invoke("production")
+        end
+        
+        # Step 10: Update the registry for production
+        TaskLogger.info("Updating registry for production...")
+        Rake::Task["deploy:update_registry"].reenable
+        Rake::Task["deploy:update_registry"].invoke("production")
+        
+        # Step 11: Health check on production
+        TaskLogger.info("Checking production deployment health...")
+        Rake::Task["deploy:health:check"].reenable
+        Rake::Task["deploy:health:check"].invoke("production")
+        
+        # Step 12: Tag the release in git
+        TaskLogger.info("Tagging release in git...")
+        system("git tag -a #{version} -m 'Release #{version}'")
+        system("git push origin #{version}")
+        
+        TaskLogger.info("✅ Release #{version} completed successfully!")
+      else
+        TaskLogger.info("❌ Production deployment skipped. Release process halted after staging.")
+      end
+    rescue => e
+      TaskLogger.error("❌ Release process failed: #{e.message}")
+      TaskLogger.error(e.backtrace.join("\n"))
+      exit 1
+    end
+  end
+  
+  desc "Create a hotfix release (skips staging, deploys directly to production)"
+  task :hotfix, [:version] do |t, args|
+    version = args[:version]
+    
+    if version.nil? || version.empty?
+      time_stamp = Time.now.strftime("%Y%m%d%H%M")
+      version = "hotfix-#{time_stamp}"
+      TaskLogger.info("No version specified, using generated version: #{version}")
+    end
+    
+    begin
+      TaskLogger.info("⚠️ Starting HOTFIX release process for version: #{version}")
+      TaskLogger.info("⚠️ HOTFIX will deploy directly to production - USE WITH CAUTION")
+      
+      puts "\n"
+      puts "=============================================================="
+      puts "⚠️ WARNING: You are about to deploy a HOTFIX directly to PRODUCTION"
+      puts "Are you sure you want to proceed? This skips staging verification. (y/n)"
+      puts "=============================================================="
+      puts "\n"
+      
+      response = STDIN.gets.chomp.downcase
+      if response != 'y'
+        TaskLogger.info("❌ Hotfix cancelled.")
+        exit 0
+      end
+      
+      # Step 1: Verify prerequisites
+      TaskLogger.info("Checking deployment prerequisites...")
+      Rake::Task["deploy:check_prerequisites"].invoke
+      
+      # Step 2: Deploy infrastructure to production
+      TaskLogger.info("Deploying infrastructure to production...")
+      Rake::Task["infra:deploy"].invoke("production")
+      
+      # Step 3: Build and push the container
+      TaskLogger.info("Building and pushing container...")
+      if Rake::Task.task_defined?("container:deploy")
+        Rake::Task["container:deploy"].invoke("production", "aws")
+      else
+        Rake::Task["deploy:build"].invoke("production")
+        Rake::Task["deploy:push"].invoke("production")
+      end
+      
+      # Step 4: Update the registry for production
+      TaskLogger.info("Updating registry for production...")
+      Rake::Task["deploy:update_registry"].invoke("production")
+      
+      # Step 5: Health check on production
+      TaskLogger.info("Checking production deployment health...")
+      Rake::Task["deploy:health:check"].invoke("production")
+      
+      # Step 6: Tag the hotfix in git
+      TaskLogger.info("Tagging hotfix in git...")
+      system("git tag -a #{version} -m 'Hotfix #{version}'")
+      system("git push origin #{version}")
+      
+      TaskLogger.info("✅ Hotfix #{version} completed successfully!")
+    rescue => e
+      TaskLogger.error("❌ Hotfix process failed: #{e.message}")
+      TaskLogger.error(e.backtrace.join("\n"))
+      exit 1
+    end
+  end
+  
+  desc "Roll back to a previous version"
+  task :rollback, [:version, :env] do |t, args|
+    version = args[:version]
+    env = args[:env] || "production"
+    
+    if version.nil? || version.empty?
+      raise "You must specify a version to roll back to"
+    end
+    
+    begin
+      TaskLogger.info("⚠️ Rolling back #{env} to version: #{version}")
+      
+      puts "\n" 
+      puts "=============================================================="
+      puts "⚠️ WARNING: Rolling back #{env} to version #{version}"
+      puts "Are you sure you want to proceed? (y/n)"
+      puts "=============================================================="
+      puts "\n"
+      
+      response = STDIN.gets.chomp.downcase
+      if response != 'y'
+        TaskLogger.info("❌ Rollback cancelled.")
+        exit 0
+      end
+      
+      # Step 1: Check out the specified version 
+      TaskLogger.info("Checking out version #{version}...")
+      current_branch = `git rev-parse --abbrev-ref HEAD`.strip
+      system("git checkout #{version}")
+      
+      # Step 2: Deploy infrastructure for the specified version
+      TaskLogger.info("Deploying infrastructure for version #{version}...")
+      Rake::Task["infra:deploy"].invoke(env)
+      
+      # Step 3: Build and push the container
+      TaskLogger.info("Building and pushing container...")
+      if Rake::Task.task_defined?("container:deploy")
+        Rake::Task["container:deploy"].invoke(env, "aws")
+      else
+        Rake::Task["deploy:build"].invoke(env)
+        Rake::Task["deploy:push"].invoke(env)
+      end
+      
+      # Step 4: Update the registry 
+      TaskLogger.info("Updating registry...")
+      Rake::Task["deploy:update_registry"].invoke(env)
+      
+      # Step 5: Health check
+      TaskLogger.info("Checking deployment health...")
+      Rake::Task["deploy:health:check"].invoke(env)
+      
+      # Step 6: Return to the original branch
+      system("git checkout #{current_branch}")
+      
+      TaskLogger.info("✅ Rollback to #{version} completed successfully!")
+    rescue => e
+      # Try to restore the original branch if possible
+      system("git checkout #{current_branch}") if defined?(current_branch) && !current_branch.nil?
+      
+      TaskLogger.error("❌ Rollback process failed: #{e.message}")
+      TaskLogger.error(e.backtrace.join("\n"))
+      exit 1
+    end
+  end
 end
