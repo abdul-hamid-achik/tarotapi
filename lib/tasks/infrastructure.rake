@@ -63,10 +63,57 @@ namespace :infra do
     TaskLogger.with_task_logging("infra:deploy:#{env}") do
       Dir.chdir(File.expand_path("../../infrastructure", __dir__)) do
         TaskLogger.info "Deploying infrastructure to #{env}..."
+        
+        # Check if the stack exists first
+        TaskLogger.info "Selecting stack #{env}..."
         system("pulumi stack select #{env}")
         
-        # Run Pulumi up with JSON output and format it
+        # Run Pulumi preview to see what changes would be made (and debug issues)
+        TaskLogger.info "Running Pulumi preview to diagnose configuration..."
+        preview_output = `pulumi preview --json`
+        
+        begin
+          require 'json'
+          preview_result = JSON.parse(preview_output)
+          
+          if preview_result["diagnostics"] && !preview_result["diagnostics"].empty?
+            # Display diagnostic information to help debug Pulumi issues
+            TaskLogger.warn "----- Pulumi Configuration Diagnostics -----"
+            preview_result["diagnostics"].each do |diagnostic|
+              TaskLogger.warn "#{diagnostic['severity']}: #{diagnostic['message']}"
+            end
+            TaskLogger.warn "--------------------------------------------"
+          end
+          
+          # Check if any resources would be created
+          if preview_result["changeSummary"] && preview_result["changeSummary"]["create"] == 0
+            TaskLogger.warn "No resources would be created. This may indicate missing configuration."
+            TaskLogger.warn "Check that you have set the required environment variables for Pulumi."
+            TaskLogger.warn "Required variables might include: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, etc."
+          end
+          
+        rescue => e
+          TaskLogger.warn "Could not parse Pulumi preview output: #{e.message}"
+          TaskLogger.info preview_output
+        end
+        
+        # Check environment variables that might be required for the Pulumi deployment
+        TaskLogger.info "Checking required environment variables..."
+        required_vars = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_DEFAULT_REGION", 
+                          "PULUMI_CONFIG_PASSPHRASE", "PULUMI_ACCESS_TOKEN"]
+        
+        missing_vars = required_vars.select { |var| ENV[var].nil? || ENV[var].empty? }
+        if missing_vars.any?
+          TaskLogger.warn "Missing required environment variables: #{missing_vars.join(', ')}"
+        end
+        
+        # Try to ensure the stack has minimal configuration
+        ensure_basic_config(env)
+        
+        # Run the actual deployment
+        TaskLogger.info "Running Pulumi deployment to #{env}..."
         output = `pulumi up --yes --json`
+        
         begin
           require 'json'
           result = JSON.parse(output)
@@ -79,6 +126,25 @@ namespace :infra do
           TaskLogger.info "  Updated: #{summary["update"] || 0}"
           TaskLogger.info "  Deleted: #{summary["delete"] || 0}"
           TaskLogger.info "  Unchanged: #{summary["same"] || 0}"
+          
+          # If no resources were created or changed, explain possible issues
+          if (summary["create"] || 0) == 0 && (summary["update"] || 0) == 0
+            TaskLogger.warn "No resources were created or updated. This may indicate:"
+            TaskLogger.warn "1. Resources already exist and are up-to-date"
+            TaskLogger.warn "2. Required configuration is missing"
+            TaskLogger.warn "3. There might be errors in the Pulumi configuration"
+            
+            # Check if stack has been properly initialized
+            stack_output = `pulumi stack output --json --stack #{env} 2>/dev/null`.strip
+            if stack_output == "{}" || stack_output.empty?
+              TaskLogger.warn "The stack appears to be empty. Try running:"
+              TaskLogger.warn "1. cd infrastructure"
+              TaskLogger.warn "2. pulumi stack init #{env} --secrets-provider passphrase"
+              TaskLogger.warn "3. pulumi config set aws:region mx-central-1"
+              TaskLogger.warn "4. Set any required config values with: pulumi config set <key> <value>"
+              TaskLogger.warn "5. Then run: pulumi up --yes"
+            end
+          end
           
           # Display outputs separately for clarity
           if result["outputs"] && !result["outputs"].empty?
@@ -177,5 +243,114 @@ namespace :infra do
         end
       end
     end
+  end
+
+  desc "Diagnose infrastructure issues"
+  task :diagnose, [ :env ] do |t, args|
+    env = args[:env] || "production"
+    require "semantic_logger"
+    require_relative "../task_logger"
+
+    # Configure semantic logger
+    SemanticLogger.default_level = :info
+    SemanticLogger.add_appender(io: $stdout, formatter: :color)
+
+    TaskLogger.with_task_logging("infra:diagnose:#{env}") do
+      Dir.chdir(File.expand_path("../../infrastructure", __dir__)) do
+        TaskLogger.info "Running diagnostics for Pulumi stack #{env}..."
+        
+        # Check if we can select the stack
+        select_result = system("pulumi stack select #{env} 2>/dev/null")
+        if !select_result
+          TaskLogger.error "Could not select stack #{env}. The stack may not exist."
+          TaskLogger.info "Creating stack #{env}..."
+          system("pulumi stack init #{env} --secrets-provider passphrase")
+        else
+          TaskLogger.info "Successfully selected stack #{env}"
+        end
+        
+        # Check config
+        TaskLogger.info "Checking Pulumi configuration for stack #{env}..."
+        config = `pulumi config 2>/dev/null`
+        if config.empty?
+          TaskLogger.warn "No configuration found for stack #{env}"
+        else
+          TaskLogger.info "Stack configuration:"
+          TaskLogger.info config
+        end
+        
+        # Check if Pulumi.#{env}.yaml exists
+        stack_config_file = File.join(File.expand_path("../../infrastructure", __dir__), "Pulumi.#{env}.yaml")
+        if File.exist?(stack_config_file)
+          TaskLogger.info "Stack config file exists: #{stack_config_file}"
+          # Show contents
+          stack_config = File.read(stack_config_file)
+          TaskLogger.info "Stack config contents:"
+          TaskLogger.info stack_config
+        else
+          TaskLogger.warn "Stack config file does not exist: #{stack_config_file}"
+        end
+        
+        # Run pulumi preview and check for issues
+        TaskLogger.info "Running Pulumi preview to identify potential issues..."
+        preview_output = `pulumi preview`
+        TaskLogger.info "Preview output:"
+        TaskLogger.info preview_output
+        
+        # Print required environment variables for Pulumi
+        TaskLogger.info "Required environment variables for Pulumi:"
+        required_vars = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_DEFAULT_REGION", 
+                         "PULUMI_CONFIG_PASSPHRASE", "PULUMI_ACCESS_TOKEN"]
+        
+        required_vars.each do |var|
+          if ENV[var].nil? || ENV[var].empty?
+            TaskLogger.warn "#{var}: NOT SET"
+          else
+            TaskLogger.info "#{var}: SET (value hidden)"
+          end
+        end
+        
+        # Print debug information about the Pulumi.yaml main file
+        pulumi_yaml = File.join(File.expand_path("../../infrastructure", __dir__), "Pulumi.yaml")
+        if File.exist?(pulumi_yaml)
+          TaskLogger.info "Pulumi.yaml exists and contains #{File.read(pulumi_yaml).lines.count} lines"
+          # Get first few lines to check structure
+          first_lines = File.read(pulumi_yaml).lines[0..10].join
+          TaskLogger.info "Pulumi.yaml starts with:"
+          TaskLogger.info first_lines
+        else
+          TaskLogger.error "Main Pulumi.yaml file not found!"
+        end
+        
+        # Suggest next steps
+        TaskLogger.info "\nSuggested next steps:"
+        TaskLogger.info "1. Ensure all required environment variables are set"
+        TaskLogger.info "2. Check that Pulumi.yaml contains valid resource definitions"
+        TaskLogger.info "3. Verify AWS credentials have sufficient permissions"
+        TaskLogger.info "4. Run 'pulumi refresh' to sync the stack with actual cloud state"
+        TaskLogger.info "5. Try running 'rake infra:deploy[#{env}]' after fixing any issues"
+      end
+    end
+  end
+
+  private
+  
+  # Ensure the stack has a basic configuration so deployment can proceed
+  def ensure_basic_config(env)
+    # Check if AWS region is set
+    region_output = `pulumi config get aws:region --stack #{env} 2>/dev/null`.strip
+    if region_output.empty?
+      TaskLogger.info "Setting AWS region to mx-central-1 for stack #{env}..."
+      system("pulumi config set aws:region mx-central-1 --stack #{env}")
+    end
+    
+    # Ensure project-specific configs are set
+    # This will depend on what your project requires
+    # Example:
+    # domain_output = `pulumi config get domain --stack #{env} 2>/dev/null`.strip
+    # if domain_output.empty?
+    #   TaskLogger.info "Setting domain to tarotapi.cards for stack #{env}..."
+    #   system("pulumi config set domain tarotapi.cards --stack #{env}")
+    # end
   end
 end
