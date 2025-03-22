@@ -94,15 +94,15 @@ namespace :test do
   task :all do
     # Set Rails environment to test
     ENV["RAILS_ENV"] = "test"
-    
+
     # Prepare test database
     Rake::Task["db:test:prepare"].invoke
     Rake::Task["db:test:load"].invoke
-    
+
     TaskLogger.info("Running all tests...")
-    
+
     # Run the tests
-    ["test:unit", "test:integration", "test:system"].each do |task|
+    [ "test:unit", "test:integration", "test:system" ].each do |task|
       Rake::Task[task].invoke
       # Re-enable the task for the next run
       Rake::Task[task].reenable
@@ -116,10 +116,10 @@ namespace :test do
     TaskLogger.info("Preparing test environment...")
 
     ENV["RAILS_ENV"] = "test"
-    
+
     # Ensure test database is ready
     Rake::Task["db:test:prepare"].invoke
-    
+
     # Clear test logs
     FileUtils.rm_f(Rails.root.join("log/test.log"))
   end
