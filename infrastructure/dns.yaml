@@ -95,7 +95,7 @@ notes: |
   2. then register the domain manually through the aws console or use the following rake task:
   
      ```
-     rake pulumi:register_domain
+     rake infra:register_domain
      ```
   
   this rake task will prompt you for the required information and use the aws cli to register the domain.
@@ -120,5 +120,5 @@ notes: |
   the following rake task will help you set up domain protection:
   
   ```
-  rake pulumi:protect_domain
+  rake infra:protect_domain
   ``` 

@@ -53,31 +53,33 @@ bundle exec rake dev
 
 ## Overview
 
-this api provides endpoints for tarot card readings, user management, and ai-powered interpretations. it is designed to be scalable, secure, and user-friendly.
+This API provides endpoints for tarot card readings, user management, and AI-powered interpretations. It is designed to be scalable, secure, and user-friendly.
 
 ## Infrastructure
 
-this project uses aws infrastructure deployed via pulumi to provide a scalable, reliable application environment.
+The project uses AWS infrastructure deployed via Pulumi to provide a scalable, reliable application environment. 
 
-### technology stack
+For detailed information about the infrastructure, see the [infrastructure/README.md](infrastructure/README.md) file.
 
-- **ruby on rails 8**: a web-application framework that includes everything needed to create database-backed web applications according to the model-view-controller (mvc) pattern.
-- **postgresql**: a powerful, open source object-relational database system.
-- **redis**: an in-memory data structure store, used as a database, cache, and message broker.
-- **docker**: for containerization and consistent environments across development, staging, and production.
-- **pulumi**: infrastructure as code tool for aws resource provisioning.
-- **kamal**: zero-downtime container deployments using docker and traefik.
-- **aws**: cloud infrastructure provider (ecs, rds, elasticache, s3, cloudfront, route53).
+### Technology Stack
 
-### system architecture
+- **Ruby on Rails 8**: A web-application framework that includes everything needed to create database-backed web applications according to the Model-View-Controller (MVC) pattern.
+- **PostgreSQL**: A powerful, open source object-relational database system.
+- **Redis**: An in-memory data structure store, used as a database, cache, and message broker.
+- **Docker**: For containerization and consistent environments across development, staging, and production.
+- **Pulumi**: Infrastructure as code tool for AWS resource provisioning.
+- **Kamal**: Zero-downtime container deployments using Docker and Traefik.
+- **AWS**: Cloud infrastructure provider (ECS, RDS, ElastiCache, S3, CloudFront, Route53).
 
-the application follows a microservices architecture with:
+### System Architecture
 
-- web api layer handling http requests
-- business logic layer implementing core functionality
-- data persistence layer for storage
-- background job processing for async tasks
-- ai integration layer for openai/llm interactions
+The application follows a microservices architecture with:
+
+- Web API layer handling HTTP requests
+- Business logic layer implementing core functionality
+- Data persistence layer for storage
+- Background job processing for async tasks
+- AI integration layer for OpenAI/LLM interactions
 
 ```mermaid
 graph TD
@@ -94,217 +96,57 @@ graph TD
     API --> OpenAI[OpenAI API]
 ```
 
-### infrastructure as code (pulumi)
+### Environments
 
-this project uses pulumi for infrastructure provisioning. the infrastructure is defined in the `infra/pulumi` directory with yaml configuration files:
+The project supports multiple deployment environments with their own domains:
 
-- `Pulumi.yaml` - main project configuration
-- `network.yaml` - vpc, subnets, security groups
-- `database.yaml` - rds instance for postgresql
-- `cache.yaml` - elasticache for redis
-- `storage.yaml` - s3 buckets and cloudfront cdn
-- `dns.yaml` - route53 for domain management
-- `ecs.yaml` - container orchestration and load balancing
+- **Production**: https://tarotapi.cards
+- **Staging**: https://staging.tarotapi.cards
+- **Preview**: https://preview-{feature-name}.tarotapi.cards
 
-### pulumi state management
+### Deployment Workflow
 
-The project uses Pulumi Cloud for state management. Your Pulumi access token is automatically used when running infrastructure commands.
+Deployments are handled via GitHub Actions workflows:
 
-If you need to log in manually:
-
-```sh
-pulumi login
-```
-
-it's recommended to periodically backup your pulumi state:
-
-```sh
-# backup all stacks
-bundle exec rake pulumi:backup_state
-
-# restore from backup
-bundle exec rake pulumi:restore_state[backup_file.tar.gz]
-```
-
-### environments
-
-the project supports multiple deployment environments with their own domains:
-
-- **production**: https://tarotapi.cards
-- **staging**: https://staging.tarotapi.cards
-- **preview**: https://preview-{feature-name}.tarotapi.cards
-
-all environments are subdomains of tarotapi.cards:
-
-```
-# production
-tarotapi.cards
-cdn.tarotapi.cards
-
-# staging
-staging.tarotapi.cards
-cdn-staging.tarotapi.cards
-
-# preview environments
-preview-my-feature.tarotapi.cards
-cdn-preview-my-feature.tarotapi.cards
-```
-
-### deployment workflow
-
-deployments are handled via github actions workflows:
-
-1. **staging deployment**: automatically triggered when code is merged to the main branch
-2. **preview environments**: created when a branch is tagged with `preview-*`
-3. **production deployment**: triggered when a version tag (`v*`) is created or through manual approval
-
-#### github actions integration
-
-the infrastructure is automatically deployed via github actions workflows:
-
-- `pulumi-deploy.yml`: handles deployments to staging and production
-- `cleanup-previews.yml`: cleans up inactive preview environments
-
-### zero-downtime deployments
-
-the system uses blue-green deployment strategy for zero-downtime updates:
-
-1. new version (green) is deployed alongside the existing version (blue)
-2. health checks verify the new version is healthy
-3. traffic is gradually shifted from blue to green
-4. once all traffic is on green, blue can be updated for the next deployment
-
-### cost optimization
-
-the infrastructure includes several cost-saving measures:
-
-- staging and preview environments scale down to zero during non-business hours
-- resource sizes are optimized for each environment
-- preview environments are automatically cleaned up when inactive for more than 3 days
-
-### domain management
-
-the domain `tarotapi.cards` is managed through aws route53:
-
-- domain registration is handled via rake task: `rake pulumi:register_domain`
-- domain protection is enabled to prevent accidental deletion: `rake pulumi:protect_domain`
-- ssl certificates are automatically provisioned and renewed
-
-### getting started with infrastructure
-
-#### prerequisites
-
-- aws account with appropriate permissions
-- aws cli installed and configured with appropriate credentials
-- pulumi cli installed (`brew install pulumi` or visit [pulumi.com](https://www.pulumi.com/docs/install/))
-- ruby 3.4+
-- appropriate github secrets for github actions workflows
-
-#### initial setup
-
-1. initialize the pulumi project:
-
-```sh
-bundle exec rake pulumi:init
-```
-
-this command will:
-- bootstrap an s3 bucket (`tarotapi-pulumi-state`) for pulumi state storage
-- configure pulumi to use this bucket as the backend
-- create stacks for all environments (production, staging, preview)
-- set up initial configuration for each stack
-
-2. set up secrets for your environment:
-
-```sh
-bundle exec rake pulumi:set_secrets[staging]
-```
-
-3. deploy the infrastructure:
-
-```sh
-bundle exec rake pulumi:deploy[staging]
-```
-
-#### common tasks
-
-create a preview environment:
-
-```sh
-bundle exec rake pulumi:create_preview[feature-name]
-```
-
-list all preview environments:
-
-```sh
-bundle exec rake pulumi:list_previews
-```
-
-deploy to production (with confirmation):
-
-```sh
-bundle exec rake pulumi:deploy_production
-```
-
-cleanup inactive preview environments:
-
-```sh
-bundle exec rake pulumi:cleanup_previews
-```
-
-view infrastructure outputs:
-
-```sh
-bundle exec rake pulumi:info[environment]
-```
-
-register the domain:
-
-```sh
-bundle exec rake pulumi:register_domain
-```
-
-protect the domain from accidental deletion:
-
-```sh
-bundle exec rake pulumi:protect_domain
-```
+1. **Staging Deployment**: Automatically triggered when code is merged to the main branch
+2. **Preview Environments**: Created when a branch is tagged with `preview-*`
+3. **Production Deployment**: Triggered when a version tag (`v*`) is created or through manual approval
 
 ## Development
 
-### prerequisites
+### Prerequisites
 
-- ruby 3.4.0
-- postgresql 16
-- redis 7
-- docker and docker compose
-- node.js and yarn
+- Ruby 3.4.0
+- PostgreSQL 16
+- Redis 7
+- Docker and Docker Compose
+- Node.js and Yarn
 
-### setup
+### Setup
 
-1. clone the repository
+1. Clone the repository
 ```bash
 git clone https://github.com/abdul-hamid-achik/tarot-api.git
 cd tarot-api
 ```
 
-2. install dependencies
+2. Install dependencies
 ```bash
 bundle install
 ```
 
-3. setup environment variables
+3. Setup environment variables
 ```bash
 cp .env.example .env
 ```
-edit `.env` with your configuration
+Edit `.env` with your configuration
 
-4. setup development environment
+4. Setup development environment
 ```bash
 bundle exec rake dev:setup
 ```
 
-5. start the server
+5. Start the server
 ```bash
 bundle exec rake dev
 ```
@@ -461,39 +303,44 @@ curl -X GET \
 
 | Command | Description |
 |---------|-------------|
-| `bundle exec rake pulumi:init_all` | Initialize infrastructure for staging and production |
-| `bundle exec rake pulumi:deploy[staging]` | Deploy to staging environment |
-| `bundle exec rake pulumi:deploy_all` | Deploy to staging, then gradually to production |
-| `bundle exec rake pulumi:create_preview[feature]` | Create preview environment |
-| `bundle exec rake pulumi:cleanup_previews` | Clean up inactive preview environments |
+| `bundle exec rake infra:init` | Initialize infrastructure for staging and production |
+| `bundle exec rake infra:deploy[staging]` | Deploy to staging environment |
+| `bundle exec rake infra:deploy[production]` | Deploy to production environment |
+| `bundle exec rake infra:create_preview[feature]` | Create preview environment |
+| `bundle exec rake infra:manage_state[backup]` | Backup Pulumi state |
+| `bundle exec rake infra:manage_state[restore,file]` | Restore Pulumi state from backup |
 
 ### Development Commands
 
 | Command | Description |
 |---------|-------------|
 | `bundle exec rake dev:setup` | Set up development environment |
-| `bundle exec rake dev`
+| `bundle exec rake dev` | Start development environment |
+| `bundle exec rake dev:console` | Open Rails console in development |
+| `bundle exec rake dev:test` | Run tests in development |
+| `bundle exec rake dev:logs` | View development logs |
+| `bundle exec rake dev:rebuild` | Rebuild development containers |
 
 ### Complete Environment Setup Sequence
 
 1. Initialize Pulumi and create state bucket:
    ```bash
-   bundle exec rake pulumi:init
+   bundle exec rake infra:init
    ```
 
 2. Set up secrets for each environment:
    ```bash
-   bundle exec rake pulumi:set_secrets[staging]
-   bundle exec rake pulumi:set_secrets[production]
+   bundle exec rake infra:set_secrets[staging]
+   bundle exec rake infra:set_secrets[production]
    ```
 
 3. Deploy infrastructure:
    ```bash
    # Deploy staging first
-   bundle exec rake pulumi:deploy[staging]
+   bundle exec rake infra:deploy[staging]
    
    # Once staging is verified, deploy production
-   bundle exec rake pulumi:deploy[production]
+   bundle exec rake infra:deploy[production]
    ```
 
 4. Deploy application:
