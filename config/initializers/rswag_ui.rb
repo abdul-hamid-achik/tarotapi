@@ -26,3 +26,24 @@ Rswag::Ui.configure do |c|
   # }
 end
 =end
+
+Rswag::Ui.configure do |c|
+  c.openapi_endpoint "/api/v1/spec.yaml", "Tarot API V1 Documentation"
+  
+  c.config_object = {
+    deepLinking: true,
+    displayOperationId: false,
+    defaultModelsExpandDepth: 1,
+    defaultModelExpandDepth: 1,
+    defaultModelRendering: 'model',
+    displayRequestDuration: true,
+    docExpansion: 'list',
+    filter: true,
+    operationsSorter: 'alpha',
+    showExtensions: true,
+    showCommonExtensions: true,
+    tagsSorter: 'alpha',
+    persistAuthorization: true,
+    tryItOutEnabled: true
+  }
+end

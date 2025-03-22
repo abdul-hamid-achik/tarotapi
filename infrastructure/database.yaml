@@ -8,7 +8,7 @@ resources:
       tags:
         Name: ${tarotapi:projectName}-${tarotapi:environment}-db-subnet-group
   
-  # database parameter group for postgres
+  # database parameter group for postgres primary
   dbParameterGroup:
     type: aws:rds:ParameterGroup
     properties:
@@ -25,8 +25,32 @@ resources:
         checkpoint_timeout: "15min"
         default_statistics_target: "100"
         random_page_cost: "1.1"
+        # Set session role identifier for Makara routing
+        session.role: "primary"
       tags:
         Name: ${tarotapi:projectName}-${tarotapi:environment}-db-pg
+  
+  # database parameter group for postgres replica
+  dbReplicaParameterGroup:
+    type: aws:rds:ParameterGroup
+    properties:
+      family: postgres16
+      name: ${tarotapi:projectName}-${tarotapi:environment}-db-replica-pg
+      description: replica parameter group for ${tarotapi:projectName} ${tarotapi:environment}
+      parameters:
+        # replica-specific settings (read-optimized)
+        shared_buffers: ${tarotapi:environment == "production" ? "8GB" : "1GB"}
+        max_connections: ${tarotapi:environment == "production" ? "300" : "100"}
+        work_mem: ${tarotapi:environment == "production" ? "256MB" : "32MB"} # Higher for read queries
+        maintenance_work_mem: ${tarotapi:environment == "production" ? "2GB" : "256MB"}
+        effective_cache_size: ${tarotapi:environment == "production" ? "24GB" : "4GB"}
+        checkpoint_timeout: "15min"
+        default_statistics_target: "100"
+        random_page_cost: "1.1"
+        # Set session role identifier for Makara routing
+        session.role: "replica"
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-db-replica-pg
   
   # database instance
   database:
@@ -61,14 +85,19 @@ resources:
       performanceInsightsRetentionPeriod: ${tarotapi:environment == "production" ? 7 : 0}
       deletionProtection: ${tarotapi:environment == "production"}
       autoMinorVersionUpgrade: true
+      # Custom parameters for Makara identification
       tags:
         Name: ${tarotapi:projectName}-${tarotapi:environment}-db
+        Role: "Primary"
+        Application: ${tarotapi:projectName}
+        Environment: ${tarotapi:environment}
   
-  # conditionally create a read replica for production environment
+  # database read replica for production environments
   databaseReplica:
     type: aws:rds:Instance
     properties:
-      instanceClass: db.t4g.medium
+      # Use a stronger instance for production replicas
+      instanceClass: ${tarotapi:environment == "production" ? "db.t4g.medium" : "db.t4g.small"}
       replicateSourceDb: ${database.id}
       engine: postgres
       engineVersion: "16.1"
@@ -80,23 +109,32 @@ resources:
       multiAz: false
       publiclyAccessible: false
       vpcSecurityGroupIds: [${network.dbSecurityGroupId}]
-      parameterGroupName: ${dbParameterGroup.name}
+      # Use replica-specific parameter group
+      parameterGroupName: ${dbReplicaParameterGroup.name}
       enabledCloudwatchLogsExports: ["postgresql", "upgrade"]
       performanceInsightsEnabled: true
       performanceInsightsRetentionPeriod: 7
       autoMinorVersionUpgrade: true
+      # Custom parameters for Makara identification
       tags:
         Name: ${tarotapi:projectName}-${tarotapi:environment}-db-replica
+        Role: "Replica"
+        Application: ${tarotapi:projectName}
+        Environment: ${tarotapi:environment}
     options:
-      # only create replicas in production environment
-      condition: ${tarotapi:environment == "production"}
+      # Create replicas in production by default, make it configurable in staging
+      condition: ${tarotapi:environment == "production" || (tarotapi:environment == "staging" && tarotapi:enableReplica == true)}
 
 outputs:
   dbAddress: ${database.address}
   dbPort: ${database.port}
   dbName: ${database.dbName}
   dbUsername: ${database.username}
-  dbReplicaAddress: ${tarotapi:environment == "production" ? databaseReplica.address : ""}
+  # Use empty values for replica when not created
+  dbReplicaAddress: ${tarotapi:environment == "production" || (tarotapi:environment == "staging" && tarotapi:enableReplica == true) ? databaseReplica.address : ""}
+  dbReplicaPort: ${tarotapi:environment == "production" || (tarotapi:environment == "staging" && tarotapi:enableReplica == true) ? databaseReplica.port : ""}
+  # Provide a flag to indicate if replica is available (for app config)
+  hasReplica: ${tarotapi:environment == "production" || (tarotapi:environment == "staging" && tarotapi:enableReplica == true) ? "true" : "false"}
   
 config:
   # this will be set securely through pulumi config set --secret

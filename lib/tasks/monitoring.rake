@@ -885,6 +885,85 @@ namespace :monitoring do
         - add logstash initializer to config/initializers/
     HELP
   end
+
+  desc "Deploy monitoring infrastructure"
+  task deploy: :environment do
+    puts "Deploying monitoring infrastructure..."
+    system("cd infrastructure && pulumi up --stack #{Rails.env} --yes")
+  end
+
+  desc "Destroy monitoring infrastructure"
+  task destroy: :environment do
+    puts "Destroying monitoring infrastructure..."
+    system("cd infrastructure && pulumi destroy --stack #{Rails.env} --yes")
+  end
+
+  desc "Show monitoring endpoints"
+  task endpoints: :environment do
+    puts "Fetching monitoring endpoints..."
+    endpoints = `cd infrastructure && pulumi stack output --stack #{Rails.env} --json`
+    endpoints_json = JSON.parse(endpoints)
+    
+    puts "\nMonitoring Endpoints:"
+    puts "Loki: #{endpoints_json['lokiEndpoint']}"
+    puts "Tempo: #{endpoints_json['tempoEndpoint']}"
+    puts "Grafana: #{endpoints_json['grafanaEndpoint']}"
+  end
+
+  desc "Initialize monitoring configuration"
+  task init: :environment do
+    puts "Initializing monitoring configuration..."
+    
+    # Create monitoring directory if it doesn't exist
+    FileUtils.mkdir_p("config/monitoring")
+
+    # Create Loki configuration
+    loki_config = {
+      "auth_enabled" => false,
+      "server" => {
+        "http_listen_port" => 3100
+      },
+      "common" => {
+        "path_prefix" => "/loki",
+        "storage" => {
+          "filesystem" => {
+            "chunks_directory" => "/loki/chunks",
+            "rules_directory" => "/loki/rules"
+          }
+        },
+        "replication_factor" => 1,
+        "ring" => {
+          "kvstore" => {
+            "store" => "inmemory"
+          }
+        }
+      },
+      "schema_config" => {
+        "configs" => [
+          {
+            "from" => "2020-10-24",
+            "store" => "boltdb-shipper",
+            "object_store" => "filesystem",
+            "schema" => "v11",
+            "index" => {
+              "prefix" => "index_",
+              "period" => "24h"
+            }
+          }
+        ]
+      },
+      "limits_config" => {
+        "retention_period" => "168h",
+        "ingestion_rate_mb" => 4,
+        "ingestion_burst_size_mb" => 6,
+        "max_global_streams_per_user" => 5000,
+        "max_query_series" => 500
+      }
+    }
+
+    File.write("config/monitoring/loki.yml", loki_config.to_yaml)
+    puts "Created Loki configuration at config/monitoring/loki.yml"
+  end
 end
 
 # alias for convenience

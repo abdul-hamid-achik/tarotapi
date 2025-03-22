@@ -1,4 +1,6 @@
 class Card < ApplicationRecord
+  include Cacheable
+  
   has_one_attached :image
   has_many :card_readings
   has_many :users, through: :card_readings
@@ -17,6 +19,20 @@ class Card < ApplicationRecord
 
   def minor_arcana?
     arcana.to_s.downcase == "minor"
+  end
+
+  # Method to find cards with caching based on arcana
+  def self.find_by_arcana_cached(arcana_type)
+    cached_query("arcana_#{arcana_type.downcase}", expires_in: 1.day) do
+      where("LOWER(arcana) = ?", arcana_type.downcase).order(:rank, :name)
+    end
+  end
+
+  # Method to find cards with caching based on suit
+  def self.find_by_suit_cached(suit_name)
+    cached_query("suit_#{suit_name.downcase}", expires_in: 1.day) do
+      where("LOWER(suit) = ?", suit_name.downcase).order(:rank, :name)
+    end
   end
 
   # Attach an image from the file system based on the image_url field

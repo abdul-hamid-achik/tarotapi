@@ -45,7 +45,19 @@ COPY . .
 
 # configure for development
 ENV RAILS_ENV=development \
-    RAILS_LOG_TO_STDOUT=true
+    RAILS_LOG_TO_STDOUT=true \
+    # Connection pool configuration
+    RAILS_MAX_THREADS=5 \
+    WEB_CONCURRENCY=2 \
+    # Makara replica configuration
+    DB_REPLICA_ENABLED=false \
+    DB_POOL_SIZE=10 \
+    # Redis connection pools
+    REDIS_POOL_SIZE=15 \
+    REDIS_TIMEOUT=2 \
+    # Health check credentials
+    HEALTH_CHECK_USERNAME=admin \
+    HEALTH_CHECK_PASSWORD=tarot_health_check
 
 # health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
@@ -96,7 +108,24 @@ WORKDIR /app
 # Set environment variables
 ENV RAILS_ENV=production \
     RAILS_LOG_TO_STDOUT=true \
-    RAILS_SERVE_STATIC_FILES=true
+    RAILS_SERVE_STATIC_FILES=true \
+    # Connection pool configuration - more conservative
+    RAILS_MAX_THREADS=10 \
+    WEB_CONCURRENCY=5 \
+    # Makara replica configuration - override these in production
+    DB_REPLICA_ENABLED=true \
+    DB_PRIMARY_HOST=db-primary \
+    DB_PRIMARY_USER=postgres \
+    DB_PRIMARY_PORT=5432 \
+    DB_REPLICA_HOST=db-replica \
+    DB_REPLICA_USER=postgres \
+    DB_REPLICA_PORT=5432 \
+    DB_POOL_SIZE=20 \
+    DB_POOL_TIMEOUT=5 \
+    DB_REAPING_FREQUENCY=10 \
+    # Redis connection pools
+    REDIS_POOL_SIZE=30 \
+    REDIS_TIMEOUT=3 
 
 # copy from builder
 COPY --from=builder /usr/local/bundle /usr/local/bundle
@@ -114,4 +143,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
 
 EXPOSE 3000
-CMD ["bundle", "exec", "rails", "server", "-b", "0.0.0.0"]
+# Startup command with an initial connection pool check
+CMD ["sh", "-c", "bundle exec rake db:pool:healthcheck && bundle exec rails server -b 0.0.0.0"]

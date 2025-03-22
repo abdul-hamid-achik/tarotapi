@@ -150,7 +150,7 @@ resources:
               },
               {
                 "name": "REDIS_URL",
-                "value": "redis://${cache.redisHost}:${cache.redisPort}"
+                "value": "redis://${cache.redisHost}:${cache.redisPort}/0"
               },
               {
                 "name": "AWS_BUCKET",
@@ -161,8 +161,76 @@ resources:
                 "value": "${aws:region}"
               },
               {
+                "name": "LOKI_URL",
+                "value": "http://loki.${tarotapi:projectName}.internal:3100"
+              },
+              {
+                "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+                "value": "http://tempo.${tarotapi:projectName}.internal:4318/v1/traces"
+              },
+              {
                 "name": "CDN_HOST",
                 "value": "${dns.cdnDns}"
+              },
+              {
+                "name": "DB_REPLICA_ENABLED",
+                "value": "${database.hasReplica}"
+              },
+              {
+                "name": "DB_PRIMARY_HOST",
+                "value": "${database.dbAddress}"
+              },
+              {
+                "name": "DB_PRIMARY_PORT",
+                "value": "${database.dbPort}"
+              },
+              {
+                "name": "DB_PRIMARY_USER",
+                "value": "${database.dbUsername}"
+              },
+              {
+                "name": "DB_REPLICA_HOST",
+                "value": "${database.hasReplica == 'true' ? database.dbReplicaAddress : ''}"
+              },
+              {
+                "name": "DB_REPLICA_PORT",
+                "value": "${database.hasReplica == 'true' ? database.dbReplicaPort : ''}"
+              },
+              {
+                "name": "DB_REPLICA_USER",
+                "value": "${database.dbUsername}"
+              },
+              {
+                "name": "DB_POOL_SIZE",
+                "value": "${tarotapi:environment == 'production' ? '20' : '10'}"
+              },
+              {
+                "name": "DB_POOL_TIMEOUT",
+                "value": "${tarotapi:environment == 'production' ? '5' : '3'}"
+              },
+              {
+                "name": "DB_REAPING_FREQUENCY",
+                "value": "${tarotapi:environment == 'production' ? '10' : '5'}"
+              },
+              {
+                "name": "RAILS_MAX_THREADS",
+                "value": "${tarotapi:environment == 'production' ? '10' : '5'}"
+              },
+              {
+                "name": "WEB_CONCURRENCY",
+                "value": "${tarotapi:environment == 'production' ? '5' : '2'}"
+              },
+              {
+                "name": "REDIS_POOL_SIZE",
+                "value": "${tarotapi:environment == 'production' ? '30' : '15'}"
+              },
+              {
+                "name": "REDIS_TIMEOUT",
+                "value": "${tarotapi:environment == 'production' ? '3' : '2'}"
+              },
+              {
+                "name": "HEALTH_CHECK_USERNAME",
+                "value": "admin"
               }
             ],
             "secrets": [
@@ -175,8 +243,20 @@ resources:
                 "valueFrom": "${dbPasswordSecret.arn}"
               },
               {
+                "name": "DB_PRIMARY_PASSWORD",
+                "valueFrom": "${dbPasswordSecret.arn}"
+              },
+              {
+                "name": "DB_REPLICA_PASSWORD",
+                "valueFrom": "${dbPasswordSecret.arn}"
+              },
+              {
                 "name": "OPENAI_API_KEY",
                 "valueFrom": "${openaiApiKeySecret.arn}"
+              },
+              {
+                "name": "HEALTH_CHECK_PASSWORD",
+                "valueFrom": "${healthCheckPasswordSecret.arn}"
               }
             ],
             "logConfiguration": {
@@ -242,6 +322,16 @@ resources:
       description: openai api key for ${tarotapi:projectName} ${tarotapi:environment}
       tags:
         Name: ${tarotapi:projectName}-${tarotapi:environment}-openai-api-key
+        Project: ${tarotapi:projectName}
+        Environment: ${tarotapi:environment}
+  
+  healthCheckPasswordSecret:
+    type: aws:secretsmanager:Secret
+    properties:
+      name: /${tarotapi:projectName}/${tarotapi:environment}/HEALTH_CHECK_PASSWORD
+      description: health check password for ${tarotapi:projectName} ${tarotapi:environment}
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-health-check-password
         Project: ${tarotapi:projectName}
         Environment: ${tarotapi:environment}
   

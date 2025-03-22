@@ -1,0 +1,156 @@
+resources:
+  # ECS Task Definition for Loki
+  lokiTaskDefinition:
+    type: aws:ecs:TaskDefinition
+    properties:
+      family: "${tarotapi:projectName}-${tarotapi:environment}-loki"
+      cpu: "512"
+      memory: "1024"
+      networkMode: awsvpc
+      requiresCompatibilities: ["FARGATE"]
+      executionRoleArn: ${ecsTaskExecutionRole.arn}
+      taskRoleArn: ${ecsTaskRole.arn}
+      containerDefinitions: ${toJson([{
+        name: "loki",
+        image: "grafana/loki:latest",
+        essential: true,
+        portMappings: [{
+          containerPort: 3100,
+          hostPort: 3100,
+          protocol: "tcp"
+        }],
+        environment: [
+          {
+            name: "ENVIRONMENT",
+            value: ${tarotapi:environment}
+          }
+        ],
+        mountPoints: [{
+          sourceVolume: "loki-data",
+          containerPath: "/loki",
+          readOnly: false
+        }],
+        logConfiguration: {
+          logDriver: "awslogs",
+          options: {
+            "awslogs-group": ${lokiLogGroup.name},
+            "awslogs-region": ${aws:region},
+            "awslogs-stream-prefix": "loki"
+          }
+        },
+        healthCheck: {
+          command: ["CMD-SHELL", "wget -q --tries=1 --spider http://localhost:3100/ready || exit 1"],
+          interval: 30,
+          timeout: 5,
+          retries: 3,
+          startPeriod: 60
+        }
+      }])}
+      volumes:
+        - name: "loki-data"
+          efsVolumeConfiguration:
+            fileSystemId: ${lokiEfs.id}
+            rootDirectory: "/"
+
+  # EFS for Loki data persistence
+  lokiEfs:
+    type: aws:efs:FileSystem
+    properties:
+      encrypted: true
+      performanceMode: generalPurpose
+      throughputMode: bursting
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-loki-efs
+        Environment: ${tarotapi:environment}
+        Service: monitoring
+        ManagedBy: pulumi
+
+  # EFS Mount Target for Loki
+  lokiEfsMountTarget:
+    type: aws:efs:MountTarget
+    properties:
+      fileSystemId: ${lokiEfs.id}
+      subnetId: ${privateSubnets[0].id}
+      securityGroups: [${lokiEfsSecurityGroup.id}]
+
+  # Security Group for Loki EFS
+  lokiEfsSecurityGroup:
+    type: aws:ec2:SecurityGroup
+    properties:
+      vpcId: ${vpc.id}
+      description: "Security group for Loki EFS"
+      ingress:
+        - protocol: tcp
+          fromPort: 2049
+          toPort: 2049
+          securityGroups: [${lokiSecurityGroup.id}]
+          description: "Allow NFS traffic from Loki containers"
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-loki-efs-sg
+        Environment: ${tarotapi:environment}
+        Service: monitoring
+        ManagedBy: pulumi
+
+  # Security Group for Loki
+  lokiSecurityGroup:
+    type: aws:ec2:SecurityGroup
+    properties:
+      vpcId: ${vpc.id}
+      description: "Security group for Loki service"
+      ingress:
+        - protocol: tcp
+          fromPort: 3100
+          toPort: 3100
+          securityGroups: [${apiSecurityGroup.id}]  # Allow API to connect to Loki
+          description: "Allow API to access Loki port"
+      egress:
+        - protocol: -1
+          fromPort: 0
+          toPort: 0
+          cidrBlocks: ["0.0.0.0/0"]
+          description: "Allow all outbound traffic"
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-loki-sg
+        Environment: ${tarotapi:environment}
+        Service: monitoring
+        ManagedBy: pulumi
+
+  # CloudWatch Log Group for Loki
+  lokiLogGroup:
+    type: aws:cloudwatch:LogGroup
+    properties:
+      name: "/aws/ecs/${tarotapi:projectName}-${tarotapi:environment}/loki"
+      retentionInDays: 30
+      tags:
+        Environment: ${tarotapi:environment}
+        Service: monitoring
+        ManagedBy: pulumi
+
+  # ECS Service for Loki
+  lokiService:
+    type: aws:ecs:Service
+    properties:
+      name: "${tarotapi:projectName}-${tarotapi:environment}-loki"
+      cluster: ${ecsCluster.arn}
+      taskDefinition: ${lokiTaskDefinition.arn}
+      desiredCount: 1
+      launchType: "FARGATE"
+      networkConfiguration:
+        assignPublicIp: false
+        subnets: ${privateSubnets.*.id}
+        securityGroups: [${lokiSecurityGroup.id}]
+      deploymentConfiguration:
+        maximumPercent: 200
+        minimumHealthyPercent: 100
+      tags:
+        Environment: ${tarotapi:environment}
+        Service: monitoring
+        ManagedBy: pulumi
+
+outputs:
+  lokiEndpoint:
+    value: "http://loki.${tarotapi:projectName}.internal:3100"
+    description: "Internal endpoint for Loki service"
+  lokiServiceName:
+    value: ${lokiService.name}
+    description: "ECS Service name for Loki" 

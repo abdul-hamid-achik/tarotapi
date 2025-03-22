@@ -26,22 +26,47 @@ class Rack::Attack
     end
   end
 
-  ### custom response
+  ### tarot-themed custom response for rate limiting
   self.throttled_responder = lambda do |env|
     now = Time.current
     match_data = env["rack.attack.match_data"]
-
+    
+    seconds_until_reset = (match_data[:period] - now.to_i % match_data[:period]).to_i
+    minutes, seconds = seconds_until_reset.divmod(60)
+    time_format = if minutes > 0
+                    "#{minutes}m #{seconds}s"
+                  else
+                    "#{seconds}s"
+                  end
+    
+    # Tarot card for rate limiting: Temperance Reversed (patience, balance)
+    response_body = {
+      error: {
+        type: "temperance_reversed",
+        title: "Temperance Reversed",
+        status: 429,
+        emoji: "🔥",
+        message: "Patience is a virtue. You've made too many requests too quickly.",
+        details: "Please wait #{time_format} before trying again.",
+        rate_limit: {
+          limit: match_data[:limit],
+          remaining: 0,
+          reset_after: seconds_until_reset,
+          retry_after: seconds_until_reset
+        }
+      }
+    }.to_json
+    
     headers = {
-      "content-type" => "application/json",
-      "x-ratelimit-limit" => match_data[:limit].to_s,
-      "x-ratelimit-remaining" => (match_data[:limit] - match_data[:count]).to_s,
-      "x-ratelimit-reset" => (now + (match_data[:period] - now.to_i % match_data[:period])).to_s
+      "Content-Type" => "application/json",
+      "Content-Length" => response_body.bytesize.to_s,
+      "X-RateLimit-Limit" => match_data[:limit].to_s,
+      "X-RateLimit-Remaining" => "0",
+      "X-RateLimit-Reset" => (now + seconds_until_reset).to_s,
+      "Retry-After" => seconds_until_reset.to_s
     }
 
-    [ 429, headers, [ {
-      error: "rate limit exceeded. please try again in #{(match_data[:period] - now.to_i % match_data[:period]).to_i} seconds",
-      retry_after: (match_data[:period] - now.to_i % match_data[:period]).to_i
-    }.to_json ] ]
+    [ 429, headers, [response_body] ]
   end
 
   ### safelist certain ips (optional)

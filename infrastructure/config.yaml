@@ -5,6 +5,7 @@ imports:
   cache: cache.yaml
   storage: storage.yaml
   ecs: ecs.yaml
+  monitoring: monitoring.yaml
   
   # Domain management
   mainDomain: domain.yaml       # Primary domain (tarotapi.cards)
@@ -22,8 +23,15 @@ variables:
       altDomain: tarot.cards
       region: mx-central-1
       enableCostSaving: true
+      # Database settings
       dbName: tarot_api
       dbUsername: tarot_api
+      # Replica configuration 
+      enableReplica: false  # Replicas always enabled in production, optional in staging
+      # Connection pool settings
+      dbPoolSize: 10        # Default pool size
+      redisPoolSize: 15     # Default Redis pool size
+      maxThreads: 5         # Default thread count
 
 outputs:
   # Merge outputs from all components for easy access
@@ -40,6 +48,10 @@ outputs:
         port: ${database.dbPort}
         name: ${database.dbName}
         username: ${database.dbUsername}
+        replica:
+          enabled: ${database.hasReplica}
+          address: ${database.dbReplicaAddress}
+          port: ${database.dbReplicaPort}
       
       cache:
         address: ${cache.redisHost}
@@ -77,6 +89,12 @@ outputs:
       DB_PORT: ${database.dbPort}
       DB_NAME: ${database.dbName}
       DB_USERNAME: ${database.dbUsername}
+      DB_REPLICA_ENABLED: ${database.hasReplica}
+      DB_PRIMARY_HOST: ${database.dbAddress}
+      DB_PRIMARY_PORT: ${database.dbPort}
+      DB_REPLICA_HOST: ${database.dbReplicaAddress}
+      DB_REPLICA_PORT: ${database.dbReplicaPort}
+      DB_POOL_SIZE: ${tarotapi:environment == "production" ? "20" : "10"}
       REDIS_URL: redis://${cache.redisHost}:${cache.redisPort}
       AWS_BUCKET: ${storage.appBucketName}
       ECR_REPO: ${ecs.ecrRepositoryUrl}

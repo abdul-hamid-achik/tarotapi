@@ -1,0 +1,36 @@
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        http:
+          endpoint: "0.0.0.0:4318"
+        grpc:
+          endpoint: "0.0.0.0:4317"
+
+ingester:
+  max_block_duration: 5m               # Reduced for smaller deployments
+  max_block_bytes: 100_000_000        # ~100MB, reduced for cost savings
+  trace_idle_period: "30s"            # Reduced for smaller deployments
+
+compactor:
+  compaction:
+    block_retention: 168h             # 7 days retention
+    compacted_block_retention: 24h    # 1 day retention for compacted blocks
+
+storage:
+  trace:
+    backend: local                    # Using local storage for cost savings
+    local:
+      path: /tmp/tempo/blocks
+    pool:
+      max_workers: 50                 # Reduced for smaller deployments
+      queue_depth: 200
+
+overrides:
+  max_bytes_per_trace: 50_000         # 50KB per trace for cost control
+  max_search_bytes_per_trace: 20_000  # 20KB per searchable trace
+  ingestion_rate_limit_bytes: 100_000 # 100KB/s ingestion rate
+  ingestion_burst_size_bytes: 200_000 # 200KB burst size 

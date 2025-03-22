@@ -1,26 +1,29 @@
 Rails.application.routes.draw do
   mount_devise_token_auth_for 'User', at: 'api/v1/auth'
-  # api documentation
-  mount Rswag::Api::Engine => "/api"
+  # API documentation
+  mount Rswag::Ui::Engine => '/docs'
+  mount Rswag::Api::Engine => '/api'
 
   # Pay webhooks and checkout routes
   mount Pay::Engine, at: '/pay', as: 'pay_engine'
 
-  # make redoc the default documentation interface
-  root to: redirect("/docs")
-  get "/docs", to: "redoc#index"
+  # Make Swagger UI the default documentation interface
+  root to: redirect('/docs')
+
+  # Public health check endpoint for load balancers
+  get "health" => "health#index", as: :health_check
 
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
-
-  # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
-  # Can be used by load balancers and uptime monitors to verify that the app is live.
-  get "health" => "health#show", as: :health_check
 
   # Defines the root path route ("/")
   # root "posts#index"
 
   namespace :api do
     namespace :v1 do
+      # Protected health check endpoints (require authentication)
+      get 'health/detailed', to: 'health#detailed'
+      get 'health/database', to: 'health#database'
+      
       # OAuth endpoints
       get 'oauth/authorize', to: 'oauth#authorize'
       post 'oauth/token', to: 'oauth#token'

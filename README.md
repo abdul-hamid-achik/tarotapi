@@ -24,6 +24,7 @@ A Ruby on Rails API for tarot card reading and interpretation, leveraging OpenAI
 - [Contributing](#contributing)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
+- [Connection Pooling & Health Checks](#connection-pooling--health-checks)
 
 ## Quick Start
 
@@ -572,3 +573,79 @@ After deploying to any environment, verify the setup:
    ```bash
    bundle exec rake deploy:logs[environment]
    ```
+
+## Connection Pooling & Health Checks
+
+### Connection Pooling
+
+The API uses optimized connection pooling for both PostgreSQL and Redis to handle high-traffic workloads in AWS Fargate:
+
+- **PostgreSQL Connection Pool**: Automatically sized based on worker processes and thread count
+- **Redis Connection Pool**: Separate pools for caching, throttling, and Sidekiq
+- **Pool Monitoring**: Automatic monitoring and cleanup of idle connections
+
+#### PostgreSQL Read Replicas
+
+The application supports PostgreSQL read replicas through the Makara gem:
+
+- **Primary/Replica Routing**: Automatically routes reads to replicas and writes to primary
+- **Sticky Connections**: Ensures consistent reads in the same request
+- **Fault Tolerance**: Automatically blacklists unavailable database instances
+
+To enable read replicas:
+
+```bash
+# Enable replica support
+export DB_REPLICA_ENABLED=true
+export DB_PRIMARY_HOST=your-primary-db-host
+export DB_REPLICA_HOST=your-replica-db-host
+
+# Validate the replica setup
+bundle exec rake makara:validate
+
+# Run a load test to verify balancing
+bundle exec rake makara:load_test
+
+# Check current status
+bundle exec rake makara:status
+```
+
+For PostgreSQL optimization:
+```bash
+# View connection pool stats
+bundle exec rake db:pool:stats
+
+# Reset connection pool
+bundle exec rake db:pool:clear
+
+# Verify connections
+bundle exec rake db:pool:verify
+
+# Optimize pool size for current environment
+bundle exec rake db:pool:healthcheck
+```
+
+For production environments, consider using PgBouncer as a connection pooler in a sidecar container.
+
+### Health Checks
+
+Health checks are available at multiple levels with appropriate authentication:
+
+- `/health` - Public basic health check for load balancers (no auth)
+- `/health_checks` - OkComputer health checks with detailed system status (requires auth)
+- `/api/v1/health/detailed` - Authenticated detailed health report (requires API authentication)
+- `/api/v1/health/database` - Authenticated database status report (requires API authentication)
+
+When using Makara replicas, additional health checks are added automatically:
+- `/health_checks/db_primary_primary` - Checks the primary database 
+- `/health_checks/db_replica_replica` - Checks the replica database
+
+Protected health checks require either:
+1. OkComputer auth credentials (username/password)
+2. API authentication (Bearer token, Basic auth, or API key)
+
+Set the following environment variables in production:
+```
+HEALTH_CHECK_USERNAME=your_secure_username
+HEALTH_CHECK_PASSWORD=your_secure_password
+```
