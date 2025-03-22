@@ -64,7 +64,38 @@ namespace :infra do
       Dir.chdir(File.expand_path("../../infrastructure", __dir__)) do
         TaskLogger.info "Deploying infrastructure to #{env}..."
         system("pulumi stack select #{env}")
-        system("pulumi up --yes")
+        
+        # Run Pulumi up with JSON output and format it
+        output = `pulumi up --yes --json`
+        begin
+          require 'json'
+          result = JSON.parse(output)
+          # Extract summary information
+          summary = result["summary"] || {}
+          
+          puts "\n----- Infrastructure Deployment Summary -----"
+          puts "Resources:"
+          puts "  Created: #{summary["create"] || 0}"
+          puts "  Updated: #{summary["update"] || 0}"
+          puts "  Deleted: #{summary["delete"] || 0}"
+          puts "  Unchanged: #{summary["same"] || 0}"
+          
+          # Display outputs separately for clarity
+          if result["outputs"] && !result["outputs"].empty?
+            puts "\nOutputs:"
+            result["outputs"].each do |key, output_data|
+              if output_data["value"].is_a?(String)
+                puts "  #{key}: #{output_data["value"]}"
+              else
+                puts "  #{key}: #{output_data["value"].inspect}"
+              end
+            end
+          end
+          puts "-------------------------------------------\n"
+        rescue => e
+          # If JSON parsing fails, just output the raw result
+          puts output
+        end
       end
     end
   end
@@ -126,7 +157,24 @@ namespace :infra do
   task outputs: :environment do
     TaskLogger.with_task_logging("infra:outputs") do
       Dir.chdir(Rails.root.join("infrastructure")) do
-        system("pulumi stack output --json")
+        output = `pulumi stack output --json`
+        begin
+          require 'json'
+          result = JSON.parse(output)
+          
+          puts "\n----- Pulumi Stack Outputs -----"
+          result.each do |key, value_data|
+            if value_data.is_a?(Hash) && value_data["value"]
+              puts "  #{key}: #{value_data["value"].inspect}"
+            else
+              puts "  #{key}: #{value_data.inspect}"
+            end
+          end
+          puts "-------------------------------\n"
+        rescue => e
+          # If JSON parsing fails, just output the raw result
+          puts output
+        end
       end
     end
   end

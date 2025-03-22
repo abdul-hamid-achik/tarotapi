@@ -159,7 +159,23 @@ namespace :deploy do
     raise "#{service_var_name} not set" if service.nil?
 
     TaskLogger.info("Updating container registry in #{env}...")
-    system("aws ecs update-service --cluster #{cluster} --service #{service} --force-new-deployment")
+    # Use --no-cli-pager to avoid opening vim and pipe through a JSON formatter
+    json_output = `aws ecs update-service --no-cli-pager --cluster #{cluster} --service #{service} --force-new-deployment`
+    
+    begin
+      # Try to parse and prettify the JSON
+      require 'json'
+      parsed_json = JSON.parse(json_output)
+      pretty_json = JSON.pretty_generate(parsed_json)
+      
+      # Print the prettified JSON with some formatting
+      puts "\n----- Service Update Result -----"
+      puts pretty_json
+      puts "--------------------------------\n"
+    rescue => e
+      # If JSON parsing fails, just output the raw result
+      puts json_output
+    end
   end
 
   desc "Scale service"
