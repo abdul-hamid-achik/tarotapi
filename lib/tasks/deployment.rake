@@ -56,11 +56,46 @@ namespace :deploy do
   desc "Push container image to registry"
   task :push, [ :env ] do |t, args|
     env = args[:env] || "production"
-    registry = ENV["CONTAINER_REGISTRY"] || raise("CONTAINER_REGISTRY not set")
+    registry = ENV["CONTAINER_REGISTRY"]
+    
+    if registry.nil?
+      TaskLogger.info("CONTAINER_REGISTRY not set, attempting to get it from Pulumi outputs...")
+      
+      # Change directory to infrastructure folder
+      Dir.chdir(File.expand_path("../../infrastructure", __dir__)) do
+        # Try to get the container registry from Pulumi output
+        output = `pulumi stack output containerRegistry --stack #{env} 2>/dev/null`.strip
+        
+        # Parse the output - match the exact format we're seeing
+        if output =~ /^\{"value":"([^"]+)"\}$/
+          registry = $1
+          TaskLogger.info("Extracted registry URL from JSON output: #{registry}")
+        elsif output =~ /^"(.+)"$/
+          registry = $1
+          TaskLogger.info("Extracted registry URL from quoted string: #{registry}")
+        else
+          registry = output
+          TaskLogger.info("Using registry URL as-is: #{registry}")
+        end
+        
+        if registry.nil? || registry.empty?
+          raise "CONTAINER_REGISTRY not set and could not be retrieved from Pulumi outputs"
+        else
+          TaskLogger.info("Using container registry from Pulumi outputs: #{registry}")
+        end
+      end
+    end
 
     TaskLogger.info("Pushing container image to #{registry}...")
-    system("docker tag tarot-api:#{env} #{registry}/tarot-api:#{env}")
-    system("docker push #{registry}/tarot-api:#{env}")
+    # Need to login to ECR first
+    if registry.include?("ecr") && registry.include?("amazonaws.com")
+      TaskLogger.info("Logging in to ECR...")
+      system("aws ecr get-login-password --region #{ENV['AWS_DEFAULT_REGION']} | docker login --username AWS --password-stdin #{registry.split('/')[0]}")
+    end
+    
+    # Tag and push to the repository
+    system("docker tag tarot-api:#{env} #{registry}:#{env}")
+    system("docker push #{registry}:#{env}")
   end
 
   desc "Clean up old container images"
@@ -73,8 +108,55 @@ namespace :deploy do
   desc "Update container registry"
   task :update_registry, [ :env ] do |t, args|
     env = args[:env] || "production"
-    cluster = ENV["CLUSTER_NAME_#{env.upcase}"] || raise("CLUSTER_NAME_#{env.upcase} not set")
-    service = ENV["SERVICE_NAME_#{env.upcase}"] || raise("SERVICE_NAME_#{env.upcase} not set")
+    cluster_var_name = "CLUSTER_NAME_#{env.upcase}"
+    service_var_name = "SERVICE_NAME_#{env.upcase}"
+    
+    cluster = ENV[cluster_var_name]
+    service = ENV[service_var_name]
+    
+    if cluster.nil? || service.nil?
+      TaskLogger.info("#{cluster_var_name} or #{service_var_name} not set, attempting to get from Pulumi outputs...")
+      
+      Dir.chdir(File.expand_path("../../infrastructure", __dir__)) do
+        if cluster.nil?
+          # Try to get the cluster name from Pulumi output
+          output = `pulumi stack output ecsClusterId --stack #{env} 2>/dev/null`.strip
+          
+          # Parse the output - match the exact format we're seeing
+          if output =~ /^\{"value":"([^"]+)"\}$/
+            cluster_arn = $1
+            # Extract cluster name from ARN
+            if cluster_arn =~ /cluster\/([\w-]+)$/
+              cluster = $1
+              TaskLogger.info("Using cluster name from Pulumi outputs: #{cluster}")
+            end
+          elsif output =~ /^"(.+)"$/
+            cluster_arn = $1
+            # Extract cluster name from ARN
+            if cluster_arn =~ /cluster\/([\w-]+)$/
+              cluster = $1
+              TaskLogger.info("Using cluster name from Pulumi outputs: #{cluster}")
+            end
+          else
+            # Try to extract cluster ARN directly 
+            if output =~ /cluster\/([\w-]+)$/
+              cluster = $1
+              TaskLogger.info("Using cluster name from direct output: #{cluster}")
+            end
+          end
+        end
+        
+        if service.nil?
+          # Use a default service name based on environment if not found
+          service = "tarot-api-ecs-service-#{env}"
+          TaskLogger.info("Using default service name: #{service}")
+        end
+      end
+    end
+    
+    # Raise error if still not set
+    raise "#{cluster_var_name} not set" if cluster.nil?
+    raise "#{service_var_name} not set" if service.nil?
 
     TaskLogger.info("Updating container registry in #{env}...")
     system("aws ecs update-service --cluster #{cluster} --service #{service} --force-new-deployment")

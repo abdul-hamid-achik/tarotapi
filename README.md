@@ -203,38 +203,72 @@ bundle exec rubocop
 
 ## Deployment
 
-this project can be deployed to aws using pulumi for infrastructure as code:
+This project can be deployed to AWS using Pulumi for infrastructure as code:
 
-### prerequisites
+### Prerequisites
 
-1. aws account and credentials
-2. docker registry access
-3. pulumi installed (`gem install pulumi`)
-4. ssh access to deployment servers
+1. AWS account and credentials
+2. Docker registry access
+3. Pulumi installed (`gem install pulumi`)
+4. SSH access to deployment servers
 
-### deployment commands
+### Deployment Infrastructure
+
+The project uses a hybrid approach for infrastructure management and application deployment:
+
+1. **Pulumi**: Manages cloud infrastructure including ECR (Elastic Container Registry)
+2. **Rake Tasks**: Handles application container deployments
+
+Before deploying, you need to set up the infrastructure using Pulumi:
 
 ```bash
-# set up servers for deployment
-bundle exec rake deploy:setup
+# Initialize Pulumi stacks
+bundle exec rake infra:init
 
-# deploy to staging
-bundle exec rake deploy
+# Deploy infrastructure to staging
+bundle exec rake infra:deploy[staging]
 
-# deploy to production
-bundle exec rake deploy:production
-
-# deploy a preview environment
-bundle exec rake deploy:preview[branch-name]
-
-# check deployment status
-bundle exec rake deploy:status
-
-# destroy an environment
-bundle exec rake deploy:destroy[environment-name]
+# Deploy infrastructure to production
+bundle exec rake infra:deploy[production]
 ```
 
-### dependabot configuration
+This sets up all necessary AWS resources including an ECR repository for container images. The deployment tasks will automatically retrieve the container registry URL from Pulumi outputs.
+
+### Deployment Commands
+
+```bash
+# Set up servers for deployment
+bundle exec rake deploy:setup
+
+# Deploy to staging
+bundle exec rake deploy:staging
+
+# Deploy to production
+bundle exec rake deploy:production
+
+# Check deployment status
+bundle exec rake deploy:status
+
+# Destroy an environment
+bundle exec rake infra:destroy[environment-name]
+```
+
+### Container Registry Configuration
+
+The deployment process uses AWS ECR (Elastic Container Registry) to store container images. The ECR repository URL is automatically created and configured by Pulumi and made available as an output:
+
+```bash
+# Check the container registry URL
+cd infrastructure && pulumi stack output containerRegistry
+```
+
+The deployment tasks will automatically use this URL for pushing images, but you can also set it manually in your `.env` file:
+
+```
+CONTAINER_REGISTRY=<your-aws-account-id>.dkr.ecr.<region>.amazonaws.com/tarot-api-<environment>
+```
+
+### Dependabot Configuration
 
 the project is configured with special handling for dependabot pull requests:
 

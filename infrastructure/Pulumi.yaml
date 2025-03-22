@@ -339,6 +339,16 @@ resources:
         Provider: "Ollama"
         Tier: "Free"
 
+  # ECR Repository for container images
+  containerRepository:
+    type: aws:ecr/repository:Repository
+    properties:
+      name: "tarot-api-${pulumi.stack}"
+      imageScanningConfiguration:
+        scanOnPush: true
+      tags:
+        Name: "tarot-api-ecr-${pulumi.stack}"
+
   # OpenAI Task Definition (minimal since it just accesses API)
   openaiTaskDefinition:
     type: aws:ecs/taskDefinition:TaskDefinition
@@ -441,3 +451,16 @@ resources:
   #       Service: "LLM"
   #       Provider: "Anthropic"
   #       Tier: "Professional" 
+
+# Define outputs
+outputs:
+  dbEndpoint:
+    value: ${dbInstance.endpoint}
+  redisEndpoint:
+    value: ${cacheCluster.cacheNodes[0].address}
+  ecsClusterId:
+    value: ${ecsCluster.id}
+  containerRegistry:
+    value: ${containerRepository.repositoryUrl}
+  s3BucketName:
+    value: ${s3Bucket.bucket} 
