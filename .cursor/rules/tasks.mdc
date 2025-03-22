@@ -1,52 +1,104 @@
 ---
-description: Task management and organization for the Tarot API project
-globs: "lib/tasks/*.rake"
-alwaysApply: true
+description: Rake task organization and usage guidelines for the Tarot API project
+globs: ["lib/tasks/**/*.rake", "Rakefile"]
+alwaysApply: false
 ---
-# Task Management Rules
 
-## Rake Task Files
+# Rake Task Guidelines
 
-The project uses standard rake task files organized by function:
+## Task Files Organization
 
-- `docker.rake`: Container and infrastructure tasks
-- `db.rake`: Database management tasks
-- `dev.rake`: Development environment tasks
-- `ci.rake`: Continuous integration tasks
-- `deploy.rake`: Deployment tasks
+Task files are organized by functional area:
 
-## Usage Guidelines
+| File | Purpose | Example Tasks |
+|------|---------|--------------|
+| `docker.rake` | Container management | `docker:build`, `docker:clean` |
+| `db.rake` | Database operations | `db:seed:cards`, `db:backup` |
+| `dev.rake` | Development tools | `dev:setup`, `dev:reset` |
+| `ci.rake` | CI/CD operations | `ci:test`, `ci:lint` |
+| `deploy.rake` | Deployment workflows | `deploy:staging`, `deploy:production` |
 
-- Use the appropriate rake task file based on the functionality:
-  - `docker.rake` for Docker and container management
-  - `db.rake` for database operations
-  - `dev.rake` for local development environment
-  - `ci.rake` for CI/CD workflows
-  - `deploy.rake` for deployment operations
+## Naming Conventions
 
-- Follow the established namespace patterns:
-  - `docker:` namespace for container operations
-  - `db:` namespace for database tasks
-  - `dev:` namespace for development tasks
-  - `ci:` namespace for continuous integration
-  - `deploy:` namespace for deployment tasks
+- Use lowercase snake_case for all task names
+- Follow namespace:action pattern for clarity
+- Group related tasks under meaningful namespaces
+- Keep names concise but descriptive
 
-## Task Naming Conventions
+## Required Practices
 
-- Use lowercase snake_case for task names
-- Keep task names concise and descriptive
-- Follow the pattern: `namespace:action`
+1. **Documentation**
+   - Every task must have a clear `desc` comment
+   - Use standard formatting for all task descriptions
+   ```ruby
+   desc "Import tarot card data from JSON files"
+   task import_cards: :environment do
+     # Task implementation
+   end
+   ```
 
-## Task Documentation
+2. **Error Handling**
+   - Use TaskLogger for all output (never use puts)
+   - Wrap tasks with proper error handling
+   ```ruby
+   task example: :environment do
+     TaskLogger.with_task_logging("example") do
+       # Your task code
+     end
+   end
+   ```
 
-- Include a `desc` for every task
-- Provide usage examples for tasks with parameters
-- Use Rainbow for colorized output
+3. **Dependency Management**
+   - Declare prerequisites for tasks that depend on others
+   ```ruby
+   task process_data: [:environment, :validate_data] do
+     # Task that requires validate_data to run first
+   end
+   ```
 
-## Task Creation Guidelines
+## Common Task Patterns
 
-- Never create new task files - use the existing three files
-- Always check for similar tasks before creating new ones
-- Extend existing tasks where possible rather than creating duplicates
+### Database Tasks
+```ruby
+namespace :db do
+  namespace :seed do
+    desc "Seed tarot card data"
+    task cards: :environment do
+      # Implementation
+    end
+  end
+end
+```
+
+### Deployment Tasks
+```ruby
+namespace :deploy do
+  desc "Deploy to production environment"
+  task production: :environment do
+    # Implementation
+  end
+  
+  desc "Rollback the last deployment"
+  task rollback: :environment do
+    # Implementation
+  end
+end
+```
+
+### Development Tasks
+```ruby
+namespace :dev do
+  desc "Setup development environment"
+  task setup: [:db:create, :db:migrate, :db:seed] do
+    # Additional setup
+  end
+end
+```
+
+## Task Guidelines
+
+- Add tasks to existing files based on functionality
+- Never create new task files - use the existing five files
+- Use task dependencies to build complex workflows
 - Keep tasks focused on a single purpose
-- Use task dependencies for complex operations
+- Log start/end of long-running tasks

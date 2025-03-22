@@ -18,29 +18,40 @@ The Tarot API follows RESTful principles and is organized as follows:
 
 Three authentication methods are supported:
 
-1. **JWT Bearer Token**
+1. **JWT Bearer Token** (Primary Method)
    - Standard for user authentication
    - Format: `Authorization: Bearer <token>`
    - Obtain via `/api/v1/auth/login` or `/api/v1/auth/register`
    - Refresh via `/api/v1/auth/refresh` using the refresh token
+   - Short-lived with refresh token capability
+   - Used for regular user sessions
 
-2. **HTTP Basic Authentication**
-   - Alternative for direct access
+2. **HTTP Basic Authentication** (Alternative)
+   - For direct access and simple integrations
    - Format: `Authorization: Basic <base64(email:password)>`
-   - Convenient for testing and simple integrations
+   - Primarily for testing and development
+   - Lower rate limits than JWT authentication
 
-3. **API Key Authentication**
-   - For automated systems and agents
+3. **API Key Authentication** (For Automated Systems)
+   - For automated systems and services
    - Format: `X-API-Key: <api-key>`
-   - Create via `/api/v1/api_keys` endpoints
+   - Create via `/api/v1/api_keys` endpoints (requires user authentication)
    - Each key is tied to a specific user account
    - Keys can have expiration dates and usage limits
+   - Supports configurable rate limits per key
+
+Multiple authentication methods can be enabled simultaneously, with precedence in the order: JWT, API Key, Basic Auth.
 
 ## API Keys Management
 
 - API keys are managed through dedicated endpoints
 - Only registered users can create and manage API keys
-- Each key has a name, description, and optional expiration
+- Each key has:
+  - Name
+  - Description
+  - Optional expiration date
+  - Usage limits
+  - Scoped permissions
 - Keys are shown only once during creation
 - Inactive or expired keys are automatically rejected
 - Usage is tracked for analysis and rate limiting
@@ -51,6 +62,7 @@ Three authentication methods are supported:
 - ReDoc UI provides a user-friendly interface
 - All authentication methods are documented
 - Response schemas and example payloads are included
+- Interactive testing available in documentation UI
 
 ## Rate Limiting
 
@@ -66,4 +78,4 @@ Three authentication methods are supported:
 - API versioning is done through the URL path (`/api/v1/`)
 - Breaking changes require a new API version
 - Multiple versions can be maintained simultaneously
-- Deprecated endpoints should include sunset information 
+- Deprecated endpoints include sunset information in headers 

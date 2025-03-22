@@ -58,5 +58,11 @@ module TarotApi
 
     # Load middleware for reading quota enforcement
     config.middleware.use ReadingQuotaMiddleware
+
+    # Enable strict loading by default in development to catch N+1 queries early
+    if Rails.env.development?
+      config.active_record.strict_loading_by_default = true
+      config.active_record.action_on_strict_loading_violation = :log # or :raise
+    end
   end
 end

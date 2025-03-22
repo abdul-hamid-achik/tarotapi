@@ -37,6 +37,27 @@ if defined?(Makara)
     end
   end
 
+  # Define Makara Sidekiq middleware classes
+  class SidekiqMakaraClientMiddleware
+    def call(worker_class, job, queue, redis_pool)
+      job["makara_context"] = Makara::Context.get_current if Makara::Context.get_current
+      yield
+    end
+  end
+
+  class SidekiqMakaraServerMiddleware
+    def call(worker, job, queue)
+      if job["makara_context"]
+        Makara::Context.set_current(job["makara_context"])
+        Makara::Context.get_current
+      end
+
+      yield
+    ensure
+      Makara::Context.clear_current
+    end
+  end
+
   # Configure Makara context to work in Sidekiq
   if defined?(Sidekiq)
     Sidekiq.configure_client do |config|
@@ -52,26 +73,6 @@ if defined?(Makara)
 
       config.server_middleware do |chain|
         chain.add SidekiqMakaraServerMiddleware
-      end
-    end
-
-    class SidekiqMakaraClientMiddleware
-      def call(worker_class, job, queue, redis_pool)
-        job["makara_context"] = Makara::Context.get_current if Makara::Context.get_current
-        yield
-      end
-    end
-
-    class SidekiqMakaraServerMiddleware
-      def call(worker, job, queue)
-        if job["makara_context"]
-          Makara::Context.set_current(job["makara_context"])
-          Makara::Context.get_current
-        end
-
-        yield
-      ensure
-        Makara::Context.clear_current
       end
     end
   end

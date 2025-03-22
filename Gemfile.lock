@@ -105,9 +105,6 @@ GEM
     brakeman (7.0.0)
       racc
     builder (3.3.0)
-    bullet (7.2.0)
-      activesupport (>= 3.0.0)
-      uniform_notifier (~> 1.11)
     bundler-audit (0.9.2)
       bundler (>= 1.2.0, < 3)
       thor (~> 1.0)
@@ -290,6 +287,7 @@ GEM
     msgpack (1.8.0)
     multi_test (1.1.0)
     multipart-post (2.4.1)
+    n1_loader (1.7.4)
     net-http (0.6.0)
       uri
     net-imap (0.5.6)
@@ -753,7 +751,6 @@ GEM
     unicode-display_width (3.1.4)
       unicode-emoji (~> 4.0, >= 4.0.4)
     unicode-emoji (4.0.4)
-    uniform_notifier (1.16.0)
     uri (1.0.3)
     useragent (0.16.11)
     vcr (6.3.1)
@@ -790,7 +787,6 @@ DEPENDENCIES
   bcrypt (~> 3.1.7)
   bootsnap
   brakeman
-  bullet (~> 7.1)
   connection_pool (~> 2.4)
   cucumber
   cucumber-rails
@@ -810,6 +806,7 @@ DEPENDENCIES
   lograge (~> 0.14.0)
   lograge-sql
   makara (~> 0.5.1)
+  n1_loader
   oj
   okcomputer (~> 1.18)
   omniauth (~> 2.1)

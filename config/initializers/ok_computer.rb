@@ -4,13 +4,12 @@
 # Mount the health check at /health
 OkComputer.mount_at = "health_checks"
 
-# Require authentication for detailed checks
-OkComputer.require_authentication = true
-
-# Set username/password for authentication
-# These should come from secure environment variables in production
-OkComputer.username = ENV.fetch("HEALTH_CHECK_USERNAME") { "admin" }
-OkComputer.password = ENV.fetch("HEALTH_CHECK_PASSWORD") { "tarot_health_check" }
+# Configure authentication for detailed checks, but allow default check without auth
+OkComputer.require_authentication(
+  ENV.fetch("HEALTH_CHECK_USERNAME") { "admin" },
+  ENV.fetch("HEALTH_CHECK_PASSWORD") { "tarot_health_check" },
+  except: %w[default]
+)
 
 # Register health checks
 OkComputer::Registry.register "database", OkComputer::ActiveRecordCheck.new
@@ -100,7 +99,10 @@ class AppRunningCheck < OkComputer::Check
 end
 
 OkComputer::Registry.register "default", AppRunningCheck.new
-OkComputer.make_optional %w[sidekiq redis_pool]
 
-# Make default check publicly accessible for load balancers
-OkComputer.allow_in_read_only_mode = %w[default]
+# Make certain checks optional after they are registered
+if defined?(RedisPool)
+  OkComputer.make_optional %w[sidekiq redis_pool]
+else
+  OkComputer.make_optional %w[sidekiq]
+end

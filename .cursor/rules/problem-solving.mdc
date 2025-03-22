@@ -1,39 +1,122 @@
 ---
-description: Problem solving methodologies and approaches for the Tarot API project
-globs: "**/*.rb"
-alwaysApply: true
+description: Problem-solving methodology and decision framework for the Tarot API project
+globs: ["app/**/*.rb", "lib/**/*.rb"]
+alwaysApply: false
 ---
-# Problem Solving Methodology
 
-## Description
-This document outlines the recommended approach for tackling engineering problems in our Tarot API project. Following these steps ensures consistent, high-quality solutions that align with our architectural principles.
+# Problem Solving Framework
 
-## Process
+## 1. Assess the Problem
 
-### Assess the Task
-- Determine if the task requires sequential thinking (step-by-step planning) or if it's better to take immediate action (e.g., prototyping, experimenting)
-- Ask: Is this a problem that needs careful planning, or can I start iterating quickly?
+Start by understanding the nature of the problem:
 
-### Check for Existing Solutions
-- Before starting, check if there's existing code, tools, or libraries that can solve the problem or part of it
-- Ask: Is there something already built that I can reuse or adapt?
+- **Define the issue**: What's happening vs. what should be happening?
+- **Impact assessment**: How critical is this problem? Who is affected?
+- **Scope determination**: Is this isolated or systemic?
+- **Time sensitivity**: Is this urgent or can it be scheduled?
 
-### Coverage Check
-- If you're writing new code, ensure it's covered by tests (BDD or TDD) unless it's a quick experiment or prototype
-- Ask: Is this new code already covered by tests, or do I need to write tests for it?
+## 2. Approach Selection
 
-### Documentation
-- Document decisions, especially when deviating from standard patterns
-- Update related architecture documents when implementing significant changes
+Choose the appropriate problem-solving approach:
 
-### Review
-- Consider getting feedback on approach before extensive implementation
-- Conduct self-review before submitting for team review
+| Approach | When to Use | Example |
+|----------|-------------|---------|
+| **Sequential Analysis** | Complex problems needing careful planning | Database performance issues |
+| **Rapid Prototyping** | Problems needing quick validation | New API endpoint implementation |
+| **Pattern Matching** | Problems similar to previously solved issues | Authentication errors |
+| **Research & Consultation** | Novel problems outside the team's expertise | New cloud infrastructure integration |
 
-### Rubocop Checks
-- Always run `bundle exec rubocop -a` after completing code changes
-- Fix any linting issues before considering the task complete
+## 3. Solution Development
 
-### Testing Validation
-- Run the appropriate test suite to ensure your changes don't break existing functionality
-- For API changes, use both unit tests (RSpec) and feature tests (Cucumber)
+### For Sequential Analysis:
+
+1. **Research**: Check existing documentation and code
+2. **Design**: Plan the solution architecture
+3. **Prototype**: Create a minimal implementation
+4. **Test**: Validate the solution works
+5. **Refine**: Improve based on feedback
+6. **Implement**: Full implementation with tests
+
+### For Rapid Prototyping:
+
+1. **Spike**: Quick implementation to prove concept
+2. **Evaluate**: Test the prototype against requirements
+3. **Refactor**: Clean up the solution for production
+4. **Test**: Add proper test coverage
+
+## 4. Technical Practices
+
+Always incorporate these practices:
+
+- **Test-Driven Development**:
+  ```ruby
+  # Write test first
+  describe CardService do
+    it "returns cards from the specified suit" do
+      # Test implementation
+    end
+  end
+  
+  # Then implement the feature
+  def cards_by_suit(suit)
+    # Implementation
+  end
+  ```
+
+- **Code Quality Checks**:
+  - Run Rubocop before commit: `bundle exec rubocop -a`
+  - Ensure test coverage: `bundle exec rake coverage:check`
+
+- **Documentation**:
+  - Document decisions in code comments
+  - Update README or related docs for significant changes
+
+## 5. Validation & Review
+
+Before considering a problem solved:
+
+- Run the full test suite
+- Verify edge cases are handled
+- Review your own code
+- Request peer review for complex solutions
+- Ensure monitoring is in place
+
+## 6. Learning Cycle
+
+After solving a problem:
+
+- Document the solution for future reference
+- Share learnings with the team if appropriate
+- Consider if similar issues could exist elsewhere
+- Update this methodology if needed
+
+## Common Patterns
+
+### API Error Handling
+```ruby
+def show
+  begin
+    card = Card.find(params[:id])
+    render json: card
+  rescue ActiveRecord::RecordNotFound
+    render_not_found("Card not found")
+  rescue => e
+    render_server_error(e)
+  end
+end
+```
+
+### Performance Optimization
+```ruby
+# Before optimization
+def expensive_operation
+  # Inefficient code
+end
+
+# After optimization
+def expensive_operation
+  # 1. Add caching
+  # 2. Use database indices
+  # 3. Reduce N+1 queries
+end
+```

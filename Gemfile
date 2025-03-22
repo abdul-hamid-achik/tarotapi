@@ -117,8 +117,8 @@ group :development, :test do
   gem "webmock"
   gem "shoulda-matchers"
 
-  # Database connection analysis
-  gem "bullet", "~> 7.1"    # Detect and fix N+1 queries
+  # N+1 query detection and prevention
+  gem "n1_loader"    # Modern N+1 prevention, especially good for GraphQL
 
   # security auditing
   gem "ruby_audit"

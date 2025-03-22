@@ -1,6 +1,49 @@
 ---
-description: 
-globs: 
+description: Ruby and Rails code style standards for the Tarot API project
+globs: ["**/*.rb", "**/*.rake"]
 alwaysApply: false
 ---
+
+# Code Style Guidelines
+
+## Ruby Style
+
+- Follow the Ruby Style Guide (https://rubystyle.guide/)
+- Use 2 spaces for indentation (not tabs)
+- Keep lines under 100 characters
+- Use snake_case for methods, variables, files, and directories
+- Use CamelCase for classes and modules
+- Use SCREAMING_SNAKE_CASE for constants
+- Prefer single quotes when not interpolating
+
+## Rails Conventions
+
+- Follow the Rails Style Guide (https://rails.rubystyle.guide/)
+- Use the ActiveRecord pattern for database operations
+- Use meaningful names for models, controllers, and methods
+- Avoid N+1 queries using includes/eager_loading
+- Use scopes for common query patterns
+- Maintain RESTful routes when possible
+
+## Testing Style
+
+- Use descriptive test names that explain the behavior
+- Group related tests using RSpec contexts
+- Keep tests atomic and independent
+- Use factories for test data, not fixtures
+- Follow the arrange-act-assert pattern
+
+## Rubocop Enforcement
+
+- Always run `bundle exec rubocop -a` before committing
+- Use `bundle exec rubocop --auto-gen-config` if needed
+- The project has custom rules in `.rubocop.yml`
+- Never disable cops without clear justification
+
+## Documentation
+
+- Add yard-style documentation for classes and methods
+- Include parameter types and return values
+- Document exceptions that might be raised
+- Keep documentation up to date with code changes
  
