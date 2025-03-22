@@ -90,13 +90,6 @@ jobs:
       - name: set up docker buildx
         uses: docker/setup-buildx-action@v3
       
-      - name: login to github container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      
       - name: configure aws credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -108,14 +101,31 @@ jobs:
         id: get_aws_account
         run: echo "aws_account_id=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
       
-      - name: build and push container image
+      - name: build container image
         run: |
-          # For production/staging, use AWS ECR
-          bundle exec rake container:deploy[${{ env.TARGET }},aws]
+          # Build for the target environment
+          bundle exec rake deploy:build[${{ env.TARGET }}]
         env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          AWS_ACCOUNT_ID: ${{ env.aws_account_id }}
-          ECR_REPOSITORY: tarot-api
+          RAILS_ENV: ${{ env.TARGET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+          AWS_REGION: mx-central-1
+          AWS_DEFAULT_REGION: mx-central-1
+  
+      - name: Push Container Image
+        run: |
+          # Get container registry from Pulumi
+          export CONTAINER_REGISTRY=$(pulumi stack output containerRegistry --stack ${{ env.TARGET }})
+          
+          # Push the container
+          bundle exec rake deploy:push[${{ env.TARGET }}]
+        env:
+          RAILS_ENV: ${{ env.TARGET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+          AWS_REGION: mx-central-1
+          AWS_DEFAULT_REGION: mx-central-1
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
   
   # deploy to staging when merging to main
   deploy-staging:
@@ -156,6 +166,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           AWS_REGION: mx-central-1
           AWS_DEFAULT_REGION: mx-central-1
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
       
       - name: get deployment url
         id: get_url
@@ -230,6 +241,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           AWS_REGION: mx-central-1
           AWS_DEFAULT_REGION: mx-central-1
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
       
       - name: get preview url
         id: get_url
@@ -326,6 +338,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           AWS_REGION: mx-central-1
           AWS_DEFAULT_REGION: mx-central-1
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
       
       - name: get deployment url
         id: get_url
@@ -438,6 +451,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           AWS_REGION: mx-central-1
           AWS_DEFAULT_REGION: mx-central-1
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           
       - name: execute hotfix
         if: github.event.inputs.action == 'hotfix'
@@ -453,6 +467,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           AWS_REGION: mx-central-1
           AWS_DEFAULT_REGION: mx-central-1
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           
       - name: execute rollback
         if: github.event.inputs.action == 'rollback'
@@ -471,4 +486,5 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           AWS_REGION: mx-central-1
-          AWS_DEFAULT_REGION: mx-central-1 
+          AWS_DEFAULT_REGION: mx-central-1
+          DATABASE_URL: ${{ secrets.DATABASE_URL }} 

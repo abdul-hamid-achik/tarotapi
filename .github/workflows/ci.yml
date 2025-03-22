@@ -15,6 +15,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tarot_api_test
         ports: ['5432:5432']
         options: >-
           --health-cmd pg_isready
@@ -41,10 +42,18 @@ jobs:
     - name: Run CI Checks
       run: |
         bundle exec rake ci:all
+      env:
+        RAILS_ENV: test
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/tarot_api_test
+        REDIS_URL: redis://localhost:6379/1
 
     - name: Run Security Checks
       run: |
         bundle exec rake ci:security
+      env:
+        RAILS_ENV: test
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/tarot_api_test
+        REDIS_URL: redis://localhost:6379/1
 
   deploy-staging:
     needs: test
@@ -70,10 +79,12 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ secrets.AWS_REGION }}
 
-    - name: Build and Push Container Image
+    - name: Build Container Image
       run: |
-        bundle exec rake container:build[staging]
-        bundle exec rake container:push[staging]
+        bundle exec rake deploy:build[staging]
+      env:
+        RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     - name: Deploy Infrastructure to Staging
       run: |
@@ -82,6 +93,22 @@ jobs:
         PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
         RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
         DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+        AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        
+    - name: Push Container Image
+      run: |
+        # Get the container registry from Pulumi outputs
+        cd infrastructure
+        export CONTAINER_REGISTRY=$(pulumi stack output containerRegistry --stack staging)
+        cd ..
+        
+        # Push using the registry from Pulumi
+        bundle exec rake deploy:push[staging]
+      env:
+        PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+        RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
         AWS_REGION: ${{ secrets.AWS_REGION }}
         AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
 
@@ -113,10 +140,12 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ secrets.AWS_REGION }}
 
-    - name: Build and Push Container Image
+    - name: Build Container Image
       run: |
-        bundle exec rake container:build[production]
-        bundle exec rake container:push[production]
+        bundle exec rake deploy:build[production]
+      env:
+        RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     - name: Deploy Infrastructure to Production
       run: |
@@ -125,6 +154,22 @@ jobs:
         PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
         RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
         DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+        AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+
+    - name: Push Container Image
+      run: |
+        # Get the container registry from Pulumi outputs
+        cd infrastructure
+        export CONTAINER_REGISTRY=$(pulumi stack output containerRegistry --stack production)
+        cd ..
+        
+        # Push using the registry from Pulumi
+        bundle exec rake deploy:push[production]
+      env:
+        PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+        RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
         AWS_REGION: ${{ secrets.AWS_REGION }}
         AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
 

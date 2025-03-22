@@ -426,12 +426,8 @@ namespace :release do
       
       # Step 4: Build and push the container
       TaskLogger.info("Building and pushing container...")
-      if Rake::Task.task_defined?("container:deploy")
-        Rake::Task["container:deploy"].invoke("staging", "aws")
-      else
-        Rake::Task["deploy:build"].invoke("staging")
-        Rake::Task["deploy:push"].invoke("staging")
-      end
+      Rake::Task["deploy:build"].invoke("staging")
+      Rake::Task["deploy:push"].invoke("staging")
       
       # Step 5: Update the registry for staging
       TaskLogger.info("Updating registry for staging...")
@@ -464,15 +460,10 @@ namespace :release do
         
         # Step 9: Push container to production
         TaskLogger.info("Pushing container to production...")
-        if Rake::Task.task_defined?("container:deploy")
-          Rake::Task["container:deploy"].reenable
-          Rake::Task["container:deploy"].invoke("production", "aws")
-        else
-          Rake::Task["deploy:build"].reenable
-          Rake::Task["deploy:push"].reenable
-          Rake::Task["deploy:build"].invoke("production")
-          Rake::Task["deploy:push"].invoke("production")
-        end
+        Rake::Task["deploy:build"].reenable
+        Rake::Task["deploy:push"].reenable
+        Rake::Task["deploy:build"].invoke("production")
+        Rake::Task["deploy:push"].invoke("production")
         
         # Step 10: Update the registry for production
         TaskLogger.info("Updating registry for production...")
@@ -537,12 +528,8 @@ namespace :release do
       
       # Step 3: Build and push the container
       TaskLogger.info("Building and pushing container...")
-      if Rake::Task.task_defined?("container:deploy")
-        Rake::Task["container:deploy"].invoke("production", "aws")
-      else
-        Rake::Task["deploy:build"].invoke("production")
-        Rake::Task["deploy:push"].invoke("production")
-      end
+      Rake::Task["deploy:build"].invoke("production")
+      Rake::Task["deploy:push"].invoke("production")
       
       # Step 4: Update the registry for production
       TaskLogger.info("Updating registry for production...")
@@ -601,12 +588,8 @@ namespace :release do
       
       # Step 3: Build and push the container
       TaskLogger.info("Building and pushing container...")
-      if Rake::Task.task_defined?("container:deploy")
-        Rake::Task["container:deploy"].invoke(env, "aws")
-      else
-        Rake::Task["deploy:build"].invoke(env)
-        Rake::Task["deploy:push"].invoke(env)
-      end
+      Rake::Task["deploy:build"].invoke(env)
+      Rake::Task["deploy:push"].invoke(env)
       
       # Step 4: Update the registry 
       TaskLogger.info("Updating registry...")
