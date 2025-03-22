@@ -92,12 +92,21 @@ end
 namespace :test do
   desc "Run all tests"
   task :all do
+    # Set Rails environment to test
+    ENV["RAILS_ENV"] = "test"
+    
+    # Prepare test database
+    Rake::Task["db:test:prepare"].invoke
+    Rake::Task["db:test:load"].invoke
+    
     TaskLogger.info("Running all tests...")
-
-    Rake::Task["test:prepare"].invoke
-    Rake::Task["test:unit"].invoke
-    Rake::Task["test:integration"].invoke
-    Rake::Task["test:system"].invoke
+    
+    # Run the tests
+    ["test:unit", "test:integration", "test:system"].each do |task|
+      Rake::Task[task].invoke
+      # Re-enable the task for the next run
+      Rake::Task[task].reenable
+    end
 
     TaskLogger.info("All tests completed!")
   end
@@ -106,9 +115,11 @@ namespace :test do
   task :prepare do
     TaskLogger.info("Preparing test environment...")
 
+    ENV["RAILS_ENV"] = "test"
+    
     # Ensure test database is ready
-    system("RAILS_ENV=test bundle exec rake db:test:prepare")
-
+    Rake::Task["db:test:prepare"].invoke
+    
     # Clear test logs
     FileUtils.rm_f(Rails.root.join("log/test.log"))
   end
@@ -116,18 +127,21 @@ namespace :test do
   desc "Run unit tests"
   task :unit do
     TaskLogger.info("Running unit tests...")
+    ENV["RAILS_ENV"] = "test"
     system("bundle exec rspec spec/models spec/services spec/helpers")
   end
 
   desc "Run integration tests"
   task :integration do
     TaskLogger.info("Running integration tests...")
+    ENV["RAILS_ENV"] = "test"
     system("bundle exec rspec spec/requests spec/controllers")
   end
 
   desc "Run system tests"
   task :system do
     TaskLogger.info("Running system tests...")
+    ENV["RAILS_ENV"] = "test"
     system("bundle exec rspec spec/system")
   end
 

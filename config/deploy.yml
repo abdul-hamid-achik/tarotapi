@@ -29,7 +29,8 @@ env:
     RAILS_SERVE_STATIC_FILES: true
     APP_NAME: tarot_api
     DB_HOST: <%= ENV['DB_HOST'] || 'localhost' %>
-    DB_NAME: <%= ENV['DB_NAME'] || 'tarot_api_production' %>
+    # Database name follows Rails convention: tarot_api_#{Rails.env}
+    # This is configured in config/database.yml and should not be overridden here
     DB_USERNAME: <%= ENV['DB_USERNAME'] || 'tarot_api' %>
     S3_ENDPOINT: "<%= ENV['S3_ENDPOINT'] || 'http://localhost:9000' %>"
     AWS_REGION: <%= ENV['AWS_REGION'] || 'mx-central-1' %>

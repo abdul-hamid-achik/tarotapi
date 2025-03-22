@@ -7,13 +7,16 @@ default: &default
   username: <%= ENV.fetch("DB_USERNAME") { "tarot_api" } %>
   password: <%= ENV.fetch("DB_PASSWORD") { "password" } %>
   port: <%= ENV.fetch("DB_PORT") { 5432 } %>
+  # Clear pattern for database names - IMPORTANT: this should always take precedence
+  # over any conflicting environment variables (DB_NAME, etc.)
+  database: tarot_api_<%= ENV["DATABASE_URL"] ? nil : Rails.env %>
+  url: <%= ENV["DATABASE_URL"] %>
   # Connection pool settings
   reaping_frequency: <%= ENV.fetch("DB_REAPING_FREQUENCY") { 10 } %>
   checkout_timeout: <%= ENV.fetch("DB_POOL_TIMEOUT") { 5 } %>
 
 development:
   <<: *default
-  database: tarot_api_development
   # Development-specific settings
   schema_search_path: public
   min_messages: notice
@@ -21,18 +24,18 @@ development:
 # IMPORTANT: The test database configuration is completely isolated from development
 test:
   <<: *default
-  database: tarot_api_development
   # Test-specific settings
   min_messages: warning
   pool: <%= ENV.fetch("TEST_DB_POOL") { 5 } %>
 
-# Makara configuration for staging and production
-# Uses read replicas when DB_REPLICA_ENABLED is true
-makara_default: &makara_default
+# For staging and production with replica support
+# This configuration uses the makara adapter when DB_REPLICA_ENABLED=true
+staging:
+  <% if ENV["DB_REPLICA_ENABLED"] == "true" %>
+  # Makara configuration for primary/replica setup
   adapter: postgresql
   encoding: unicode
   prepared_statements: false
-  # Use Makara as a wrapper for PostgreSQL
   adapter: 'makara_postgresql'
   makara:
     sticky: true
@@ -40,51 +43,52 @@ makara_default: &makara_default
     connections:
       - role: primary
         name: primary
-        database: <%= ENV.fetch("PROD_DB_NAME") { "tarot_api_production" } %>
-        host: <%= ENV["DB_PRIMARY_HOST"] || ENV["PROD_DB_HOST"] || ENV["DB_HOST"] %>
-        port: <%= ENV["DB_PRIMARY_PORT"] || ENV["PROD_DB_PORT"] || ENV["DB_PORT"] || 5432 %>
-        username: <%= ENV["DB_PRIMARY_USER"] || ENV["PROD_DB_USERNAME"] || ENV["DB_USERNAME"] %>
-        password: <%= ENV["DB_PRIMARY_PASSWORD"] || ENV["PROD_DB_PASSWORD"] || ENV["DB_PASSWORD"] %>
+        database: tarot_api_<%= ENV["DATABASE_URL"] ? nil : Rails.env %>
+        host: <%= ENV["DB_PRIMARY_HOST"] || ENV["DB_HOST"] %>
+        port: <%= ENV["DB_PRIMARY_PORT"] || ENV["DB_PORT"] || 5432 %>
+        username: <%= ENV["DB_PRIMARY_USER"] || ENV["DB_USERNAME"] %>
+        password: <%= ENV["DB_PRIMARY_PASSWORD"] || ENV["DB_PASSWORD"] %>
       - role: replica
         name: replica
-        database: <%= ENV.fetch("PROD_DB_NAME") { "tarot_api_production" } %>
+        database: tarot_api_<%= ENV["DATABASE_URL"] ? nil : Rails.env %>
         host: <%= ENV["DB_REPLICA_HOST"] || ENV["DB_HOST"] %>
         port: <%= ENV["DB_REPLICA_PORT"] || ENV["DB_PORT"] || 5432 %>
         username: <%= ENV["DB_REPLICA_USER"] || ENV["DB_USERNAME"] %>
         password: <%= ENV["DB_REPLICA_PASSWORD"] || ENV["DB_PASSWORD"] %>
-
-staging:
-  # Use Makara for connection pooling if replicas are enabled
-  <% if ENV["DB_REPLICA_ENABLED"] == "true" %>
-  <<: *makara_default
   <% else %>
   <<: *default
-  database: <%= ENV.fetch("STAGING_DB_NAME") { "tarot_api_staging" } %>
-  username: <%= ENV["STAGING_DB_USERNAME"] || ENV["DB_USERNAME"] %>
-  password: <%= ENV["STAGING_DB_PASSWORD"] || ENV["DB_PASSWORD"] %>
-  host: <%= ENV["STAGING_DB_HOST"] || ENV["DB_HOST"] %>
-  port: <%= ENV["STAGING_DB_PORT"] || ENV["DB_PORT"] %>
   <% end %>
-  # Staging-specific settings
-  pool: <%= ENV.fetch("STAGING_DB_POOL") { ENV.fetch("DB_POOL_SIZE") { 10 } } %>
+  pool: <%= ENV.fetch("DB_POOL_SIZE") { 10 } %>
 
 production:
-  # Use Makara for connection pooling if replicas are enabled
   <% if ENV["DB_REPLICA_ENABLED"] == "true" %>
-  <<: *makara_default
+  # Makara configuration for primary/replica setup
+  adapter: postgresql
+  encoding: unicode
+  prepared_statements: false
+  adapter: 'makara_postgresql'
+  makara:
+    sticky: true
+    blacklist_duration: 30
+    connections:
+      - role: primary
+        name: primary
+        database: tarot_api_<%= ENV["DATABASE_URL"] ? nil : Rails.env %>
+        host: <%= ENV["DB_PRIMARY_HOST"] || ENV["DB_HOST"] %>
+        port: <%= ENV["DB_PRIMARY_PORT"] || ENV["DB_PORT"] || 5432 %>
+        username: <%= ENV["DB_PRIMARY_USER"] || ENV["DB_USERNAME"] %>
+        password: <%= ENV["DB_PRIMARY_PASSWORD"] || ENV["DB_PASSWORD"] %>
+      - role: replica
+        name: replica
+        database: tarot_api_<%= ENV["DATABASE_URL"] ? nil : Rails.env %>
+        host: <%= ENV["DB_REPLICA_HOST"] || ENV["DB_HOST"] %>
+        port: <%= ENV["DB_REPLICA_PORT"] || ENV["DB_PORT"] || 5432 %>
+        username: <%= ENV["DB_REPLICA_USER"] || ENV["DB_USERNAME"] %>
+        password: <%= ENV["DB_REPLICA_PASSWORD"] || ENV["DB_PASSWORD"] %>
   <% else %>
   <<: *default
-  database: <%= ENV.fetch("PROD_DB_NAME") { "tarot_api_production" } %>
-  username: <%= ENV["PROD_DB_USERNAME"] || ENV["DB_USERNAME"] %>
-  password: <%= ENV["PROD_DB_PASSWORD"] || ENV["DB_PASSWORD"] %>
-  host: <%= ENV["PROD_DB_HOST"] || ENV["DB_HOST"] %>
-  port: <%= ENV["PROD_DB_PORT"] || ENV["DB_PORT"] %>
   <% end %>
-  # Production-specific settings
-  pool: <%= ENV.fetch("PROD_DB_POOL") { ENV.fetch("DB_POOL_SIZE") { 20 } } %>
-  # Enable prepared statements for better performance
+  pool: <%= ENV.fetch("DB_POOL_SIZE") { 20 } %>
   prepared_statements: true
-  # Enable statement limit for security
   statement_limit: 200
-  # Enable SSL mode for security
   sslmode: require 

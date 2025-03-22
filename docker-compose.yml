@@ -27,7 +27,6 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       # Database connection settings
       - DB_HOST=postgres
-      - DB_NAME=tarot_api_development
       - DB_USERNAME=tarot_api
       - DB_PASSWORD=password
       # PostgreSQL connection pooling and replica setup
@@ -147,7 +146,7 @@ services:
     environment:
       - POSTGRES_PASSWORD=password
       - POSTGRES_USER=tarot_api
-      - POSTGRES_DB=tarot_api_development
+      - POSTGRES_DB=tarot_api_${RAILS_ENV:-development}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U tarot_api"]
       interval: 10s
@@ -183,7 +182,7 @@ services:
     environment:
       - POSTGRES_PASSWORD=password
       - POSTGRES_USER=tarot_api
-      - POSTGRES_DB=tarot_api_development
+      - POSTGRES_DB=tarot_api_${RAILS_ENV:-development}
       - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
     command: 
       - "postgres"

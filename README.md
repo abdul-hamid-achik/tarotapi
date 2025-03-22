@@ -151,6 +151,21 @@ bundle exec rake dev:setup
 bundle exec rake dev
 ```
 
+### Database Naming Convention
+
+The application follows Rails conventions for database names:
+
+- Database names follow the pattern: `tarot_api_#{Rails.env}`
+- Examples:
+  - Development: `tarot_api_development`
+  - Test: `tarot_api_test`
+  - Staging: `tarot_api_staging`
+  - Production: `tarot_api_production`
+
+This convention is enforced throughout configuration files and you should not override it with explicit `DB_NAME` environment variables. When switching environments, the database name will automatically adjust based on the `RAILS_ENV`.
+
+To use an alternative database connection, you can set `DATABASE_URL` which takes precedence over individual connection parameters.
+
 ### common development tasks
 
 ```bash
