@@ -169,12 +169,12 @@ namespace :deploy do
       pretty_json = JSON.pretty_generate(parsed_json)
       
       # Print the prettified JSON with some formatting
-      puts "\n----- Service Update Result -----"
-      puts pretty_json
-      puts "--------------------------------\n"
+      TaskLogger.info "----- Service Update Result -----"
+      TaskLogger.info pretty_json
+      TaskLogger.info "--------------------------------"
     rescue => e
       # If JSON parsing fails, just output the raw result
-      puts json_output
+      TaskLogger.info json_output
     end
   end
 

@@ -73,28 +73,28 @@ namespace :infra do
           # Extract summary information
           summary = result["summary"] || {}
           
-          puts "\n----- Infrastructure Deployment Summary -----"
-          puts "Resources:"
-          puts "  Created: #{summary["create"] || 0}"
-          puts "  Updated: #{summary["update"] || 0}"
-          puts "  Deleted: #{summary["delete"] || 0}"
-          puts "  Unchanged: #{summary["same"] || 0}"
+          TaskLogger.info "----- Infrastructure Deployment Summary -----"
+          TaskLogger.info "Resources:"
+          TaskLogger.info "  Created: #{summary["create"] || 0}"
+          TaskLogger.info "  Updated: #{summary["update"] || 0}"
+          TaskLogger.info "  Deleted: #{summary["delete"] || 0}"
+          TaskLogger.info "  Unchanged: #{summary["same"] || 0}"
           
           # Display outputs separately for clarity
           if result["outputs"] && !result["outputs"].empty?
-            puts "\nOutputs:"
+            TaskLogger.info "\nOutputs:"
             result["outputs"].each do |key, output_data|
               if output_data["value"].is_a?(String)
-                puts "  #{key}: #{output_data["value"]}"
+                TaskLogger.info "  #{key}: #{output_data["value"]}"
               else
-                puts "  #{key}: #{output_data["value"].inspect}"
+                TaskLogger.info "  #{key}: #{output_data["value"].inspect}"
               end
             end
           end
-          puts "-------------------------------------------\n"
+          TaskLogger.info "-------------------------------------------"
         rescue => e
           # If JSON parsing fails, just output the raw result
-          puts output
+          TaskLogger.info output
         end
       end
     end
@@ -162,18 +162,18 @@ namespace :infra do
           require 'json'
           result = JSON.parse(output)
           
-          puts "\n----- Pulumi Stack Outputs -----"
+          TaskLogger.info "----- Pulumi Stack Outputs -----"
           result.each do |key, value_data|
             if value_data.is_a?(Hash) && value_data["value"]
-              puts "  #{key}: #{value_data["value"].inspect}"
+              TaskLogger.info "  #{key}: #{value_data["value"].inspect}"
             else
-              puts "  #{key}: #{value_data.inspect}"
+              TaskLogger.info "  #{key}: #{value_data.inspect}"
             end
           end
-          puts "-------------------------------\n"
+          TaskLogger.info "-------------------------------"
         rescue => e
           # If JSON parsing fails, just output the raw result
-          puts output
+          TaskLogger.info output
         end
       end
     end
