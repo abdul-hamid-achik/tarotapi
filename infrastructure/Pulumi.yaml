@@ -1,18 +1,443 @@
 name: tarot-api
-description: Pulumi infrastructure for Tarot API
+
+description: Combined Pulumi infrastructure for Tarot API
+
 runtime: yaml
-main: config.yaml
+
+main: Pulumi.yaml
+
+# Variables section - Required for environment variable references
+variables:
+  openai_api_key:
+    type: String
+    secret: true
+  ollama_api_key:
+    type: String
+    secret: true
+  anthropic_api_key:
+    type: String
+    secret: true
+
+# You can keep the config section for documentation, but we'll hardcode values below
 config:
-  aws:region: mx-central-1
+  aws_region:
+    default: mx-central-1
   environment:
     default: dev
   domain:
     default: tarotapi.cards
-  alt-domain: 
+  alt_domain:
     default: tarot.cards
-  project-name:
+  project_name:
     default: tarot-api
-  enable-cost-saving:
+  enable_cost_saving:
     default: true
-  repo-url:
-    default: https://github.com/abdul-hamid-achik/tarot-api 
+  repo_url:
+    default: https://github.com/abdul-hamid-achik/tarot-api
+  llm_api_key:
+    default: ""
+
+resources:
+  # Network Resources (from network.yaml)
+  vpc:
+    type: aws:ec2/vpc:Vpc
+    properties:
+      cidrBlock: "10.0.0.0/16"
+      tags:
+        Name: "tarot-api-vpc-${pulumi.stack}"
+
+  publicSubnet:
+    type: aws:ec2/subnet:Subnet
+    properties:
+      vpcId: "${vpc.id}"
+      cidrBlock: "10.0.3.0/24"
+      availabilityZone: "mx-central-1a"
+      mapPublicIpOnLaunch: true
+      tags:
+        Name: "tarot-api-public-subnet-1-${pulumi.stack}"
+
+  publicSubnet2:
+    type: aws:ec2/subnet:Subnet
+    properties:
+      vpcId: "${vpc.id}"
+      cidrBlock: "10.0.4.0/24"
+      availabilityZone: "mx-central-1b"
+      mapPublicIpOnLaunch: true
+      tags:
+        Name: "tarot-api-public-subnet-2-${pulumi.stack}"
+
+  # Database Resources (from database.yaml)
+  databaseSubnetGroup:
+    type: aws:rds/subnetGroup:SubnetGroup
+    properties:
+      name: "tarot-api-db-subnet-group-${pulumi.stack}"
+      subnetIds:
+        - "${publicSubnet.id}"
+        - "${publicSubnet2.id}"
+      tags:
+        Name: "tarot-api-db-subnet-group-${pulumi.stack}"
+
+  # Add a RandomPassword resource to generate a secure DB password
+  dbPassword:
+    type: random:index/randomPassword:RandomPassword
+    properties:
+      length: 16
+      special: false
+
+  dbInstance:
+    type: aws:rds/instance:Instance
+    properties:
+      identifier: "tarot-api-db-${pulumi.stack}"
+      engine: postgres
+      engineVersion: "14.13"
+      instanceClass: db.t3.micro
+      allocatedStorage: 20
+      dbSubnetGroupName: "${databaseSubnetGroup.id}"
+      username: tarot_api
+      password: "${dbPassword.result}"
+      skipFinalSnapshot: true
+      tags:
+        Name: "tarot-api-db-${pulumi.stack}"
+
+  # Cache Resources (from cache.yaml)
+  cacheSubnetGroup:
+    type: aws:elasticache/subnetGroup:SubnetGroup
+    properties:
+      name: "tarot-api-cache-subnet-group-${pulumi.stack}"
+      subnetIds:
+        - "${publicSubnet.id}"
+        - "${publicSubnet2.id}"
+      tags:
+        Name: "tarot-api-cache-subnet-group-${pulumi.stack}"
+
+  cacheCluster:
+    type: aws:elasticache/cluster:Cluster
+    properties:
+      engine: redis
+      nodeType: cache.t3.micro
+      numCacheNodes: 1
+      subnetGroupName: "${cacheSubnetGroup.name}"
+      tags:
+        Name: "tarot-api-redis-${pulumi.stack}"
+
+  # Storage Resources (from storage.yaml)
+  s3Bucket:
+    type: aws:s3/bucket:Bucket
+    properties:
+      bucket: "tarot-api-storage-${pulumi.stack}"
+      acl: private
+      tags:
+        Name: "tarot-api-storage-${pulumi.stack}"
+
+  # DNS and Domain Resources
+  dnsZone:
+    type: aws:route53/zone:Zone
+    properties:
+      name: "tarotapi.cards"
+      tags:
+        Name: "tarot-api-dns-zone-${pulumi.stack}"
+
+  dnsRecord:
+    type: aws:route53/record:Record
+    properties:
+      zoneId: "${dnsZone.id}"
+      name: "www.tarotapi.cards"
+      type: A
+      ttl: 300
+      records:
+        - "1.2.3.4"  # Update with the actual public IP or load balancer address
+
+  certificate:
+    type: aws:acm/certificate:Certificate
+    properties:
+      domainName: "tarotapi.cards"
+      validationMethod: DNS
+      tags:
+        Name: "tarot-api-cert-${pulumi.stack}"
+
+  altDnsRecord:
+    type: aws:route53/record:Record
+    properties:
+      zoneId: "${dnsZone.id}"
+      name: "tarot.cards"
+      type: A
+      ttl: 300
+      records:
+        - "1.2.3.4"  # Update as needed
+
+  # ECS and Container Resources
+  ecsCluster:
+    type: aws:ecs/cluster:Cluster
+    properties:
+      name: "tarot-api-cluster-${pulumi.stack}"
+      tags:
+        Name: "tarot-api-cluster-${pulumi.stack}"
+
+  taskDefinition:
+    type: aws:ecs/taskDefinition:TaskDefinition
+    properties:
+      family: "tarot-api-task-${pulumi.stack}"
+      networkMode: awsvpc
+      requiresCompatibilities:
+        - FARGATE
+      cpu: "256"
+      memory: "512"
+      containerDefinitions: |
+        [
+          {
+            "name": "api",
+            "image": "tarot_api:latest",
+            "essential": true,
+            "portMappings": [
+              { "containerPort": 3000, "hostPort": 3000 }
+            ],
+            "environment": [
+              { "name": "RAILS_ENV", "value": "production" },
+              { "name": "AWS_REGION", "value": "mx-central-1" }
+            ]
+          }
+        ]
+      tags:
+        Name: "tarot-api-task-definition-${pulumi.stack}"
+
+  ecsService:
+    type: aws:ecs/service:Service
+    properties:
+      name: "tarot-api-ecs-service-${pulumi.stack}"
+      cluster: "${ecsCluster.id}"
+      desiredCount: 2
+      launchType: FARGATE
+      taskDefinition: "${taskDefinition.id}"
+      networkConfiguration:
+        subnets:
+          - "${publicSubnet.id}"
+          - "${publicSubnet2.id}"
+        assignPublicIp: true
+      tags:
+        Name: "tarot-api-ecs-service-${pulumi.stack}"
+
+  # Monitoring Resources
+  monitoringAlarm:
+    type: aws:cloudwatch/metricAlarm:MetricAlarm
+    properties:
+      name: "tarot-api-high-cpu-${pulumi.stack}"
+      comparisonOperator: GreaterThanThreshold
+      evaluationPeriods: 2
+      metricName: CPUUtilization
+      namespace: AWS/EC2
+      period: 300
+      statistic: Average
+      threshold: 80
+      dimensions:
+        InstanceId: "i-0123456789abcdef0"
+      tags:
+        Name: "tarot-api-high-cpu-${pulumi.stack}"
+
+  # LLM Services - Using Fargate containers
+
+  # Security group for LLM services
+  llmSecurityGroup:
+    type: aws:ec2/securityGroup:SecurityGroup
+    properties:
+      vpcId: "${vpc.id}"
+      description: "Security group for LLM services"
+      ingress:
+        - fromPort: 11434
+          toPort: 11434
+          protocol: "tcp"
+          cidrBlocks: ["0.0.0.0/0"]
+      egress:
+        - fromPort: 0
+          toPort: 0
+          protocol: "-1"
+          cidrBlocks: ["0.0.0.0/0"]
+      tags:
+        Name: "tarot-api-llm-sg-${pulumi.stack}"
+
+  # CloudWatch log group for LLM services
+  llmLogGroup:
+    type: aws:cloudwatch/logGroup:LogGroup
+    properties:
+      name: "/ecs/tarot-api-llm-${pulumi.stack}"
+      retentionInDays: 30
+      tags:
+        Name: "tarot-api-llm-logs-${pulumi.stack}"
+
+  # Add a proper execution role for ECS tasks
+  ecsTaskExecutionRole:
+    type: aws:iam/role:Role
+    properties:
+      name: "tarot-api-ecs-exec-role-${pulumi.stack}"
+      assumeRolePolicy: |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com"
+              },
+              "Effect": "Allow",
+              "Sid": ""
+            }
+          ]
+        }
+      managedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+      tags:
+        Name: "tarot-api-ecs-exec-role-${pulumi.stack}"
+
+  # Ollama Task Definition
+  ollamaTaskDefinition:
+    type: aws:ecs/taskDefinition:TaskDefinition
+    properties:
+      family: "tarot-api-ollama-${pulumi.stack}"
+      cpu: "2048"
+      memory: "4096"
+      networkMode: "awsvpc"
+      requiresCompatibilities: ["FARGATE"]
+      executionRoleArn: "${ecsTaskExecutionRole.arn}"
+      containerDefinitions:
+        fn::toJSON:
+          - name: "ollama"
+            image: "ollama/ollama:latest"
+            essential: true
+            portMappings:
+              - containerPort: 11434
+                hostPort: 11434
+                protocol: "tcp"
+            environment:
+              - name: "OLLAMA_API_KEY"
+                value: "${ollama_api_key}"
+              - name: "OLLAMA_MODELS"
+                value: "llama3:8b"
+            logConfiguration:
+              logDriver: "awslogs"
+              options:
+                awslogs-group: "/ecs/tarot-api-llm-${pulumi.stack}"
+                awslogs-region: "mx-central-1"
+                awslogs-stream-prefix: "ollama"
+      tags:
+        Name: "tarot-api-ollama-task-${pulumi.stack}"
+
+  # Ollama Service
+  ollamaService:
+    type: aws:ecs/service:Service
+    properties:
+      name: "tarot-api-ollama-${pulumi.stack}"
+      cluster: "${ecsCluster.id}"
+      taskDefinition: "${ollamaTaskDefinition.arn}"
+      desiredCount: 1
+      launchType: "FARGATE"
+      networkConfiguration:
+        subnets: ["${publicSubnet.id}", "${publicSubnet2.id}"]
+        securityGroups: ["${llmSecurityGroup.id}"]
+        assignPublicIp: true
+      tags:
+        Name: "tarot-api-ollama-service-${pulumi.stack}"
+        Service: "LLM"
+        Provider: "Ollama"
+        Tier: "Free"
+
+  # OpenAI Task Definition (minimal since it just accesses API)
+  openaiTaskDefinition:
+    type: aws:ecs/taskDefinition:TaskDefinition
+    properties:
+      family: "tarot-api-openai-${pulumi.stack}"
+      cpu: "256"
+      memory: "512"
+      networkMode: "awsvpc"
+      requiresCompatibilities: ["FARGATE"]
+      executionRoleArn: "${ecsTaskExecutionRole.arn}"
+      containerDefinitions:
+        fn::toJSON:
+          - name: "openai-proxy"
+            image: "nginx:alpine"
+            essential: true
+            portMappings:
+              - containerPort: 80
+                hostPort: 80
+                protocol: "tcp"
+            environment:
+              - name: "OPENAI_API_KEY"
+                value: "${openai_api_key}"
+              - name: "MODEL_NAME"
+                value: "gpt-4o-mini"
+            logConfiguration:
+              logDriver: "awslogs"
+              options:
+                awslogs-group: "/ecs/tarot-api-llm-${pulumi.stack}"
+                awslogs-region: "mx-central-1"
+                awslogs-stream-prefix: "openai"
+      tags:
+        Name: "tarot-api-openai-task-${pulumi.stack}"
+
+  # OpenAI Service
+  openaiService:
+    type: aws:ecs/service:Service
+    properties:
+      name: "tarot-api-openai-${pulumi.stack}"
+      cluster: "${ecsCluster.id}"
+      taskDefinition: "${openaiTaskDefinition.arn}"
+      desiredCount: 1
+      launchType: "FARGATE"
+      networkConfiguration:
+        subnets: ["${publicSubnet.id}", "${publicSubnet2.id}"]
+        securityGroups: ["${llmSecurityGroup.id}"]
+        assignPublicIp: true
+      tags:
+        Name: "tarot-api-openai-service-${pulumi.stack}"
+        Service: "LLM"
+        Provider: "OpenAI"
+        Tier: "Premium"
+
+  # Anthropic Service - Commented out until needed
+  # anthropicTaskDefinition:
+  #   type: aws:ecs/taskDefinition:TaskDefinition
+  #   properties:
+  #     family: "tarot-api-anthropic-${pulumi.stack}"
+  #     cpu: "256"
+  #     memory: "512"
+  #     networkMode: "awsvpc"
+  #     requiresCompatibilities: ["FARGATE"]
+  #     executionRoleArn: "${ecsTaskExecutionRole.arn}"
+  #     containerDefinitions:
+  #       fn::toJSON:
+  #         - name: "anthropic-proxy"
+  #           image: "nginx:alpine"
+  #           essential: true
+  #           portMappings:
+  #             - containerPort: 80
+  #               hostPort: 80
+  #               protocol: "tcp"
+  #           environment:
+  #             - name: "ANTHROPIC_API_KEY"
+  #               value: "${anthropic_api_key}"
+  #             - name: "MODEL_NAME"
+  #               value: "claude-3-5-sonnet-v2"
+  #           logConfiguration:
+  #             logDriver: "awslogs"
+  #             options:
+  #               awslogs-group: "/ecs/tarot-api-llm-${pulumi.stack}"
+  #               awslogs-region: "mx-central-1"
+  #               awslogs-stream-prefix: "anthropic"
+  #     tags:
+  #       Name: "tarot-api-anthropic-task-${pulumi.stack}"
+  # 
+  # anthropicService:
+  #   type: aws:ecs/service:Service
+  #   properties:
+  #     name: "tarot-api-anthropic-${pulumi.stack}"
+  #     cluster: "${ecsCluster.id}"
+  #     taskDefinition: "${anthropicTaskDefinition.arn}"
+  #     desiredCount: 1
+  #     launchType: "FARGATE"
+  #     networkConfiguration:
+  #       subnets: ["${publicSubnet.id}", "${publicSubnet2.id}"]
+  #       securityGroups: ["${llmSecurityGroup.id}"]
+  #       assignPublicIp: true
+  #     tags:
+  #       Name: "tarot-api-anthropic-service-${pulumi.stack}"
+  #       Service: "LLM"
+  #       Provider: "Anthropic"
+  #       Tier: "Professional" 
