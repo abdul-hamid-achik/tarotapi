@@ -1,0 +1,207 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * 0' # run weekly on Sunday at midnight
+
+jobs:
+  check-ci-status:
+    name: Check CI Status
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_run' && 
+      github.event.workflow_run.conclusion == 'success' && 
+      (github.event.workflow_run.event == 'push' || 
+       github.event.workflow_run.event == 'pull_request')
+    steps:
+      - name: CI workflow completed successfully
+        run: echo "CI workflow completed successfully, proceeding with security scan"
+
+  security-scan:
+    name: Rails Security Scan
+    needs: [check-ci-status]
+    if: |
+      always() && 
+      (github.event_name != 'workflow_run' || 
+       (github.event_name == 'workflow_run' && needs.check-ci-status.result == 'success'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake git curl wget libssl-dev
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: false  # Don't use cache initially as we need to install llama.cpp first
+
+      - name: Install llama.cpp
+        id: llama_cpp
+        run: |
+          LLAMA_CPP_DIR=$HOME/.llama_cpp
+          echo "LLAMA_CPP_DIR=$LLAMA_CPP_DIR" >> $GITHUB_ENV
+          
+          mkdir -p $LLAMA_CPP_DIR
+          git clone https://github.com/ggml-org/llama.cpp.git $LLAMA_CPP_DIR
+          
+          cd $LLAMA_CPP_DIR
+          mkdir -p build
+          cd build
+          cmake -DBUILD_SHARED_LIBS=ON -DLLAMA_NATIVE=OFF -DLLAMA_F16C=OFF -DLLAMA_FMA=OFF -DCMAKE_C_FLAGS="-O3" -DCMAKE_CXX_FLAGS="-O3" ..
+          cmake --build . --config Release -j$(nproc)
+          
+          echo "LIBRARY_PATH=$LLAMA_CPP_DIR/build" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=$LLAMA_CPP_DIR/build" >> $GITHUB_ENV 
+          echo "CPATH=$LLAMA_CPP_DIR" >> $GITHUB_ENV
+
+      - name: Bundle install
+        run: |
+          bundle config set --local path 'vendor/bundle'
+          bundle install --jobs 4 --retry 3
+
+      - name: Run Brakeman
+        run: bundle exec brakeman -A --no-pager
+
+      - name: Run Bundler Audit
+        run: |
+          gem install bundler-audit
+          bundle-audit check --update
+
+      - name: Run Ruby Audit
+        run: |
+          gem install ruby_audit
+          ruby-audit check
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Scan dependencies
+        uses: actions/dependency-review-action@v4
+
+  secrets-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+        
+      - name: Scan for secrets with Gitleaks
+        uses: zricethezav/gitleaks-action@v2.3.7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  infra_security_scan:
+    name: Infrastructure Security Scan
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: mx-central-1
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+      
+      - name: Install Kamal
+        run: gem install kamal
+      
+      - name: Scan Kamal configuration
+        run: |
+          echo "Scanning Kamal configuration for security issues..."
+          
+          # Use our custom rake task for validation
+          bundle exec rake deploy:kamal:validate_ci || {
+            echo "::warning::Kamal configuration validation found issues. Please check the output above."
+            echo "::warning::This may be due to missing 'check' command in your Kamal version."
+            
+            # Do a minimal check to ensure the YAML is valid
+            echo "Performing minimal YAML validation..."
+            if ruby -e "require 'yaml'; YAML.load_file('config/deploy.yml') rescue exit 1"; then
+              echo "YAML is valid, continuing..."
+            else
+              echo "::error::Invalid YAML in config/deploy.yml"
+              exit 1
+            fi
+          }
+          
+          echo "Kamal configuration scan completed."
+      
+      - name: Scan Dockerfile
+        run: |
+          echo "Scanning Dockerfile for security issues..."
+          
+          # Check if Dockerfile exists
+          if [ ! -f "Dockerfile" ]; then
+            echo "::error::Dockerfile not found!"
+            exit 1
+          fi
+          
+          # Simple checks for Dockerfile best practices
+          if ! grep -q "USER" Dockerfile; then
+            echo "::warning::No USER instruction found in Dockerfile. Container might run as root."
+          fi
+          
+          if grep -q "COPY \." Dockerfile; then
+            echo "::warning::Copying entire directory may include sensitive files. Consider using .dockerignore."
+          fi
+          
+          # Check for hardcoded credentials
+          SENSITIVE_PATTERNS=("password" "secret" "key" "token")
+          for pattern in "${SENSITIVE_PATTERNS[@]}"; do
+            if grep -i "$pattern" Dockerfile | grep -v "ARG" | grep -v "ENV" > /dev/null; then
+              echo "::warning::Possible hardcoded credentials in Dockerfile: $pattern"
+            fi
+          done
+          
+          echo "Dockerfile scan completed."
+      
+      - name: AWS Infrastructure security check
+        run: |
+          echo "Checking AWS resources for security issues..."
+          
+          # Check S3 buckets for public access
+          aws s3api list-buckets --query "Buckets[].Name" --output text | tr '\t' '\n' | while read bucket; do
+            if aws s3api get-bucket-policy-status --bucket "$bucket" --query "PolicyStatus.IsPublic" 2>/dev/null | grep -q "true"; then
+              echo "::warning::S3 bucket is publicly accessible: $bucket"
+            fi
+          done
+          
+          # Check security groups for wide open ports
+          aws ec2 describe-security-groups --query "SecurityGroups[*].[GroupId,GroupName,IpPermissions]" --output json | jq -r '.[] | "\(.[0]) \(.[1]) \(.[2])"' | while read -r line; do
+            if echo "$line" | grep -q "0.0.0.0/0"; then
+              echo "::warning::Security group has wide open access: $line"
+            fi
+          done
+          
+          echo "AWS infrastructure security check completed."
+      
+      - name: Report findings
+        if: always()
+        run: |
+          echo "Infrastructure security scan completed."
+          echo "Review warnings and errors in the workflow logs." 

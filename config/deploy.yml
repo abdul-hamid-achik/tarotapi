@@ -1,0 +1,85 @@
+# Name of your application. Used to uniquely configure containers.
+service: tarot_api
+
+# Name of the container image.
+image: <%= ENV['ECR_REGISTRY'] %>/<%= ENV['APP_NAME'] %>:<%= ENV['TAG'] || 'latest' %>
+
+# Deploy to these servers - note that these will be populated from Pulumi outputs at runtime
+servers:
+  web:
+    # For ECS Fargate deployment, the actual host information comes from Pulumi
+    hosts:
+      - <%= ENV['ECS_DEPLOY_USER'] || 'deploy' %>@<%= ENV['ECS_HOST'] || 'localhost' %>
+    labels:
+      traefik.http.routers.tarot_api.rule: Host(`tarotapi.cards`)
+      traefik.http.routers.tarot_api.tls: true
+      traefik.http.routers.tarot_api.tls.certresolver: letsencrypt
+
+# Credentials for your image host.
+registry:
+  server: "<%= ENV['ECR_REGISTRY'] %>"
+  username: <%= ENV['AWS_ACCESS_KEY_ID'] || 'AWS' %>
+  password: <%= ENV['AWS_SECRET_ACCESS_KEY'] || 'dummy-secret-key' %>
+
+# Inject ENV variables into containers
+env:
+  clear:
+    RAILS_ENV: <%= ENV['RAILS_ENV'] || 'production' %>
+    RAILS_LOG_TO_STDOUT: true
+    RAILS_SERVE_STATIC_FILES: true
+    APP_NAME: tarot_api
+    DB_HOST: <%= ENV['DB_HOST'] || 'localhost' %>
+    DB_NAME: <%= ENV['DB_NAME'] || 'tarot_api_production' %>
+    DB_USERNAME: <%= ENV['DB_USERNAME'] || 'tarot_api' %>
+    S3_ENDPOINT: "<%= ENV['S3_ENDPOINT'] || 'http://localhost:9000' %>"
+    AWS_REGION: <%= ENV['AWS_REGION'] || 'mx-central-1' %>
+    AWS_BUCKET: <%= ENV['AWS_BUCKET'] || 'tarot-api' %>
+  secret:
+    - RAILS_MASTER_KEY
+    - DB_PASSWORD
+    - AWS_ACCESS_KEY_ID
+    - AWS_SECRET_ACCESS_KEY
+    - OPENAI_API_KEY
+
+# Aliases for common commands
+aliases:
+  console: app exec --interactive --reuse "bin/rails console"
+  shell: app exec --interactive --reuse "bash"
+  logs: app logs -f
+  dbc: app exec --interactive --reuse "bin/rails dbconsole"
+
+# Use persistent storage volumes
+volumes:
+  - data:/rails/storage
+
+# Bridge fingerprinted assets between versions
+asset_path: /rails/public/assets
+
+# Configure the image builder
+builder:
+  arch: arm64
+  args:
+    RAILS_ENV: <%= ENV['RAILS_ENV'] %>
+    RAILS_MASTER_KEY: <%= ENV['RAILS_MASTER_KEY'] %>
+    AWS_REGION: <%= ENV['AWS_REGION'] %>
+
+# The minimal accessories configuration needed for validation purposes
+# In practice, this is handled by AWS RDS, ElastiCache, etc.
+accessories:
+  db:
+    image: postgres:16
+    host: localhost
+    port: 5432
+    env:
+      clear:
+        POSTGRES_USER: tarot_api
+      secret:
+        - POSTGRES_PASSWORD
+    volumes:
+      - db_data:/var/lib/postgresql/data
+  redis:
+    image: redis:7
+    host: localhost
+    port: 6379
+    volumes:
+      - redis_data:/data

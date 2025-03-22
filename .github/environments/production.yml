@@ -1,0 +1,12 @@
+name: production
+description: production environment with strict protection rules
+protection_rules:
+  required_reviewers:
+    enabled: true
+    reviewers_count: 1
+  wait_timer:
+    enabled: true
+    wait_time: 5  # minutes
+  environment_urls:
+    production: https://tarotapi.cards
+    staging: https://staging.tarotapi.cards 

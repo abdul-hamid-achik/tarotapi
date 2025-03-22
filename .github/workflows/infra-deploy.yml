@@ -1,0 +1,411 @@
+name: infrastructure and app deployment
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+      - 'preview-*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - production
+          - staging
+      action:
+        description: 'action to perform'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+          - deploy
+          - preview
+          - destroy
+          - backup-state
+          - restore-state
+      state_file:
+        description: 'path to state file (for restore-state action)'
+        required: false
+        type: string
+
+# ensure only one deployment workflow runs at a time per environment
+concurrency:
+  group: pulumi-${{ github.event.inputs.environment || (startsWith(github.ref, 'refs/tags/v') && 'production') || (startsWith(github.ref, 'refs/tags/preview-') && 'preview') || (github.ref == 'refs/heads/main' && 'staging') || 'default' }}
+  cancel-in-progress: false
+
+jobs:
+  # build and push to both GHCR and ECR
+  build-and-push:
+    name: build and push image
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tag: ${{ steps.determine_tag.outputs.tag }}
+    
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: set up ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      
+      - name: determine target environment and tag
+        id: determine_tag
+        run: |
+          if [[ "${{ github.ref }}" == "refs/tags/v"* ]]; then
+            echo "TARGET=production" >> $GITHUB_ENV
+            echo "tag=production" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.environment }}" == "production" ]]; then
+            echo "TARGET=production" >> $GITHUB_ENV
+            echo "tag=production" >> $GITHUB_OUTPUT
+          else
+            echo "TARGET=development" >> $GITHUB_ENV
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: set up docker buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: login to github container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: mx-central-1
+      
+      - name: get aws account id
+        id: get_aws_account
+        run: echo "aws_account_id=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
+      
+      - name: build and push to both registries
+        run: |
+          bundle exec rake "docker:build[${{ env.TARGET }},both]"
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          AWS_ACCOUNT_ID: ${{ env.aws_account_id }}
+          ECR_REPOSITORY: tarot-api
+  
+  # deploy to staging when merging to main
+  deploy-staging:
+    name: deploy to staging
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main' && github.event_name != 'workflow_dispatch'
+    
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: set up ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      
+      - name: set up pulumi
+        uses: pulumi/actions@v6
+      
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: mx-central-1
+      
+      - name: deploy infrastructure
+        run: bundle exec rake pulumi:deploy[staging]
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AWS_REGION: mx-central-1
+          AWS_DEFAULT_REGION: mx-central-1
+      
+      - name: get deployment url
+        id: get_url
+        run: |
+          cd infrastructure
+          echo "url=$(pulumi stack output -s staging apiDns)" >> $GITHUB_OUTPUT
+          echo "api_dns=staging.tarotapi.cards" >> $GITHUB_OUTPUT
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      
+      - name: comment on pr
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { issue: { number: issue_number }, repo: { owner, repo } } = context;
+            const deploymentUrl = `https://${{ steps.get_url.outputs.api_dns }}`;
+            github.rest.issues.createComment({
+              issue_number,
+              owner,
+              repo,
+              body: `🚀 Staging environment deployed: [${deploymentUrl}](${deploymentUrl})`
+            });
+  
+  # create preview environment when tagging with preview-*
+  deploy-preview:
+    name: deploy preview environment
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: startsWith(github.ref, 'refs/tags/preview-') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'preview')
+    
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: set up ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      
+      - name: set up pulumi
+        uses: pulumi/actions@v6
+      
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: mx-central-1
+      
+      - name: extract preview name
+        id: extract_name
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            PREVIEW_NAME="${{ github.event.inputs.environment }}"
+          else
+            PREVIEW_NAME=$(echo ${GITHUB_REF#refs/tags/preview-} | sed 's/\//_/g')
+          fi
+          echo "preview_name=$PREVIEW_NAME" >> $GITHUB_OUTPUT
+      
+      - name: deploy preview environment
+        run: bundle exec rake pulumi:create_preview[${{ steps.extract_name.outputs.preview_name }}]
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AWS_REGION: mx-central-1
+          AWS_DEFAULT_REGION: mx-central-1
+      
+      - name: get preview url
+        id: get_url
+        run: |
+          cd infrastructure
+          echo "url=$(pulumi stack output -s preview-${{ steps.extract_name.outputs.preview_name }} apiDns)" >> $GITHUB_OUTPUT
+          echo "api_dns=preview-${{ steps.extract_name.outputs.preview_name }}.tarotapi.cards" >> $GITHUB_OUTPUT
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      
+      - name: find associated pr
+        id: find_pr
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { repo: { owner, repo } } = context;
+            
+            // Try to find PR associated with this tag
+            const tagName = '${{ steps.extract_name.outputs.preview_name }}';
+            
+            // Look for PRs with this tag name in the title or branch name
+            const prs = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: 'open'
+            });
+            
+            let prNumber = null;
+            for (const pr of prs.data) {
+              if (pr.head.ref.includes(tagName) || pr.title.includes(tagName)) {
+                prNumber = pr.number;
+                break;
+              }
+            }
+            
+            return prNumber;
+      
+      - name: comment on pr
+        uses: actions/github-script@v7
+        if: steps.find_pr.outputs.result != 'null'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = ${{ steps.find_pr.outputs.result }};
+            if (!prNumber) return;
+            
+            const { repo: { owner, repo } } = context;
+            const deploymentUrl = `https://${{ steps.get_url.outputs.api_dns }}`;
+            
+            github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner,
+              repo,
+              body: `🚀 Preview environment deployed: [${deploymentUrl}](${deploymentUrl})`
+            });
+  
+  # deploy to production when tagging with v*
+  deploy-production:
+    name: deploy to production
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production' && github.event.inputs.action == 'deploy')
+    
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: set up ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      
+      - name: set up pulumi
+        uses: pulumi/actions@v6
+      
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: mx-central-1
+      
+      - name: deploy infrastructure
+        run: bundle exec rake pulumi:deploy[production]
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AWS_REGION: mx-central-1
+          AWS_DEFAULT_REGION: mx-central-1
+      
+      - name: get deployment url
+        id: get_url
+        run: |
+          cd infrastructure
+          echo "url=$(pulumi stack output -s production apiDns)" >> $GITHUB_OUTPUT
+          echo "api_dns=tarotapi.cards" >> $GITHUB_OUTPUT
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      
+      - name: create deployment status
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { repo: { owner, repo } } = context;
+            const deploymentUrl = `https://${{ steps.get_url.outputs.api_dns }}`;
+            
+            github.rest.repos.createDeployment({
+              owner,
+              repo,
+              ref: '${{ github.ref }}',
+              environment: 'production',
+              auto_merge: false,
+              required_contexts: [],
+              production_environment: true
+            }).then(deployment => {
+              github.rest.repos.createDeploymentStatus({
+                owner,
+                repo,
+                deployment_id: deployment.data.id,
+                state: 'success',
+                environment_url: deploymentUrl,
+                description: 'Production deployment successful'
+              });
+            });
+  
+  # workflow dispatch for specific actions
+  dispatch-action:
+    name: run dispatched action
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.action == 'destroy' || github.event.inputs.action == 'backup-state' || github.event.inputs.action == 'restore-state')
+    
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: set up ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      
+      - name: set up pulumi
+        uses: pulumi/actions@v6
+      
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: mx-central-1
+      
+      - name: destroy environment
+        if: github.event.inputs.action == 'destroy'
+        run: bundle exec rake pulumi:destroy[${{ github.event.inputs.environment }}]
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AWS_REGION: mx-central-1
+          AWS_DEFAULT_REGION: mx-central-1
+      
+      - name: backup pulumi state
+        if: github.event.inputs.action == 'backup-state'
+        run: bundle exec rake pulumi:manage_state[backup]
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: mx-central-1
+          AWS_DEFAULT_REGION: mx-central-1
+      
+      - name: restore pulumi state
+        if: github.event.inputs.action == 'restore-state'
+        run: bundle exec rake "pulumi:manage_state[restore,${{ github.event.inputs.state_file }}]"
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: mx-central-1
+          AWS_DEFAULT_REGION: mx-central-1 

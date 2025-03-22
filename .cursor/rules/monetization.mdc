@@ -1,0 +1,90 @@
+---
+description: Monetization strategies and subscription models for the Tarot API
+globs: "{app/models/subscription*,app/controllers/api/**/subscription*,app/services/payment*}"
+alwaysApply: true
+---
+# Tarot API Monetization Strategy
+
+## Core Principles
+
+- Focus on cost-effective infrastructure to maintain low operating costs
+- Implement incremental scaling to match demand
+- Prioritize efficient code and database queries to minimize resource usage
+- Balance free and premium features to drive conversion
+- Use Stripe for all payment processing to ensure security and compliance
+- Maintain clear visibility of costs vs. revenue at all times
+
+## Subscription Tiers
+
+- **Free Tier**:
+  - Limited number of basic readings per month
+  - Access to essential card information
+  - Basic history storage (last 5 readings)
+  - Ad-supported experience
+
+- **Basic Subscription** ($5.99/month):
+  - Increased reading limits
+  - Access to all spread types
+  - Ad-free experience
+  - Full reading history
+  - Basic agent interpretations
+
+- **Premium Subscription** ($12.99/month):
+  - Unlimited readings
+  - Priority API access
+  - Advanced agent interpretations
+  - Custom spread creation
+  - Downloadable reading reports
+  - Early access to new features
+
+## Microtransactions
+
+- **Reading Credits**:
+  - Sold in packages (5, 10, 25, 50)
+  - Volume discounts for larger packages
+  - Credits can be used for premium readings without subscription
+  - Credits never expire for active accounts
+
+- **Specialty Readings**:
+  - Premium one-time readings with special agent personalities
+  - Detailed PDF reports of readings
+  - Video/audio interpretation add-ons
+
+- **Custom Spreads**:
+  - Users can purchase the ability to create and save custom spreads
+  - Option to publish spreads for community use (with revenue sharing)
+
+## Implementation Guidelines
+
+- Use Stripe for subscription management and one-time purchases
+- Implement metered billing for API usage beyond tier limits
+- Store credit balances in the user's account
+- Provide clear usage metrics to users
+- Implement automatic renewal with advance notifications
+- Allow easy cancellation to build trust
+
+## Infrastructure Scaling
+
+- Start with minimal AWS resources appropriate for initial user base
+- Configure auto-scaling groups with conservative growth parameters
+- Implement caching aggressively to reduce database load
+- Use read replicas only when justified by usage patterns
+- Monitor resource utilization and costs daily
+- Optimize before scaling to avoid unnecessary infrastructure costs
+
+## Growth Strategy
+
+- Focus on organic growth through quality experience
+- Implement referral bonuses (free credits for both referrer and referee)
+- Offer limited-time promotions around astrological events
+- Create content marketing around tarot education
+- Consider API partnerships with complementary services
+- Implement affiliate program for content creators
+
+## Development Priorities
+
+- Always develop payment and subscription features with thorough testing
+- Prioritize features that enhance revenue without increasing costs
+- Measure feature usage to identify valuable premium offerings
+- A/B test pricing and packaging before full rollout
+- Validate monetization features with small user groups before wide release 

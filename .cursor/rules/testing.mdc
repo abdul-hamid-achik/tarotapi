@@ -1,0 +1,43 @@
+---
+description: Testing standards and practices for the Tarot API project
+globs: "**/{spec,features}/**/*.{rb,feature}"
+alwaysApply: true
+---
+# Testing Guidelines
+
+## BDD (Behavior-Driven Development)
+
+- Always use Cucumber for behavioral testing
+- Aim for 80% BDD coverage for the project
+- Write Cucumber features that describe the expected behavior from the user's perspective
+- Use Gherkin syntax for scenarios in plain language
+- Place feature files in `features/` directory
+
+## TDD (Test-Driven Development)
+
+- Use RSpec for unit tests and critical logic
+- Aim for 100% test coverage on models, services, and critical business logic
+- Write tests before implementing functionality
+- Place spec files in the `spec/` directory matching the structure of the app
+
+## Test Execution
+
+- Run all tests before committing changes: `bundle exec rake test`
+- Run specific test types with:
+  - `bundle exec rspec` for unit tests
+  - `bundle exec cucumber` for feature tests
+- Ensure CI/CD pipeline runs all tests
+
+## Test Configuration
+
+- Keep test data in fixtures or factories
+- Use FactoryBot for test data generation
+- Configure VCR for external API mocking
+- Use database_cleaner for test isolation
+
+## When Adding New Features
+
+- Always write feature tests first (BDD)
+- Then write unit tests for the implementation (TDD)
+- Only then implement the feature
+- Never skip tests for new features or major changes

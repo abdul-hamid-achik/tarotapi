@@ -1,0 +1,451 @@
+resources:
+  # ecs cluster
+  ecsCluster:
+    type: aws:ecs:Cluster
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}-cluster
+      settings:
+        - name: containerInsights
+          value: ${tarotapi:environment == "production" ? "enabled" : "disabled"}
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-cluster
+        Project: ${tarotapi:projectName}
+        Environment: ${tarotapi:environment}
+  
+  # execution role for ecs tasks
+  ecsTaskExecutionRole:
+    type: aws:iam:Role
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}-task-execution-role
+      assumeRolePolicy: |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        }
+      managedPolicyArns: [
+        "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+      ]
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-task-execution-role
+  
+  # task role for application permissions
+  ecsTaskRole:
+    type: aws:iam:Role
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}-task-role
+      assumeRolePolicy: |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        }
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-task-role
+  
+  # attach s3 access policy to task role
+  ecsTaskRoleS3Policy:
+    type: aws:iam:RolePolicyAttachment
+    properties:
+      role: ${ecsTaskRole.name}
+      policyArn: ${storage.s3AccessPolicy.arn}
+  
+  # cloudwatch logs policy for task role
+  ecsTaskRoleLogsPolicy:
+    type: aws:iam:Policy
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}-task-logs-policy
+      description: allow writing to cloudwatch logs
+      policy: |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents",
+                "logs:DescribeLogStreams"
+              ],
+              "Resource": "arn:aws:logs:*:*:*"
+            }
+          ]
+        }
+      roles: [${ecsTaskRole.name}]
+  
+  # log group for application logs
+  appLogGroup:
+    type: aws:cloudwatch:LogGroup
+    properties:
+      name: /ecs/${tarotapi:projectName}-${tarotapi:environment}
+      retentionInDays: ${tarotapi:environment == "production" ? 30 : 7}
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}
+        Project: ${tarotapi:projectName}
+        Environment: ${tarotapi:environment}
+  
+  # task definition for the application
+  ecsTaskDefinition:
+    type: aws:ecs:TaskDefinition
+    properties:
+      family: ${tarotapi:projectName}-${tarotapi:environment}
+      cpu: ${tarotapi:environment == "production" ? "1024" : "512"}
+      memory: ${tarotapi:environment == "production" ? "2048" : "1024"}
+      networkMode: awsvpc
+      requiresCompatibilities: ["FARGATE"]
+      executionRoleArn: ${ecsTaskExecutionRole.arn}
+      taskRoleArn: ${ecsTaskRole.arn}
+      containerDefinitions: |
+        [
+          {
+            "name": "${tarotapi:projectName}-app",
+            "image": "${ecrRepository.repositoryUrl}:latest",
+            "essential": true,
+            "portMappings": [
+              {
+                "containerPort": 3000,
+                "hostPort": 3000,
+                "protocol": "tcp"
+              }
+            ],
+            "environment": [
+              {
+                "name": "RAILS_ENV",
+                "value": "${tarotapi:environment}"
+              },
+              {
+                "name": "RAILS_LOG_TO_STDOUT",
+                "value": "true"
+              },
+              {
+                "name": "RAILS_SERVE_STATIC_FILES",
+                "value": "true"
+              },
+              {
+                "name": "DB_HOST",
+                "value": "${database.dbAddress}"
+              },
+              {
+                "name": "DB_NAME",
+                "value": "${database.dbName}"
+              },
+              {
+                "name": "DB_USERNAME",
+                "value": "${database.dbUsername}"
+              },
+              {
+                "name": "REDIS_URL",
+                "value": "redis://${cache.redisHost}:${cache.redisPort}"
+              },
+              {
+                "name": "AWS_BUCKET",
+                "value": "${storage.appBucketName}"
+              },
+              {
+                "name": "AWS_REGION",
+                "value": "${aws:region}"
+              },
+              {
+                "name": "CDN_HOST",
+                "value": "${dns.cdnDns}"
+              }
+            ],
+            "secrets": [
+              {
+                "name": "RAILS_MASTER_KEY",
+                "valueFrom": "${railsMasterKeySecret.arn}"
+              },
+              {
+                "name": "DB_PASSWORD",
+                "valueFrom": "${dbPasswordSecret.arn}"
+              },
+              {
+                "name": "OPENAI_API_KEY",
+                "valueFrom": "${openaiApiKeySecret.arn}"
+              }
+            ],
+            "logConfiguration": {
+              "logDriver": "awslogs",
+              "options": {
+                "awslogs-group": "${appLogGroup.name}",
+                "awslogs-region": "${aws:region}",
+                "awslogs-stream-prefix": "ecs"
+              }
+            },
+            "healthCheck": {
+              "command": ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"],
+              "interval": 30,
+              "timeout": 5,
+              "retries": 3,
+              "startPeriod": 60
+            }
+          }
+        ]
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}
+        Project: ${tarotapi:projectName}
+        Environment: ${tarotapi:environment}
+  
+  # ecr repository for docker images
+  ecrRepository:
+    type: aws:ecr:Repository
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}
+      imageScanningConfiguration:
+        scanOnPush: true
+      imageTagMutability: MUTABLE
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}
+        Project: ${tarotapi:projectName}
+        Environment: ${tarotapi:environment}
+  
+  # secrets for application
+  railsMasterKeySecret:
+    type: aws:secretsmanager:Secret
+    properties:
+      name: /${tarotapi:projectName}/${tarotapi:environment}/RAILS_MASTER_KEY
+      description: rails master key for ${tarotapi:projectName} ${tarotapi:environment}
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-rails-master-key
+        Project: ${tarotapi:projectName}
+        Environment: ${tarotapi:environment}
+  
+  dbPasswordSecret:
+    type: aws:secretsmanager:Secret
+    properties:
+      name: /${tarotapi:projectName}/${tarotapi:environment}/DB_PASSWORD
+      description: database password for ${tarotapi:projectName} ${tarotapi:environment}
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-db-password
+        Project: ${tarotapi:projectName}
+        Environment: ${tarotapi:environment}
+  
+  openaiApiKeySecret:
+    type: aws:secretsmanager:Secret
+    properties:
+      name: /${tarotapi:projectName}/${tarotapi:environment}/OPENAI_API_KEY
+      description: openai api key for ${tarotapi:projectName} ${tarotapi:environment}
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-openai-api-key
+        Project: ${tarotapi:projectName}
+        Environment: ${tarotapi:environment}
+  
+  # application load balancer
+  apiAlb:
+    type: aws:lb:LoadBalancer
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}
+      internal: false
+      loadBalancerType: application
+      securityGroups: [${network.albSecurityGroupId}]
+      subnets: ${network.publicSubnetIds}
+      enableDeletionProtection: ${tarotapi:environment == "production"}
+      accessLogs:
+        bucket: ${storage.logsBucket.id}
+        prefix: "alb"
+        enabled: true
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}
+        Project: ${tarotapi:projectName}
+        Environment: ${tarotapi:environment}
+  
+  # blue target group (initially active)
+  blueTargetGroup:
+    type: aws:lb:TargetGroup
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}-blue
+      port: 3000
+      protocol: HTTP
+      targetType: ip
+      vpcId: ${network.vpcId}
+      healthCheck:
+        path: /health
+        port: 3000
+        protocol: HTTP
+        interval: 30
+        timeout: 5
+        healthyThreshold: 2
+        unhealthyThreshold: 3
+        matcher: "200"
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-blue
+        Project: ${tarotapi:projectName}
+        Environment: ${tarotapi:environment}
+        Color: blue
+  
+  # green target group (for new deployments)
+  greenTargetGroup:
+    type: aws:lb:TargetGroup
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}-green
+      port: 3000
+      protocol: HTTP
+      targetType: ip
+      vpcId: ${network.vpcId}
+      healthCheck:
+        path: /health
+        port: 3000
+        protocol: HTTP
+        interval: 30
+        timeout: 5
+        healthyThreshold: 2
+        unhealthyThreshold: 3
+        matcher: "200"
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-green
+        Project: ${tarotapi:projectName}
+        Environment: ${tarotapi:environment}
+        Color: green
+  
+  # http listener - redirects to https
+  httpListener:
+    type: aws:lb:Listener
+    properties:
+      loadBalancerArn: ${apiAlb.arn}
+      port: 80
+      protocol: HTTP
+      defaultActions:
+        - type: redirect
+          redirect:
+            port: "443"
+            protocol: HTTPS
+            statusCode: HTTP_301
+  
+  # https listener - forwards to blue target group by default
+  httpsListener:
+    type: aws:lb:Listener
+    properties:
+      loadBalancerArn: ${apiAlb.arn}
+      port: 443
+      protocol: HTTPS
+      sslPolicy: ELBSecurityPolicy-2016-08
+      certificateArn: ${dns.validatedCertificateArn}
+      defaultActions:
+        - type: forward
+          targetGroupArn: ${blueTargetGroup.arn}
+  
+  # ecs service for blue environment
+  blueService:
+    type: aws:ecs:Service
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}-blue
+      cluster: ${ecsCluster.arn}
+      taskDefinition: ${ecsTaskDefinition.arn}
+      desiredCount: ${tarotapi:environment == "production" ? 2 : 1}
+      launchType: FARGATE
+      deploymentController:
+        type: ECS
+      networkConfiguration:
+        assignPublicIp: false
+        subnets: ${network.privateSubnetIds}
+        securityGroups: [${network.appSecurityGroupId}]
+      loadBalancers:
+        - targetGroupArn: ${blueTargetGroup.arn}
+          containerName: ${tarotapi:projectName}-app
+          containerPort: 3000
+      deploymentMinimumHealthyPercent: 100
+      deploymentMaximumPercent: 200
+      healthCheckGracePeriodSeconds: 120
+      schedulingStrategy: REPLICA
+      tags:
+        Name: ${tarotapi:projectName}-${tarotapi:environment}-blue
+        Project: ${tarotapi:projectName}
+        Environment: ${tarotapi:environment}
+        Color: blue
+  
+  # auto scaling target for ecs service
+  autoScalingTarget:
+    type: aws:appautoscaling:Target
+    properties:
+      maxCapacity: ${tarotapi:environment == "production" ? 10 : 2}
+      minCapacity: ${(tarotapi:environment == "production" || !tarotapi:enableCostSaving) ? 1 : 0}
+      resourceId: ${"service/${ecsCluster.name}/${blueService.name}"}
+      scalableDimension: ecs:service:DesiredCount
+      serviceNamespace: ecs
+  
+  # auto scaling policies based on cpu utilization
+  autoScalingPolicyCpu:
+    type: aws:appautoscaling:Policy
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}-cpu-policy
+      policyType: TargetTrackingScaling
+      resourceId: ${autoScalingTarget.resourceId}
+      scalableDimension: ${autoScalingTarget.scalableDimension}
+      serviceNamespace: ${autoScalingTarget.serviceNamespace}
+      targetTrackingScalingPolicyConfiguration:
+        predefinedMetricSpecification:
+          predefinedMetricType: ECSServiceAverageCPUUtilization
+        targetValue: 70.0
+        scaleInCooldown: 300
+        scaleOutCooldown: 60
+  
+  # auto scaling policies based on memory utilization
+  autoScalingPolicyMemory:
+    type: aws:appautoscaling:Policy
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}-memory-policy
+      policyType: TargetTrackingScaling
+      resourceId: ${autoScalingTarget.resourceId}
+      scalableDimension: ${autoScalingTarget.scalableDimension}
+      serviceNamespace: ${autoScalingTarget.serviceNamespace}
+      targetTrackingScalingPolicyConfiguration:
+        predefinedMetricSpecification:
+          predefinedMetricType: ECSServiceAverageMemoryUtilization
+        targetValue: 80.0
+        scaleInCooldown: 300
+        scaleOutCooldown: 60
+  
+  # schedule to scale down staging/preview environments during off-hours
+  scaleDownSchedule:
+    type: aws:appautoscaling:ScheduledAction
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}-scale-down
+      resourceId: ${autoScalingTarget.resourceId}
+      scalableDimension: ${autoScalingTarget.scalableDimension}
+      serviceNamespace: ${autoScalingTarget.serviceNamespace}
+      schedule: "cron(0 0 * * ? *)"  # midnight UTC
+      scalableTargetAction:
+        minCapacity: 0
+        maxCapacity: 1
+    options:
+      condition: ${tarotapi:environment != "production" && tarotapi:enableCostSaving}
+  
+  # schedule to scale up staging/preview environments during work hours
+  scaleUpSchedule:
+    type: aws:appautoscaling:ScheduledAction
+    properties:
+      name: ${tarotapi:projectName}-${tarotapi:environment}-scale-up
+      resourceId: ${autoScalingTarget.resourceId}
+      scalableDimension: ${autoScalingTarget.scalableDimension}
+      serviceNamespace: ${autoScalingTarget.serviceNamespace}
+      schedule: "cron(0 8 * * ? *)"  # 8am UTC
+      scalableTargetAction:
+        minCapacity: 1
+        maxCapacity: 2
+    options:
+      condition: ${tarotapi:environment != "production" && tarotapi:enableCostSaving}
+
+outputs:
+  clusterName: ${ecsCluster.name}
+  serviceNameBlue: ${blueService.name}
+  taskDefinitionFamily: ${ecsTaskDefinition.family}
+  ecrRepositoryUrl: ${ecrRepository.repositoryUrl}
+  loadBalancerUrl: ${apiAlb.dnsName}
+  blueTargetGroupArn: ${blueTargetGroup.arn}
+  greenTargetGroupArn: ${greenTargetGroup.arn}
+  httpsListenerArn: ${httpsListener.arn} 

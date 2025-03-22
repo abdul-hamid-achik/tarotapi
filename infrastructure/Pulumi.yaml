@@ -1,0 +1,18 @@
+name: tarot-api
+description: Pulumi infrastructure for Tarot API
+runtime: yaml
+main: config.yaml
+config:
+  aws:region: mx-central-1
+  environment:
+    default: dev
+  domain:
+    default: tarotapi.cards
+  alt-domain: 
+    default: tarot.cards
+  project-name:
+    default: tarot-api
+  enable-cost-saving:
+    default: true
+  repo-url:
+    default: https://github.com/abdul-hamid-achik/tarot-api 

@@ -1,0 +1,1610 @@
+---
+openapi: 3.0.1
+info:
+  title: tarot api
+  version: v1
+  description: tarot card reading and interpretation api
+  contact:
+    name: API Support
+    url: https://github.com/yourusername/tarot_api/issues
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+paths:
+  "/api/v1/auth/register":
+    post:
+      summary: Register a new user
+      tags:
+      - Authentication
+      parameters: []
+      responses:
+        '201':
+          description: user registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  refresh_token:
+                    type: string
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      email:
+                        type: string
+                        format: email
+                    required:
+                    - id
+                    - email
+                required:
+                - token
+                - refresh_token
+                - user
+        '422':
+          description: invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      type: string
+                required:
+                - errors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user:
+                  type: object
+                  properties:
+                    email:
+                      type: string
+                      format: email
+                    password:
+                      type: string
+                      format: password
+                    password_confirmation:
+                      type: string
+                      format: password
+                  required:
+                  - email
+                  - password
+                  - password_confirmation
+              required:
+              - user
+  "/api/v1/auth/login":
+    post:
+      summary: Login with email and password
+      tags:
+      - Authentication
+      parameters: []
+      responses:
+        '200':
+          description: login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  refresh_token:
+                    type: string
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      email:
+                        type: string
+                        format: email
+                    required:
+                    - id
+                    - email
+                required:
+                - token
+                - refresh_token
+                - user
+        '401':
+          description: invalid credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+              required:
+              - email
+              - password
+  "/api/v1/auth/refresh":
+    post:
+      summary: Refresh authentication token
+      tags:
+      - Authentication
+      parameters: []
+      responses:
+        '200':
+          description: token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                required:
+                - token
+        '401':
+          description: invalid refresh token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+              required:
+              - refresh_token
+  "/api/v1/auth/profile":
+    get:
+      summary: Get user profile
+      tags:
+      - Authentication
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: profile retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  email:
+                    type: string
+                    format: email
+                  identity_provider:
+                    type: string
+                    nullable: true
+                required:
+                - id
+                - email
+        '401':
+          description: unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+  "/api/v1/auth/agent":
+    post:
+      summary: Create an agent API user
+      tags:
+      - Authentication
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: agent created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agent_id:
+                    type: string
+                    format: uuid
+                  external_id:
+                    type: string
+                  email:
+                    type: string
+                    format: email
+                  api_token:
+                    type: string
+                required:
+                - agent_id
+                - external_id
+                - email
+                - api_token
+        '401':
+          description: unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+        '422':
+          description: invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      type: string
+                required:
+                - errors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+                password_confirmation:
+                  type: string
+                  format: password
+              required:
+              - email
+              - password
+              - password_confirmation
+  "/api/v1/card_readings":
+    get:
+      summary: list all card readings
+      tags:
+      - card readings
+      parameters:
+      - name: spread_id
+        in: query
+        format: uuid
+        required: false
+        description: filter by spread id
+        schema:
+          type: string
+      responses:
+        '200':
+          description: readings found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        type:
+                          type: string
+                        attributes:
+                          type: object
+                          properties:
+                            spread_id:
+                              type: string
+                              format: uuid
+                            notes:
+                              type: string
+                              nullable: true
+                            positions:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  position_id:
+                                    type: string
+                                    format: uuid
+                                  card_id:
+                                    type: string
+                                    format: uuid
+                                  interpretation:
+                                    type: string
+                                  reversed:
+                                    type: boolean
+                                required:
+                                - position_id
+                                - card_id
+                                - interpretation
+                                - reversed
+                            created_at:
+                              type: string
+                              format: date-time
+                            updated_at:
+                              type: string
+                              format: date-time
+                          required:
+                          - spread_id
+                          - positions
+                          - created_at
+                          - updated_at
+                      required:
+                      - id
+                      - type
+                      - attributes
+                required:
+                - data
+    post:
+      summary: create a card reading
+      tags:
+      - card readings
+      parameters: []
+      responses:
+        '201':
+          description: reading created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      type:
+                        type: string
+                      attributes:
+                        type: object
+                        properties:
+                          spread_id:
+                            type: string
+                            format: uuid
+                          notes:
+                            type: string
+                            nullable: true
+                          positions:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                position_id:
+                                  type: string
+                                  format: uuid
+                                card_id:
+                                  type: string
+                                  format: uuid
+                                interpretation:
+                                  type: string
+                                reversed:
+                                  type: boolean
+                              required:
+                              - position_id
+                              - card_id
+                              - interpretation
+                              - reversed
+                          created_at:
+                            type: string
+                            format: date-time
+                          updated_at:
+                            type: string
+                            format: date-time
+                        required:
+                        - spread_id
+                        - positions
+                        - created_at
+                        - updated_at
+                    required:
+                    - id
+                    - type
+                    - attributes
+                required:
+                - data
+        '422':
+          description: invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        source:
+                          type: string
+                        detail:
+                          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                spread_id:
+                  type: string
+                  format: uuid
+                notes:
+                  type: string
+                  nullable: true
+                positions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      position_id:
+                        type: string
+                        format: uuid
+                      card_id:
+                        type: string
+                        format: uuid
+                      interpretation:
+                        type: string
+                      reversed:
+                        type: boolean
+                    required:
+                    - position_id
+                    - card_id
+                    - interpretation
+                    - reversed
+              required:
+              - spread_id
+              - positions
+  "/api/v1/card_readings/{id}":
+    parameters:
+    - name: id
+      in: path
+      format: uuid
+      required: true
+      schema:
+        type: string
+    get:
+      summary: retrieve a card reading
+      tags:
+      - card readings
+      responses:
+        '200':
+          description: reading found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      type:
+                        type: string
+                      attributes:
+                        type: object
+                        properties:
+                          spread_id:
+                            type: string
+                            format: uuid
+                          notes:
+                            type: string
+                            nullable: true
+                          positions:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                position_id:
+                                  type: string
+                                  format: uuid
+                                card_id:
+                                  type: string
+                                  format: uuid
+                                interpretation:
+                                  type: string
+                                reversed:
+                                  type: boolean
+                              required:
+                              - position_id
+                              - card_id
+                              - interpretation
+                              - reversed
+                          created_at:
+                            type: string
+                            format: date-time
+                          updated_at:
+                            type: string
+                            format: date-time
+                        required:
+                        - spread_id
+                        - positions
+                        - created_at
+                        - updated_at
+                    required:
+                    - id
+                    - type
+                    - attributes
+                required:
+                - data
+        '404':
+          description: reading not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+    patch:
+      summary: update a card reading
+      tags:
+      - card readings
+      parameters: []
+      responses:
+        '200':
+          description: reading updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      type:
+                        type: string
+                      attributes:
+                        type: object
+                        properties:
+                          spread_id:
+                            type: string
+                            format: uuid
+                          notes:
+                            type: string
+                            nullable: true
+                          positions:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                position_id:
+                                  type: string
+                                  format: uuid
+                                card_id:
+                                  type: string
+                                  format: uuid
+                                interpretation:
+                                  type: string
+                                reversed:
+                                  type: boolean
+                              required:
+                              - position_id
+                              - card_id
+                              - interpretation
+                              - reversed
+                          created_at:
+                            type: string
+                            format: date-time
+                          updated_at:
+                            type: string
+                            format: date-time
+                        required:
+                        - spread_id
+                        - positions
+                        - created_at
+                        - updated_at
+                    required:
+                    - id
+                    - type
+                    - attributes
+                required:
+                - data
+        '404':
+          description: reading not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+        '422':
+          description: invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        source:
+                          type: string
+                        detail:
+                          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+                  nullable: true
+                positions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      position_id:
+                        type: string
+                        format: uuid
+                      card_id:
+                        type: string
+                        format: uuid
+                      interpretation:
+                        type: string
+                      reversed:
+                        type: boolean
+                    required:
+                    - position_id
+                    - card_id
+                    - interpretation
+                    - reversed
+    delete:
+      summary: delete a card reading
+      tags:
+      - card readings
+      responses:
+        '204':
+          description: reading deleted
+        '404':
+          description: reading not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+  "/api/v1/spreads":
+    get:
+      summary: list all spreads
+      tags:
+      - spreads
+      parameters:
+      - name: name
+        in: query
+        required: false
+        description: filter by spread name
+        schema:
+          type: string
+      responses:
+        '200':
+          description: spreads found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        type:
+                          type: string
+                        attributes:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            description:
+                              type: string
+                            positions:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  name:
+                                    type: string
+                                  description:
+                                    type: string
+                                  order:
+                                    type: integer
+                                required:
+                                - name
+                                - description
+                                - order
+                            created_at:
+                              type: string
+                              format: date-time
+                            updated_at:
+                              type: string
+                              format: date-time
+                          required:
+                          - name
+                          - description
+                          - positions
+                          - created_at
+                          - updated_at
+                      required:
+                      - id
+                      - type
+                      - attributes
+                required:
+                - data
+    post:
+      summary: create a spread
+      tags:
+      - spreads
+      parameters: []
+      responses:
+        '201':
+          description: spread created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      type:
+                        type: string
+                      attributes:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          description:
+                            type: string
+                          positions:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                name:
+                                  type: string
+                                description:
+                                  type: string
+                                order:
+                                  type: integer
+                              required:
+                              - name
+                              - description
+                              - order
+                          created_at:
+                            type: string
+                            format: date-time
+                          updated_at:
+                            type: string
+                            format: date-time
+                        required:
+                        - name
+                        - description
+                        - positions
+                        - created_at
+                        - updated_at
+                    required:
+                    - id
+                    - type
+                    - attributes
+                required:
+                - data
+        '422':
+          description: invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        source:
+                          type: string
+                        detail:
+                          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                positions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      description:
+                        type: string
+                      order:
+                        type: integer
+                    required:
+                    - name
+                    - description
+                    - order
+              required:
+              - name
+              - description
+              - positions
+  "/api/v1/spreads/{id}":
+    parameters:
+    - name: id
+      in: path
+      format: uuid
+      required: true
+      schema:
+        type: string
+    get:
+      summary: retrieve a spread
+      tags:
+      - spreads
+      responses:
+        '200':
+          description: spread found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      type:
+                        type: string
+                      attributes:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          description:
+                            type: string
+                          positions:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                name:
+                                  type: string
+                                description:
+                                  type: string
+                                order:
+                                  type: integer
+                              required:
+                              - name
+                              - description
+                              - order
+                          created_at:
+                            type: string
+                            format: date-time
+                          updated_at:
+                            type: string
+                            format: date-time
+                        required:
+                        - name
+                        - description
+                        - positions
+                        - created_at
+                        - updated_at
+                    required:
+                    - id
+                    - type
+                    - attributes
+                required:
+                - data
+        '404':
+          description: spread not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+    patch:
+      summary: update a spread
+      tags:
+      - spreads
+      parameters: []
+      responses:
+        '200':
+          description: spread updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      type:
+                        type: string
+                      attributes:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          description:
+                            type: string
+                          positions:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                name:
+                                  type: string
+                                description:
+                                  type: string
+                                order:
+                                  type: integer
+                              required:
+                              - name
+                              - description
+                              - order
+                          created_at:
+                            type: string
+                            format: date-time
+                          updated_at:
+                            type: string
+                            format: date-time
+                        required:
+                        - name
+                        - description
+                        - positions
+                        - created_at
+                        - updated_at
+                    required:
+                    - id
+                    - type
+                    - attributes
+                required:
+                - data
+        '404':
+          description: spread not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+        '422':
+          description: invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        source:
+                          type: string
+                        detail:
+                          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                positions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      description:
+                        type: string
+                      order:
+                        type: integer
+                    required:
+                    - name
+                    - description
+                    - order
+    delete:
+      summary: delete a spread
+      tags:
+      - spreads
+      responses:
+        '204':
+          description: spread deleted
+        '404':
+          description: spread not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+  "/api/v1/tarot_cards":
+    get:
+      summary: list all tarot cards
+      tags:
+      - tarot cards
+      parameters:
+      - name: arcana
+        in: query
+        required: false
+        description: filter by arcana (Major/Minor)
+        schema:
+          type: string
+      - name: suit
+        in: query
+        required: false
+        description: filter by suit (none/Wands/Cups/Swords/Pentacles)
+        schema:
+          type: string
+      responses:
+        '200':
+          description: cards found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        type:
+                          type: string
+                        attributes:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            arcana:
+                              type: string
+                              enum:
+                              - Major
+                              - Minor
+                            suit:
+                              type: string
+                              enum:
+                              - none
+                              - Wands
+                              - Cups
+                              - Swords
+                              - Pentacles
+                            description:
+                              type: string
+                            rank:
+                              type: string
+                            symbols:
+                              type: string
+                            image_url:
+                              type: string
+                              nullable: true
+                            created_at:
+                              type: string
+                              format: date-time
+                            updated_at:
+                              type: string
+                              format: date-time
+                          required:
+                          - name
+                          - arcana
+                          - suit
+                          - description
+                          - rank
+                          - symbols
+                          - created_at
+                          - updated_at
+                      required:
+                      - id
+                      - type
+                      - attributes
+                required:
+                - data
+    post:
+      summary: create a tarot card
+      tags:
+      - tarot cards
+      parameters: []
+      responses:
+        '201':
+          description: card created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      type:
+                        type: string
+                      attributes:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          arcana:
+                            type: string
+                          suit:
+                            type: string
+                          description:
+                            type: string
+                          rank:
+                            type: string
+                          symbols:
+                            type: string
+                          image_url:
+                            type: string
+                            nullable: true
+                          created_at:
+                            type: string
+                            format: date-time
+                          updated_at:
+                            type: string
+                            format: date-time
+                        required:
+                        - name
+                        - arcana
+                        - suit
+                        - description
+                        - rank
+                        - symbols
+                        - created_at
+                        - updated_at
+                    required:
+                    - id
+                    - type
+                    - attributes
+                required:
+                - data
+        '422':
+          description: invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        source:
+                          type: string
+                        detail:
+                          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                arcana:
+                  type: string
+                  enum:
+                  - Major
+                  - Minor
+                suit:
+                  type: string
+                  enum:
+                  - none
+                  - Wands
+                  - Cups
+                  - Swords
+                  - Pentacles
+                description:
+                  type: string
+                rank:
+                  type: string
+                symbols:
+                  type: string
+                image:
+                  type: string
+                  format: binary
+                  nullable: true
+              required:
+              - name
+              - arcana
+              - suit
+              - description
+              - rank
+              - symbols
+  "/api/v1/tarot_cards/{id}":
+    parameters:
+    - name: id
+      in: path
+      format: uuid
+      required: true
+      schema:
+        type: string
+    get:
+      summary: retrieve a tarot card
+      tags:
+      - tarot cards
+      responses:
+        '200':
+          description: card found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      type:
+                        type: string
+                      attributes:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          arcana:
+                            type: string
+                          suit:
+                            type: string
+                          description:
+                            type: string
+                          rank:
+                            type: string
+                          symbols:
+                            type: string
+                          image_url:
+                            type: string
+                            nullable: true
+                          created_at:
+                            type: string
+                            format: date-time
+                          updated_at:
+                            type: string
+                            format: date-time
+                        required:
+                        - name
+                        - arcana
+                        - suit
+                        - description
+                        - rank
+                        - symbols
+                        - created_at
+                        - updated_at
+                    required:
+                    - id
+                    - type
+                    - attributes
+                required:
+                - data
+        '404':
+          description: card not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+    patch:
+      summary: update a tarot card
+      tags:
+      - tarot cards
+      parameters: []
+      responses:
+        '200':
+          description: card updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      type:
+                        type: string
+                      attributes:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          arcana:
+                            type: string
+                          suit:
+                            type: string
+                          description:
+                            type: string
+                          rank:
+                            type: string
+                          symbols:
+                            type: string
+                          image_url:
+                            type: string
+                            nullable: true
+                          created_at:
+                            type: string
+                            format: date-time
+                          updated_at:
+                            type: string
+                            format: date-time
+                        required:
+                        - name
+                        - arcana
+                        - suit
+                        - description
+                        - rank
+                        - symbols
+                        - created_at
+                        - updated_at
+                    required:
+                    - id
+                    - type
+                    - attributes
+                required:
+                - data
+        '404':
+          description: card not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+        '422':
+          description: invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        source:
+                          type: string
+                        detail:
+                          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                arcana:
+                  type: string
+                  enum:
+                  - Major
+                  - Minor
+                suit:
+                  type: string
+                  enum:
+                  - none
+                  - Wands
+                  - Cups
+                  - Swords
+                  - Pentacles
+                description:
+                  type: string
+                rank:
+                  type: string
+                symbols:
+                  type: string
+                image:
+                  type: string
+                  format: binary
+                  nullable: true
+    delete:
+      summary: delete a tarot card
+      tags:
+      - tarot cards
+      responses:
+        '204':
+          description: card deleted
+        '404':
+          description: card not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+  "/cards/{id}":
+    get:
+      summary: retrieves a card
+      tags:
+      - cards
+      parameters:
+      - name: id
+        in: path
+        description: id of the card
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: card found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      type:
+                        type: string
+                      attributes:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          description:
+                            type: string
+                          image_url:
+                            type: string
+                            nullable: true
+                          created_at:
+                            type: string
+                            format: date-time
+                          updated_at:
+                            type: string
+                            format: date-time
+                        required:
+                        - name
+                        - description
+                        - created_at
+                        - updated_at
+                    required:
+                    - id
+                    - type
+                    - attributes
+                required:
+                - data
+        '404':
+          description: card not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                - error
+servers:
+- url: "{protocol}://{defaultHost}"
+  variables:
+    protocol:
+      default: http
+      enum:
+      - http
+      - https
+    defaultHost:
+      default: localhost:3000
+components:
+  schemas: {}
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from login or registration
+    basicAuth:
+      type: http
+      scheme: basic
+      description: HTTP Basic Auth using email and password
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for agent/service authentication
+security:
+- bearerAuth: []
+- basicAuth: []
+- apiKeyAuth: []

@@ -1,0 +1,58 @@
+---
+description: Deployment and infrastructure guidelines for the Tarot API project
+globs: "{deployment/**/*,pulumi/**/*,infra/**/*,.github/workflows/*.yml}"
+alwaysApply: true
+---
+# Deployment Guidelines
+
+## Zero-Downtime Deployment
+
+- All deployments must be zero-downtime
+- Use Kamal for orchestrating deployments
+- Follow rolling deployment strategies
+- Implement health checks for all services
+- Test deployments in staging environment before production
+
+## Infrastructure as Code
+
+- Use Pulumi for infrastructure management
+- Store state in the designated S3 bucket: `tarot-api-pulumi-state`
+- All infrastructure changes must be versioned
+- Include rollback procedures for all infrastructure changes
+- Document all infrastructure components
+
+## CI/CD Pipeline
+
+- Use GitHub Actions for continuous integration
+- All tests must pass before deployment
+- Implement security scanning in the pipeline
+- Use environment-specific configurations
+- Deploy to staging before production
+
+## Environments
+
+- Maintain separate environments for development, staging, and production
+- Use environment-specific configuration via environment variables
+- Keep production and staging environments as similar as possible
+- Use the same Docker images across all environments
+
+## Monitoring and Logging
+
+- Implement comprehensive logging
+- Set up application monitoring
+- Configure alerts for critical issues
+- Ensure all logs are centralized and searchable
+
+## Domains and SSL
+
+- Use `tarotapi.cards` or `tarot.cards` for all environments
+- Always use HTTPS with valid SSL certificates
+- Configure proper redirects from HTTP to HTTPS
+- Use appropriate caching headers for API responses
+
+## Rollback Strategy
+
+- Have a clear rollback strategy for all deployments
+- Test rollback procedures regularly
+- Keep multiple versions of deployments available for rollback
+- Document the rollback process for each deployment 

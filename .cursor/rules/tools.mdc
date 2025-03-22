@@ -1,0 +1,30 @@
+---
+description: Rules for tool usage and task creation in the Tarot API project
+globs: "**/*.{rb,rake}"
+alwaysApply: true
+---
+# Tool Usage Guidelines
+
+## Rake Tasks
+
+- Always use existing rake tasks in `lib/tasks/*.rake` instead of creating new ones
+- Maintain organization within the rake task files according to their purpose
+- Follow the established namespaces: `arcana:`, `elements:`, and `divination:`
+- Run rubocop with fix option after code changes: `bundle exec rubocop -a`
+- When testing, use: `bundle exec rspec` for unit tests and `bundle exec cucumber` for BDD tests
+
+## Docker Usage
+
+- This project uses Docker extensively for development, testing, and deployment
+- Always check existing Docker configurations before modifying or creating new ones
+- Use `docker-compose up` for local development environment
+
+## CI/CD
+
+- The project uses GitHub Actions for CI/CD
+- Ensure all tests pass before deploying
+- Use Pulumi for infrastructure management and Kamal for zero-downtime deployments
+
+## Domain Names
+
+- Always use either `tarotapi.cards` or `tarot.cards` for the application

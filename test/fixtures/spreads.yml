@@ -1,0 +1,43 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  name: mytext
+  description: mytext
+  positions:
+    - name: past
+      description: past influences
+    - name: present
+      description: current situation
+    - name: future
+      description: future outcome
+  num_cards: 3
+  is_public: false
+  is_system: true
+  user: one
+  active: true
+  difficulty_level: medium
+  purpose: general
+  theme: life
+
+two:
+  name: mytext2
+  description: mytext
+  positions:
+    - name: situation
+      description: current situation
+    - name: obstacle
+      description: current obstacle
+    - name: advice
+      description: advice to overcome
+    - name: outcome
+      description: likely outcome
+    - name: external
+      description: external influence
+  num_cards: 5
+  is_public: false
+  is_system: true
+  user: two
+  active: true
+  difficulty_level: medium
+  purpose: career
+  theme: future

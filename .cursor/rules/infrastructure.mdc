@@ -1,0 +1,92 @@
+---
+description: Infrastructure components and configurations for the Tarot API project
+globs: "{deployment/**/*,pulumi/**/*,docker*,*.yml,*.yaml}"
+alwaysApply: true
+---
+# Tarot API Infrastructure
+
+## Docker Configuration
+- API container: Rails application
+- Database container: PostgreSQL 
+- Cache container: Redis
+- Storage: S3-compatible MinIO (local development) / AWS S3 (production)
+
+## Database (PostgreSQL)
+- Primary data store
+- Contains tarot card data, user records, and reading history
+- Configured with PgBouncer for connection pooling
+
+## Caching (Redis)
+- Session storage
+- Background job queue (Sidekiq)
+- API response caching
+
+## Storage (S3/MinIO)
+- Card images storage
+- Reading results and exports
+- User uploads
+
+## AWS Deployment
+- ECS/Fargate for container orchestration
+- RDS for managed PostgreSQL
+- ElastiCache for Redis
+- S3 for file storage
+- CloudFront for CDN
+
+## CI/CD Pipeline
+- GitHub Actions for testing
+- ECR for container registry
+- Infrastructure as Code using Pulumi
+
+## Hosting
+- Always use `tarotapi.cards` or `tarot.cards` domain names
+- Configure SSL certificates for all environments
+- Implement proper DNS and routing
+- Set up monitoring and alerting
+
+## Hybrid Approach
+
+The Tarot API uses a **hybrid infrastructure approach** that leverages two complementary tools:
+
+1. **Pulumi** - For cloud infrastructure provisioning
+2. **Kamal** - For application container deployment
+
+This hybrid approach gives us the best of both worlds:
+- Robust infrastructure management with Pulumi
+- Flexible container deployments with Kamal
+
+## Tool Responsibilities
+
+### Pulumi (Infrastructure as Code)
+- AWS VPC, subnets, security groups
+- RDS PostgreSQL database instances
+- ElastiCache Redis instances
+- S3 buckets and CloudFront CDN
+- Route53 DNS configuration
+- Load balancers and target groups
+- IAM roles and policies
+
+### Kamal (Container Deployment)
+- Docker container builds
+- Zero-downtime deployments
+- Blue-green deployment orchestration
+- Health checks and monitoring
+- Application environment variables
+- SSL certificate management
+- Container scaling
+
+## Integration Points
+
+Pulumi and Kamal work together through:
+1. Pulumi outputs (database endpoints, security groups, etc.)
+2. Environment variables passed to Kamal 
+3. Shared DNS configuration
+
+## Critical Warning
+
+**DO NOT REMOVE EITHER TOOL!** Both Pulumi and Kamal are essential parts of our infrastructure. 
+
+If you need to modify the infrastructure:
+- Use Pulumi for cloud infrastructure changes
+- Use Kamal for application deployment changes
+- Refer to the deployment rake tasks that coordinate both tools

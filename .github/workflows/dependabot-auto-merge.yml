@@ -1,0 +1,34 @@
+name: dependabot auto-merge
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  dependabot:
+    runs-on: ubuntu-latest
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    steps:
+      - name: enable auto-merge for dependabot PRs
+        run: |
+          # Get PR details
+          PR_URL="${{ github.event.pull_request.html_url }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          echo "Processing Dependabot PR #$PR_NUMBER: $PR_URL"
+          
+          # Check if it's a patch or minor update (not major)
+          if ${{ !contains(github.event.pull_request.title, 'bump') || !contains(github.event.pull_request.title, 'major') }}; then
+            echo "Auto-approving non-major update"
+            gh pr review "$PR_NUMBER" --approve
+            
+            echo "Enabling auto-merge for PR #$PR_NUMBER"
+            gh pr merge "$PR_NUMBER" --auto --squash
+          else
+            echo "Major version update detected - skipping auto-merge"
+            gh pr comment "$PR_NUMBER" --body "⚠️ This is a major version update that requires manual review."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

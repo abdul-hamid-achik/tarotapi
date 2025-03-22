@@ -1,0 +1,11 @@
+name: preview
+description: temporary preview environments for feature testing
+on_pull_requests: true
+auto_inactive_after: 3d  # Auto-inactive after 3 days
+protection_rules:
+  required_reviewers:
+    enabled: false
+  wait_timer:
+    enabled: false
+  environment_urls:
+    preview: https://preview-{name}.tarotapi.cards 

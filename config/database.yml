@@ -1,0 +1,50 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  # Increased for better performance in development
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  host: <%= ENV.fetch("DB_HOST") { "localhost" } %>
+  username: <%= ENV.fetch("DB_USERNAME") { "tarot_api" } %>
+  password: <%= ENV.fetch("DB_PASSWORD") { "password" } %>
+  port: <%= ENV.fetch("DB_PORT") { 5432 } %>
+
+development:
+  <<: *default
+  database: tarot_api_development
+  # Development-specific settings
+  schema_search_path: public
+  min_messages: notice
+
+# IMPORTANT: The test database configuration is completely isolated from development
+test:
+  <<: *default
+  database: tarot_api_test
+  # Test-specific settings
+  min_messages: warning
+  pool: <%= ENV.fetch("TEST_DB_POOL") { 5 } %>
+
+staging:
+  <<: *default
+  database: <%= ENV.fetch("STAGING_DB_NAME") { "tarot_api_staging" } %>
+  username: <%= ENV["STAGING_DB_USERNAME"] || ENV["DB_USERNAME"] %>
+  password: <%= ENV["STAGING_DB_PASSWORD"] || ENV["DB_PASSWORD"] %>
+  host: <%= ENV["STAGING_DB_HOST"] || ENV["DB_HOST"] %>
+  port: <%= ENV["STAGING_DB_PORT"] || ENV["DB_PORT"] %>
+  # Staging-specific settings
+  pool: <%= ENV.fetch("STAGING_DB_POOL") { 10 } %>
+
+production:
+  <<: *default
+  database: <%= ENV.fetch("PROD_DB_NAME") { "tarot_api_production" } %>
+  username: <%= ENV["PROD_DB_USERNAME"] || ENV["DB_USERNAME"] %>
+  password: <%= ENV["PROD_DB_PASSWORD"] || ENV["DB_PASSWORD"] %>
+  host: <%= ENV["PROD_DB_HOST"] || ENV["DB_HOST"] %>
+  port: <%= ENV["PROD_DB_PORT"] || ENV["DB_PORT"] %>
+  # Production-specific settings
+  pool: <%= ENV.fetch("PROD_DB_POOL") { 20 } %>
+  # Enable prepared statements for better performance
+  prepared_statements: true
+  # Enable statement limit for security
+  statement_limit: 200
+  # Enable SSL mode for security
+  sslmode: require 

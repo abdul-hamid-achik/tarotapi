@@ -1,0 +1,278 @@
+# Structured Logging Guidelines
+
+## Description
+This document outlines the structured logging approach for the Tarot API project. It covers configuration details, usage patterns, and best practices for maintaining consistent, machine-readable logs.
+
+## JSON Structured Logging
+
+The Tarot API uses a structured logging approach with JSON format to ensure logs are:
+- **Machine-readable**: Easy to parse by log aggregation systems
+- **Searchable**: Allow quick filtering and analysis
+- **Contextual**: Include additional metadata for better debugging
+- **Consistent**: Follow a standard format across the application
+
+## Core Logging Components
+
+- **Lograge**: Simplifies controller request logs into single-line entries
+- **Semantic Logger**: Provides structured logging capabilities with advanced features
+- **TaskLogger**: Custom module for standardized rake task logging
+
+## Configuration
+
+The structured logging system is configured in two key files:
+
+1. **config/initializers/logging.rb**: Sets up Lograge and Semantic Logger
+2. **lib/task_logger.rb**: Defines the TaskLogger module for rake tasks
+
+### Initializer Configuration
+
+```ruby
+# config/initializers/logging.rb
+require 'semantic_logger'
+require 'lograge'
+
+Rails.application.configure do
+  # Configure Lograge
+  config.lograge.enabled = true
+  config.lograge.formatter = Lograge::Formatters::Json.new
+  config.lograge.custom_options = lambda do |event|
+    exceptions = %w[controller action format id]
+    {
+      time: Time.now.iso8601,
+      host: Socket.gethostname,
+      pid: Process.pid,
+      environment: Rails.env,
+      request_id: event.payload[:request_id],
+      params: event.payload[:params].except(*exceptions),
+      custom_payload: event.payload[:custom_payload]
+    }
+  end
+
+  # Configure Semantic Logger
+  SemanticLogger.application = Rails.application.class.module_parent_name
+  SemanticLogger.add_appender(io: $stdout, formatter: :json)
+  
+  # Environment-specific log levels
+  config.log_level = case Rails.env
+                     when 'production', 'staging'
+                       ENV.fetch('LOG_LEVEL', 'info').to_sym
+                     else
+                       ENV.fetch('LOG_LEVEL', 'debug').to_sym
+                     end
+end
+```
+
+### TaskLogger Module
+
+```ruby
+# lib/task_logger.rb
+require 'semantic_logger'
+
+module TaskLogger
+  class << self
+    def logger
+      @logger ||= SemanticLogger["TaskRunner"]
+    end
+
+    def info(message, payload = {})
+      logger.info(message, payload)
+    end
+
+    def error(message, payload = {})
+      logger.error(message, payload)
+    end
+    
+    def warn(message, payload = {})
+      logger.warn(message, payload)
+    end
+    
+    def debug(message, payload = {})
+      logger.debug(message, payload)
+    end
+
+    def with_task_logging(task_name)
+      start_time = Time.now
+      info("Starting task", task: task_name)
+      begin
+        yield if block_given?
+        duration = Time.now - start_time
+        info("Task completed", task: task_name, duration: duration.round(2))
+      rescue => e
+        duration = Time.now - start_time
+        error("Task failed", 
+              task: task_name, 
+              duration: duration.round(2), 
+              error: e.message,
+              backtrace: e.backtrace.first(5))
+        raise e
+      end
+    end
+  end
+end
+```
+
+## Using TaskLogger in Rake Tasks
+
+Always use the TaskLogger module for rake tasks instead of plain `puts` statements. This ensures consistent formatting and proper error handling.
+
+1. **Include TaskLogger**:
+   ```ruby
+   # At the top of your rake file
+   require_relative '../task_logger'
+   ```
+
+2. **Basic Logging**:
+   ```ruby
+   # Instead of puts "Running task..."
+   TaskLogger.info("Running task...")
+   
+   # Add contextual data
+   TaskLogger.info("Processing record", id: record.id, status: record.status)
+   ```
+
+3. **Task Wrapping**:
+   ```ruby
+   TaskLogger.with_task_logging("namespace:task_name") do
+     # Your task code here
+     # Automatically logs start/end time and handles errors
+   end
+   ```
+
+4. **Error Handling**:
+   ```ruby
+   # Errors are automatically logged when using with_task_logging
+   TaskLogger.with_task_logging("data:import") do
+     if something_failed
+       TaskLogger.error("Import failed", reason: "Invalid data")
+     end
+   end
+   ```
+
+5. **Log Levels**:
+   ```ruby
+   TaskLogger.debug("Detailed information useful for debugging")
+   TaskLogger.info("General information about operation progress")
+   TaskLogger.warn("Warning that might need attention")
+   TaskLogger.error("Error that prevented normal execution")
+   ```
+
+## Using Structured Logging in Application Code
+
+### Controllers
+
+Add custom fields to request logs:
+
+```ruby
+# In your controller
+def index
+  # Add custom fields to the lograge request logs
+  append_info_to_payload(custom_payload: {
+    user_id: current_user&.id,
+    feature_flags: enabled_features
+  })
+  
+  # Rest of your controller code
+end
+```
+
+### Models and Services
+
+Use Semantic Logger directly:
+
+```ruby
+# Include in a class
+class YourService
+  include SemanticLogger::Loggable
+  
+  def perform
+    logger.info("Starting service", params: @params)
+    # ...
+    logger.debug("Processing item", item_id: item.id)
+  end
+end
+
+# Or use directly
+SemanticLogger["CardReading"].info("Reading created", reading_id: reading.id)
+```
+
+## Log Structure
+
+Standard log entries contain:
+
+- **timestamp**: ISO8601 formatted time
+- **level**: Log level (info, error, etc.)
+- **name/source**: Logger name (class or module)
+- **message**: Main log message
+- **payload**: Contextual data as JSON
+- **duration**: For timed operations (automatic with TaskLogger)
+- **environment**: Current Rails environment
+- **pid**: Process ID for traceability
+- **host**: Server hostname
+
+## Best Practices
+
+1. **Add Context**
+   - Always include relevant IDs (user_id, reading_id, card_id)
+   - Add status information and counts where appropriate
+   - Include operation duration for performance monitoring
+
+2. **Use Appropriate Log Levels**
+   - **debug**: Detailed information for local development
+   - **info**: General operational information
+   - **warn**: Unexpected situations that don't affect main flow
+   - **error**: Errors that prevent normal operation
+   - **fatal**: Critical failures requiring immediate attention
+
+3. **Structure Your Messages**
+   - Use simple, consistent messages
+   - Put variable data in the payload, not in the message string
+   - Use present tense, active voice (e.g., "Creating user" not "User was created")
+
+4. **Sensitive Information**
+   - Never log sensitive information like passwords or tokens
+   - Filter PII (Personally Identifiable Information) from logs
+   - Be careful with stack traces that might contain sensitive data
+
+5. **Performance Considerations**
+   - Use guard conditions to avoid expensive logging operations when not needed
+   ```ruby
+   # Good - only constructs payload when needed
+   logger.debug { "Complex data: #{expensive_operation}" } if logger.debug?
+   
+   # Bad - always constructs the payload
+   logger.debug("Complex data: #{expensive_operation}")
+   ```
+
+## Example JSON Log Output
+
+```json
+{
+  "host": "app-server-01",
+  "application": "TarotApi",
+  "timestamp": "2025-03-22T01:23:45.123456Z",
+  "level": "info",
+  "level_index": 2,
+  "pid": 12345,
+  "thread": "puma-5",
+  "name": "ReadingService",
+  "message": "Reading created",
+  "payload": {
+    "reading_id": 42,
+    "user_id": 123,
+    "spread_type": "celtic_cross",
+    "card_count": 10,
+    "duration_ms": 157.23
+  }
+}
+```
+
+## Integration with CloudWatch
+
+For AWS CloudWatch integration:
+
+1. **Configure JSON format**: Already set up in our initializers
+2. **Use standard fields**: CloudWatch parses timestamp, level, message automatically
+3. **Create log groups**: One per environment (production, staging)
+4. **Set retention policies**: Based on compliance requirements
+5. **Create metric filters**: To track errors, warnings, and critical operations
+6. **Set up alerts**: Based on error rate or specific error conditions 

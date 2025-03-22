@@ -1,0 +1,83 @@
+imports:
+  # Core infrastructure components
+  network: network.yaml
+  database: database.yaml
+  cache: cache.yaml
+  storage: storage.yaml
+  ecs: ecs.yaml
+  
+  # Domain management
+  mainDomain: domain.yaml       # Primary domain (tarotapi.cards)
+  altDomain: alt-domain.yaml    # Alternative domain (tarot.cards)
+
+variables:
+  # Main configuration settings - shared across all components
+  tarotapi:
+    # Set default values that can be overridden by Pulumi stack config
+    type: object
+    default:
+      projectName: tarot-api
+      environment: development
+      domain: tarotapi.cards
+      altDomain: tarot.cards
+      region: mx-central-1
+      enableCostSaving: true
+      dbName: tarot_api
+      dbUsername: tarot_api
+
+outputs:
+  # Merge outputs from all components for easy access
+  infrastructureInfo:
+    type: object
+    value:
+      vpc:
+        id: ${network.vpcId}
+        publicSubnets: ${network.publicSubnets}
+        privateSubnets: ${network.privateSubnets}
+      
+      database:
+        address: ${database.dbAddress}
+        port: ${database.dbPort}
+        name: ${database.dbName}
+        username: ${database.dbUsername}
+      
+      cache:
+        address: ${cache.redisHost}
+        port: ${cache.redisPort}
+      
+      storage:
+        bucketName: ${storage.appBucketName}
+        cdnDomain: ${storage.cdnDomainName}
+      
+      compute:
+        ecrRepository: ${ecs.ecrRepositoryUrl}
+        albDns: ${ecs.albDns}
+        instanceIp: ${ecs.instanceIp}
+      
+      domains:
+        primary:
+          name: ${mainDomain.apiDns}
+          status: ${mainDomain.registrationStatus}
+          nameservers: ${mainDomain.dnsNameServers}
+          certificateArn: ${mainDomain.certificateArn}
+        
+        alternative:
+          name: ${altDomain.altRegistrationStatus == "error" ? "not-registered" : "tarot.cards"}
+          status: ${altDomain.altRegistrationStatus}
+          nameservers: ${altDomain.altDnsNameServers}
+          certificateArn: ${altDomain.altCertificateArn}
+  
+  # For shell scripts and automation
+  shellFormat:
+    type: object
+    value:
+      DOMAIN: ${mainDomain.apiDns}
+      ALT_DOMAIN: ${altDomain.altRegistrationStatus == "error" ? "" : "tarot.cards"}
+      DB_HOST: ${database.dbAddress}
+      DB_PORT: ${database.dbPort}
+      DB_NAME: ${database.dbName}
+      DB_USERNAME: ${database.dbUsername}
+      REDIS_URL: redis://${cache.redisHost}:${cache.redisPort}
+      AWS_BUCKET: ${storage.appBucketName}
+      ECR_REPO: ${ecs.ecrRepositoryUrl}
+      INSTANCE_IP: ${ecs.instanceIp} 
