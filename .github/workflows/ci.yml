@@ -1,252 +1,99 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
-  pull_request:
   push:
-    branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.gitignore'
-  workflow_dispatch:  # Allow manual triggering
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
 
 jobs:
-  # Check if we should run the full CI suite
-  check_ci_requirements:
-    name: Check CI requirements
-    runs-on: ubuntu-latest
-    outputs:
-      run_full_ci: ${{ steps.check.outputs.run_full_ci }}
-    steps:
-      - id: check
-        name: Determine if full CI should run
-        run: |
-          # Skip full CI for Dependabot PRs, but allow security linting
-          if [[ "${{ github.actor }}" == "dependabot[bot]" ]]; then
-            echo "run_full_ci=false" >> $GITHUB_OUTPUT
-            echo "Running limited CI for Dependabot PR"
-          else
-            echo "run_full_ci=true" >> $GITHUB_OUTPUT
-            echo "Running full CI suite"
-          fi
-
-  build_and_push_image:
-    name: Build and push CI image
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    outputs:
-      image_tag: ${{ steps.meta.outputs.tags }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}/tarot-api-ci
-          tags: |
-            type=raw,value=latest
-            type=sha,format=short
-
-      - name: Build and cache CI image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          target: development
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          outputs: type=docker,dest=/tmp/tarot-api-ci.tar
-          cache-from: |
-            type=gha
-            type=registry,ref=ghcr.io/${{ github.repository }}/tarot-api-ci:latest
-          cache-to: type=gha,mode=max
-
-      - name: Upload image as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tarot-api-ci-image
-          path: /tmp/tarot-api-ci.tar
-          retention-days: 1
-
-  lint:
-    name: Code Quality
-    runs-on: ubuntu-latest
-    needs: build_and_push_image
-    # Always run linting even for Dependabot PRs
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Download CI image
-        uses: actions/download-artifact@v4
-        with:
-          name: tarot-api-ci-image
-          path: /tmp
-      
-      - name: Load CI image
-        run: docker load --input /tmp/tarot-api-ci.tar
-      
-      - name: Cache RuboCop results
-        uses: actions/cache@v4
-        with:
-          path: tmp/rubocop_cache
-          key: ${{ runner.os }}-rubocop-${{ hashFiles('**/.rubocop.yml') }}
-          restore-keys: |
-            ${{ runner.os }}-rubocop-
-      
-      - name: Lint code
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/app \
-            -v rubocop_cache:/app/tmp/rubocop_cache \
-            tarot-api-ci:latest \
-            bundle exec rake test:lint:all
-
   test:
-    name: Tests
-    needs: [check_ci_requirements, build_and_push_image]
-    if: needs.check_ci_requirements.outputs.run_full_ci == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16-bookworm
+        image: postgres:14
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=3
-
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
       redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+        image: redis
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Download CI image
-        uses: actions/download-artifact@v4
-        with:
-          name: tarot-api-ci-image
-          path: /tmp
-      
-      - name: Load CI image
-        run: docker load --input /tmp/tarot-api-ci.tar
+    - uses: actions/checkout@v3
 
-      - name: Cache test results
-        uses: actions/cache@v4
-        with:
-          path: tmp/test_cache
-          key: ${{ runner.os }}-test-${{ hashFiles('**/*.rb') }}
-          restore-keys: |
-            ${{ runner.os }}-test-
-      
-      - name: Run tests
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/app \
-            -v test_cache:/app/tmp/test_cache \
-            --network host \
-            -e RAILS_ENV=test \
-            -e DATABASE_URL=postgres://postgres:postgres@localhost:5432 \
-            -e REDIS_URL=redis://localhost:6379/0 \
-            -e STRIPE_SECRET_KEY=${{ secrets.STRIPE_TEST_KEY }} \
-            -e COVERAGE=true \
-            -e SIMPLECOV_FORMATTER=SimpleCov::Formatter::HTMLFormatter \
-            tarot-api-ci:latest \
-            sh -c "bundle exec rake test:all"
-      
-      - name: Upload coverage reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage/
-          retention-days: 7
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        bundler-cache: true
 
-      - name: Check test coverage
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/app \
-            tarot-api-ci:latest \
-            bundle exec rake test:verify_coverage
+    - name: Run CI Checks
+      run: |
+        bundle exec rake ci:all
 
-  docs:
-    name: API Documentation
-    needs: [check_ci_requirements, build_and_push_image]
-    if: needs.check_ci_requirements.outputs.run_full_ci == 'true'
+    - name: Run Security Checks
+      run: |
+        bundle exec rake ci:security
+
+  deploy-staging:
+    needs: test
+    if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-bookworm
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=3
-
+    environment: staging
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Download CI image
-        uses: actions/download-artifact@v4
-        with:
-          name: tarot-api-ci-image
-          path: /tmp
-      
-      - name: Load CI image
-        run: docker load --input /tmp/tarot-api-ci.tar
-      
-      - name: Generate API docs
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/app \
-            --network host \
-            -e RAILS_ENV=test \
-            -e DATABASE_URL=postgres://postgres:postgres@localhost:5432 \
-            tarot-api-ci:latest \
-            bundle exec rake api:docs:generate
+    - uses: actions/checkout@v3
 
-      - name: Validate API docs
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/app \
-            tarot-api-ci:latest \
-            bundle exec rake api:docs:validate
-      
-      - name: Upload API documentation
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-docs
-          path: swagger/
-          retention-days: 7
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
 
-  ci_completed:
-    name: CI Workflow Completed
-    needs: [lint, test, docs]
-    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.docs.result == 'success' || needs.docs.result == 'skipped') && needs.lint.result == 'success'
+    - name: Deploy to Staging
+      env:
+        RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+        CONTAINER_REGISTRY: ${{ secrets.CONTAINER_REGISTRY }}
+        CLUSTER_NAME_STAGING: ${{ secrets.CLUSTER_NAME_STAGING }}
+        SERVICE_NAME_STAGING: ${{ secrets.SERVICE_NAME_STAGING }}
+      run: |
+        bundle exec rake deploy:staging
+        bundle exec rake deploy:health:check[staging]
+
+  deploy-production:
+    needs: test
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment: production
+    
     steps:
-      - name: CI completed successfully
-        run: echo "CI workflow completed successfully!"
-    outputs:
-      status: success
+    - uses: actions/checkout@v3
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Deploy to Production
+      env:
+        RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+        CONTAINER_REGISTRY: ${{ secrets.CONTAINER_REGISTRY }}
+        CLUSTER_NAME_PRODUCTION: ${{ secrets.CLUSTER_NAME_PRODUCTION }}
+        SERVICE_NAME_PRODUCTION: ${{ secrets.SERVICE_NAME_PRODUCTION }}
+      run: |
+        bundle exec rake deploy:production
+        bundle exec rake deploy:health:check[production]
