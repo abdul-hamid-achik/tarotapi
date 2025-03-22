@@ -37,7 +37,7 @@ if Rails.env.production?
           attributes["deployment.environment"] = Rails.env
           attributes["service.name"] = "tarot-api"
           attributes["service.version"] = ENV["RELEASE_VERSION"] || "0.1.0"
-          
+
           super(name, attributes: attributes, kind: kind, links: links, start_timestamp: start_timestamp, end_timestamp: end_timestamp, with_parent: with_parent, with_parent_context: with_parent_context)
         end
       end)
