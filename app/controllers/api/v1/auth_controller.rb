@@ -1,7 +1,7 @@
 class Api::V1::AuthController < ApplicationController
   def register
     user = User.new(user_params)
-    user.provider = 'email'
+    user.provider = "email"
     user.uid = params[:user][:email]
     user.identity_provider = IdentityProvider.registered
 
@@ -49,7 +49,7 @@ class Api::V1::AuthController < ApplicationController
       # Use devise_token_auth to generate a new token
       token = user.create_new_auth_token
 
-      render json: { 
+      render json: {
         token: token["access-token"],
         client: token["client"],
         uid: token["uid"]
@@ -62,7 +62,7 @@ class Api::V1::AuthController < ApplicationController
   def profile
     # Authenticate with either token auth or basic auth
     authenticate_request
-    
+
     if @current_user
       render json: {
         id: @current_user.id,
@@ -78,7 +78,7 @@ class Api::V1::AuthController < ApplicationController
   def create_agent
     # Ensure the current user has permission to create agents
     authenticate_request
-    
+
     unless @current_user && @current_user.registered?
       return render json: { error: "unauthorized" }, status: :unauthorized
     end
@@ -93,7 +93,7 @@ class Api::V1::AuthController < ApplicationController
       email: params[:email],
       password: params[:password],
       password_confirmation: params[:password_confirmation],
-      provider: 'agent',
+      provider: "agent",
       uid: params[:email] || external_id,
       created_by_user_id: @current_user.id
     )
@@ -120,17 +120,17 @@ class Api::V1::AuthController < ApplicationController
   def user_params
     params.require(:user).permit(:email, :password, :password_confirmation)
   end
-  
+
   def authenticate_request
     # Include the AuthenticateRequest concern
     @current_user = User.find_by_uid(uid) if uid
-    
+
     # If no user found with uid, try checking the Authorization header for a token
     unless @current_user
       token = request.headers["Authorization"]&.split(" ")&.last
       @current_user = User.from_token(token) if token
     end
-    
+
     # Still no user? Try API key
     unless @current_user
       api_key_token = request.headers["X-API-Key"]
@@ -140,7 +140,7 @@ class Api::V1::AuthController < ApplicationController
       end
     end
   end
-  
+
   def uid
     request.headers["uid"]
   end

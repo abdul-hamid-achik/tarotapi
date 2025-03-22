@@ -37,7 +37,6 @@ gem "opentelemetry-exporter-otlp" # OTLP exporter for OpenTelemetry
 gem "opentelemetry-instrumentation-all" # Auto-instrumentation for all supported gems
 gem "opentelemetry-semantic_conventions" # Standard semantic conventions
 gem "lograge-sql"               # SQL query logging for lograge
-gem "loki-logger"              # Grafana Loki logger for Rails
 
 # Deployment tools
 gem "kamal", require: false  # Container deployment
@@ -76,22 +75,17 @@ gem "rack-attack"
 gem "aws-sdk-s3", require: false
 
 # API documentation
-gem 'rswag-api'
-gem 'rswag-ui'
-gem 'rswag-specs', group: [:development, :test]
+gem "rswag-api"
+gem "rswag-ui"
+gem "rswag-specs", group: [ :development, :test ]
 
-# colorized output for rake tasks
+# colorized output for rake tasks and console colors
 gem "rainbow", "~> 3.1"
 
-# structured logging
-gem "lograge", "~> 0.14.0"
-gem "semantic_logger", "~> 4.15"
-
 # Logging and monitoring
-gem 'semantic_logger', '~> 4.13'  # Structured logging
-gem 'lograge', '~> 0.14'         # Request logging
-gem 'rainbow', '~> 3.1'          # Console colors
-gem 'http_logger', '~> 0.7'      # HTTP request logging
+gem "semantic_logger", "~> 4.15"  # Structured logging with JSON support
+gem "lograge", "~> 0.14.0"       # Request logging in JSON format
+gem "http_logger", "~> 0.7"      # HTTP request logging
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
@@ -125,7 +119,7 @@ group :development, :test do
 
   # Database connection analysis
   gem "bullet", "~> 7.1"    # Detect and fix N+1 queries
-  
+
   # security auditing
   gem "ruby_audit"
 

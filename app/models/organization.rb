@@ -12,7 +12,7 @@ class Organization < ApplicationRecord
   validates :status, presence: true, inclusion: { in: %w[active suspended cancelled] }
 
   # Scopes
-  scope :active, -> { where(status: 'active') }
+  scope :active, -> { where(status: "active") }
   scope :by_plan, ->(plan) { where(plan: plan) }
 
   # Features and quotas are stored as jsonb
@@ -21,18 +21,18 @@ class Organization < ApplicationRecord
 
   # Callbacks
   before_create :set_default_features_and_quotas
-  
+
   # Instance methods
   def active?
-    status == 'active'
+    status == "active"
   end
 
   def suspended?
-    status == 'suspended'
+    status == "suspended"
   end
 
   def cancelled?
-    status == 'cancelled'
+    status == "cancelled"
   end
 
   def usage_metrics(start_date: nil, end_date: nil, granularity: :daily)
@@ -62,13 +62,13 @@ class Organization < ApplicationRecord
 
     metrics.each do |metric|
       data = case metric
-      when 'api_calls'
+      when "api_calls"
         api_call_analytics(start_date, end_date)
-      when 'unique_users'
+      when "unique_users"
         unique_user_analytics(start_date, end_date)
-      when 'response_time'
+      when "response_time"
         response_time_analytics(start_date, end_date)
-      when 'error_rate'
+      when "error_rate"
         error_rate_analytics(start_date, end_date)
       end
 
@@ -83,15 +83,15 @@ class Organization < ApplicationRecord
   def set_default_features_and_quotas
     self.features ||= {}
     self.quotas ||= {}
-    
+
     case plan
-    when 'free'
+    when "free"
       set_free_limits
-    when 'basic'
+    when "basic"
       set_basic_limits
-    when 'pro'
+    when "pro"
       set_pro_limits
-    when 'enterprise'
+    when "enterprise"
       set_enterprise_limits
     end
   end
@@ -159,7 +159,7 @@ class Organization < ApplicationRecord
   def api_call_analytics(start_date, end_date)
     usage_logs
       .where(recorded_at: start_date..end_date)
-      .where(metric_type: 'api_call')
+      .where(metric_type: "api_call")
       .group("date_trunc('day', recorded_at)")
       .count
   end
@@ -167,7 +167,7 @@ class Organization < ApplicationRecord
   def unique_user_analytics(start_date, end_date)
     usage_logs
       .where(recorded_at: start_date..end_date)
-      .where(metric_type: 'api_call')
+      .where(metric_type: "api_call")
       .group("date_trunc('day', recorded_at)")
       .distinct
       .count(:user_id)
@@ -176,7 +176,7 @@ class Organization < ApplicationRecord
   def response_time_analytics(start_date, end_date)
     usage_logs
       .where(recorded_at: start_date..end_date)
-      .where(metric_type: 'api_call')
+      .where(metric_type: "api_call")
       .group("date_trunc('day', recorded_at)")
       .average("(metadata->>'response_time')::float")
   end
@@ -184,13 +184,13 @@ class Organization < ApplicationRecord
   def error_rate_analytics(start_date, end_date)
     total_calls = usage_logs
       .where(recorded_at: start_date..end_date)
-      .where(metric_type: 'api_call')
+      .where(metric_type: "api_call")
       .group("date_trunc('day', recorded_at)")
       .count
 
     error_calls = usage_logs
       .where(recorded_at: start_date..end_date)
-      .where(metric_type: 'api_call')
+      .where(metric_type: "api_call")
       .where("metadata->>'status' LIKE '5%'")
       .group("date_trunc('day', recorded_at)")
       .count
@@ -200,4 +200,4 @@ class Organization < ApplicationRecord
       (errors.to_f / total * 100).round(2)
     end
   end
-end 
+end

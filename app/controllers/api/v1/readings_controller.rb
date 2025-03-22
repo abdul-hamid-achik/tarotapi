@@ -231,8 +231,8 @@ class Api::V1::ReadingsController < Api::V1::BaseController
   def stream
     authorize @reading, :stream?
 
-    response.headers['Content-Type'] = 'text/event-stream'
-    response.headers['Last-Modified'] = Time.now.httpdate
+    response.headers["Content-Type"] = "text/event-stream"
+    response.headers["Last-Modified"] = Time.now.httpdate
 
     # Stream the interpretation
     begin
@@ -249,22 +249,22 @@ class Api::V1::ReadingsController < Api::V1::BaseController
 
   def export_pdf
     authorize @reading, :export_pdf?
-    
+
     pdf = ReadingPdfService.new(@reading).generate
     send_data pdf.render,
               filename: "reading_#{@reading.id}.pdf",
-              type: 'application/pdf',
-              disposition: 'attachment'
+              type: "application/pdf",
+              disposition: "attachment"
   end
 
   def advanced_interpretation
     authorize @reading, :advanced_interpretation?
-    
+
     interpretation = LlmService.instance.generate_response(
       @reading.generate_advanced_prompt,
       { model: "claude-3-7-sonnet@20250219" }
     )
-    
+
     render json: { interpretation: interpretation[:content] }
   end
 

@@ -11,10 +11,10 @@ Rails.application.config.after_initialize do
   #   puts ""
   #   puts "This could cause unexpected behavior. Please ensure your database.yml"
   #   puts "has the correct configuration for each environment."
-  #   
+  #
   #   # Only forcibly abort in test environment
-  #   if Rails.env.test? && ENV['FORCE_DB'] != 'true' 
+  #   if Rails.env.test? && ENV['FORCE_DB'] != 'true'
   #     abort "ERROR: Database incorrect for test environment. Aborting to prevent data loss."
   #   end
   # end
-end 
+end

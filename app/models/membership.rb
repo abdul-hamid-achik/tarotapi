@@ -4,21 +4,21 @@ class Membership < ApplicationRecord
   belongs_to :organization
 
   # Validations
-  validates :user_id, presence: true, uniqueness: { scope: :organization_id, message: 'is already a member of this organization' }
+  validates :user_id, presence: true, uniqueness: { scope: :organization_id, message: "is already a member of this organization" }
   validates :organization_id, presence: true
   validates :role, presence: true, inclusion: { in: %w[admin member] }
   validates :status, presence: true, inclusion: { in: %w[invited active suspended] }
 
   # Enums
   enum role: {
-    admin: 'admin',
-    member: 'member'
+    admin: "admin",
+    member: "member"
   }
 
   enum status: {
-    active: 'active',
-    invited: 'invited',
-    suspended: 'suspended'
+    active: "active",
+    invited: "invited",
+    suspended: "suspended"
   }
 
   # Scopes
@@ -34,23 +34,23 @@ class Membership < ApplicationRecord
 
   # Instance methods
   def admin?
-    role == 'admin'
+    role == "admin"
   end
 
   def member?
-    role == 'member'
+    role == "member"
   end
 
   def active?
-    status == 'active'
+    status == "active"
   end
 
   def invited?
-    status == 'invited'
+    status == "invited"
   end
 
   def suspended?
-    status == 'suspended'
+    status == "suspended"
   end
 
   def activate!
@@ -73,10 +73,10 @@ class Membership < ApplicationRecord
 
   def track_member_count
     return unless organization
-    
+
     current_count = organization.memberships.active.count
-    max_members = organization.features['max_members']
-    
+    max_members = organization.features["max_members"]
+
     if current_count >= max_members
       organization.track_usage!(:member_limit_reached, {
         current_count: current_count,
@@ -84,4 +84,4 @@ class Membership < ApplicationRecord
       })
     end
   end
-end 
+end

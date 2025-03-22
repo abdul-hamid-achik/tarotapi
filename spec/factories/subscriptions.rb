@@ -8,4 +8,4 @@ FactoryBot.define do
     stripe_id { "sub_#{SecureRandom.hex(10)}" }
     client_secret { "cs_#{SecureRandom.hex(10)}" }
   end
-end 
+end

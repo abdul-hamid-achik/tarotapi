@@ -34,19 +34,19 @@ DeviseTokenAuth.setup do |config|
 
   # Makes it possible to change the headers names
   config.headers_names = {
-    :'authorization' => 'Authorization',
-    :'access-token' => 'access-token',
-    :'client' => 'client',
-    :'expiry' => 'expiry',
-    :'uid' => 'uid',
-    :'token-type' => 'token-type'
+    'authorization': "Authorization",
+    'access-token': "access-token",
+    'client': "client",
+    'expiry': "expiry",
+    'uid': "uid",
+    'token-type': "token-type"
   }
 
   # By default DeviseTokenAuth will not send confirmation email, even when including
   # devise confirmable module. If you want to use devise confirmable module and
   # send email, set it to true. (This is a setting for compatibility)
   config.send_confirmation_email = false
-  
+
   # Enable both token auth and standard devise auth
   config.enable_standard_devise_support = true
 end

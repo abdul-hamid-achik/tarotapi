@@ -20,4 +20,4 @@ class PaymentMethodPolicy < ApplicationPolicy
       end
     end
   end
-end 
+end

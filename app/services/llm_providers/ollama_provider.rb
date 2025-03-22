@@ -13,7 +13,7 @@ module LlmProviders
         system_prompt: "You are a helpful tarot reading assistant.",
         model: ENV.fetch("OLLAMA_MODEL", "llama3:8b")
       }.merge(options)
-      
+
       return format_error("llm_quota_exceeded", "You have exceeded your monthly LLM call limit") unless track_usage
 
       start_time = Time.now
@@ -62,7 +62,7 @@ module LlmProviders
         system_prompt: "You are a helpful tarot reading assistant.",
         model: ENV.fetch("OLLAMA_MODEL", "llama3:8b")
       }.merge(options)
-      
+
       return format_error("llm_quota_exceeded", "You have exceeded your monthly LLM call limit") unless track_usage
 
       begin
@@ -74,7 +74,7 @@ module LlmProviders
 
         # Stream response from Ollama
         response_text = ""
-        
+
         @client.stream(
           prompt: format_messages_for_ollama(messages),
           model: opts[:model],
@@ -100,10 +100,10 @@ module LlmProviders
     def available_models
       begin
         response = @client.models
-        response.dig("models")&.map { |model| model["name"] } || ["llama3:8b"]
+        response.dig("models")&.map { |model| model["name"] } || [ "llama3:8b" ]
       rescue => e
         Rails.logger.error("Failed to fetch Ollama models: #{e.message}")
-        ["llama3:8b"]
+        [ "llama3:8b" ]
       end
     end
 
@@ -119,17 +119,17 @@ module LlmProviders
       # Extract system message
       system_message = messages.find { |m| m[:role] == "system" }
       user_messages = messages.select { |m| m[:role] == "user" }
-      
+
       # Format for Ollama
       prompt = ""
       prompt += "<|system|>\n#{system_message[:content]}\n" if system_message
-      
+
       # Add user messages
       user_messages.each do |msg|
         prompt += "<|user|>\n#{msg[:content]}\n<|assistant|>\n"
       end
-      
+
       prompt
     end
   end
-end 
+end

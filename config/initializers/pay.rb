@@ -12,8 +12,8 @@ Pay.setup do |config|
   # config.business_logo = "logo.png"
 
   # Stripe
-  config.enabled_processors = [:stripe]
-end 
+  config.enabled_processors = [ :stripe ]
+end
 
 # Configure Stripe webhooks
 Rails.application.config.to_prepare do
@@ -26,4 +26,4 @@ Rails.application.config.to_prepare do
   Pay::Webhooks.delegator.subscribe "stripe.subscription.created", Pay::Stripe::Webhooks::SubscriptionCreated.new
   Pay::Webhooks.delegator.subscribe "stripe.subscription.updated", Pay::Stripe::Webhooks::SubscriptionUpdated.new
   Pay::Webhooks.delegator.subscribe "stripe.subscription.deleted", Pay::Stripe::Webhooks::SubscriptionDeleted.new
-end 
+end

@@ -57,10 +57,10 @@ class ApplicationPolicy
   def user_can_access_feature?(feature)
     subscription = user&.subscriptions&.find_by(status: "active")
     return false unless subscription
-    
+
     subscription_plan = subscription.subscription_plan
     return false unless subscription_plan
-    
+
     subscription_plan.has_feature?(feature)
   end
 
@@ -78,4 +78,4 @@ class ApplicationPolicy
 
     attr_reader :user, :scope
   end
-end 
+end

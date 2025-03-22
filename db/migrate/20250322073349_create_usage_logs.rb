@@ -10,9 +10,9 @@ class CreateUsageLogs < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :usage_logs, [:organization_id, :metric_type]
-    add_index :usage_logs, [:organization_id, :recorded_at]
-    add_index :usage_logs, [:user_id, :metric_type]
+    add_index :usage_logs, [ :organization_id, :metric_type ]
+    add_index :usage_logs, [ :organization_id, :recorded_at ]
+    add_index :usage_logs, [ :user_id, :metric_type ]
     add_index :usage_logs, :recorded_at
   end
 end

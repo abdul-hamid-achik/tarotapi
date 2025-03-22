@@ -30,15 +30,15 @@ class Rack::Attack
   self.throttled_responder = lambda do |env|
     now = Time.current
     match_data = env["rack.attack.match_data"]
-    
+
     seconds_until_reset = (match_data[:period] - now.to_i % match_data[:period]).to_i
     minutes, seconds = seconds_until_reset.divmod(60)
     time_format = if minutes > 0
                     "#{minutes}m #{seconds}s"
-                  else
+    else
                     "#{seconds}s"
-                  end
-    
+    end
+
     # Tarot card for rate limiting: Temperance Reversed (patience, balance)
     response_body = {
       error: {
@@ -56,7 +56,7 @@ class Rack::Attack
         }
       }
     }.to_json
-    
+
     headers = {
       "Content-Type" => "application/json",
       "Content-Length" => response_body.bytesize.to_s,
@@ -66,7 +66,7 @@ class Rack::Attack
       "Retry-After" => seconds_until_reset.to_s
     }
 
-    [ 429, headers, [response_body] ]
+    [ 429, headers, [ response_body ] ]
   end
 
   ### safelist certain ips (optional)

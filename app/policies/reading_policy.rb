@@ -12,15 +12,15 @@ class ReadingPolicy < ApplicationPolicy
   def create?
     return false unless user
     return true if user.agent? # Agents can always create readings
-    
+
     # Check reading limits based on subscription
     return false unless user_within_reading_limit?
-    
+
     # Free users can only create basic readings
     if !user_has_active_subscription?
       return record.spread.is_basic?
     end
-    
+
     true
   end
 
@@ -61,4 +61,4 @@ class ReadingPolicy < ApplicationPolicy
       end
     end
   end
-end 
+end

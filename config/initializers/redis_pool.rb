@@ -1,5 +1,5 @@
-require 'connection_pool'
-require 'redis'
+require "connection_pool"
+require "redis"
 
 # Redis connection pooling configuration
 # Optimized for AWS Fargate with replica support
@@ -11,15 +11,15 @@ module RedisPool
     web_concurrency = ENV.fetch("WEB_CONCURRENCY") { 2 }.to_i
     threads_per_process = ENV.fetch("RAILS_MAX_THREADS") { 5 }.to_i
     sidekiq_size = ENV.fetch("SIDEKIQ_CONCURRENCY") { 10 }.to_i
-    
+
     # Calculate total pool size with more conservative approach for Fargate
     total_size = (web_concurrency * threads_per_process) + (sidekiq_size / 2)
-    
+
     # Add a smaller buffer for other processes
     total_size += 2
-    
+
     # Cap it at a reasonable maximum for Fargate
-    [total_size, 20].min
+    [ total_size, 20 ].min
   end
 
   # Configure Redis URLs based on environment
@@ -31,7 +31,7 @@ module RedisPool
     return nil unless ENV["REDIS_REPLICA_ENABLED"] == "true"
     ENV.fetch("REDIS_REPLICA_URL") { nil }
   end
-  
+
   # Redis connection pool for cache with replica support
   CACHE_POOL = ConnectionPool.new(size: optimal_pool_size, timeout: 3) do
     Redis.new(
@@ -58,7 +58,7 @@ module RedisPool
       )
     end
   end
-  
+
   # Redis connection pool for Rack::Attack (always uses primary)
   THROTTLING_POOL = ConnectionPool.new(size: (optimal_pool_size / 2).ceil, timeout: 2) do
     Redis.new(
@@ -70,7 +70,7 @@ module RedisPool
       db: 1
     )
   end
-  
+
   # Redis connection pool for Sidekiq (always uses primary)
   SIDEKIQ_POOL = ConnectionPool.new(size: ENV.fetch("SIDEKIQ_CONCURRENCY") { 10 }.to_i + 2, timeout: 3) do
     Redis.new(
@@ -82,7 +82,7 @@ module RedisPool
       db: 2
     )
   end
-  
+
   # Helper method to safely execute Redis operations with replica support
   def self.with_redis(pool = CACHE_POOL, &block)
     # Try replica for read operations if available
@@ -106,14 +106,14 @@ module RedisPool
       end
     end
   end
-  
+
   # Setup monitoring for Redis connection health
   if Rails.env.production?
     Thread.new do
       loop do
         begin
           sleep 30 # Check more frequently in Fargate
-          
+
           # Check each pool and record metrics
           pools = {
             cache: CACHE_POOL,
@@ -124,11 +124,11 @@ module RedisPool
 
           pools.each do |name, pool|
             next unless pool.respond_to?(:available)
-            
+
             available = pool.available
             total = pool.size
             used = total - available
-            
+
             # Log if reaching capacity with lower threshold for Fargate (60%)
             if used.to_f / total > 0.6
               Rails.logger.warn "#{name.to_s.capitalize} Redis pool nearing capacity: #{used}/#{total} connections used"
@@ -143,4 +143,4 @@ module RedisPool
 end
 
 # Configure Redis Attack to use our connection pool
-Rack::Attack.cache.store = RedisPool::THROTTLING_POOL 
+Rack::Attack.cache.store = RedisPool::THROTTLING_POOL

@@ -1,11 +1,11 @@
-require 'semantic_logger'
-require 'rainbow'
+require "semantic_logger"
+require "rainbow"
 
 # Unified logger for the Tarot API that combines structured logging with colorized output
 module TarotLogger
   class << self
     def logger
-      @logger ||= SemanticLogger['TarotAPI']
+      @logger ||= SemanticLogger["TarotAPI"]
     end
 
     # Standard logging methods with structured data support
@@ -16,7 +16,7 @@ module TarotLogger
 
     def debug(message, payload = {})
       logger.debug(message, payload)
-      console_output(:magenta, message, payload) if ENV['DEBUG'] && !Rails.env.production?
+      console_output(:magenta, message, payload) if ENV["DEBUG"] && !Rails.env.production?
     end
 
     def warn(message, payload = {})
@@ -31,30 +31,30 @@ module TarotLogger
 
     # Divination-themed aliases for better domain context
     def divine(message, payload = {})
-      info(message, payload.merge(ritual_type: 'divine'))
+      info(message, payload.merge(ritual_type: "divine"))
     end
 
     def reveal(message, payload = {})
-      info(message, payload.merge(ritual_type: 'reveal'))
+      info(message, payload.merge(ritual_type: "reveal"))
     end
 
     def obscure(message, payload = {})
-      warn(message, payload.merge(ritual_type: 'obscure'))
+      warn(message, payload.merge(ritual_type: "obscure"))
     end
 
     def prophecy(message, payload = {})
-      error(message, payload.merge(ritual_type: 'prophecy'))
+      error(message, payload.merge(ritual_type: "prophecy"))
     end
 
     def meditate(message, payload = {})
-      debug(message, payload.merge(ritual_type: 'meditate'))
+      debug(message, payload.merge(ritual_type: "meditate"))
     end
 
     # Task logging with timing and error handling
     def with_task(task_name, payload = {})
       start_time = Time.now
       divine("Starting task", payload.merge(task: task_name))
-      
+
       begin
         yield if block_given?
         duration = Time.now - start_time
@@ -84,7 +84,7 @@ module TarotLogger
     def console_output(color, message, payload = {}, bright = false)
       # Format the message for console output
       output = format_console_message(message, payload)
-      
+
       # Apply color and brightness
       colored_output = if bright
         Rainbow(output).bright.send(color)
@@ -100,8 +100,8 @@ module TarotLogger
       return message if payload.empty?
 
       # Format payload for display
-      payload_str = payload.map { |k, v| "#{k}=#{v.inspect}" }.join(' ')
+      payload_str = payload.map { |k, v| "#{k}=#{v.inspect}" }.join(" ")
       "#{message} | #{payload_str}"
     end
   end
-end 
+end

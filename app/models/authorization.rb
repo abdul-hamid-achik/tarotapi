@@ -19,4 +19,4 @@ class Authorization < ApplicationRecord
       expires_at: 2.hours.from_now
     )
   end
-end 
+end

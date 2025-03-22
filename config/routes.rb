@@ -1,14 +1,14 @@
 Rails.application.routes.draw do
-  mount_devise_token_auth_for 'User', at: 'api/v1/auth'
+  mount_devise_token_auth_for "User", at: "api/v1/auth"
   # API documentation
-  mount Rswag::Ui::Engine => '/docs'
-  mount Rswag::Api::Engine => '/api'
+  mount Rswag::Ui::Engine => "/docs"
+  mount Rswag::Api::Engine => "/api"
 
   # Pay webhooks and checkout routes
-  mount Pay::Engine, at: '/pay', as: 'pay_engine'
+  mount Pay::Engine, at: "/pay", as: "pay_engine"
 
   # Make Swagger UI the default documentation interface
-  root to: redirect('/docs')
+  root to: redirect("/docs")
 
   # Public health check endpoint for load balancers
   get "health" => "health#index", as: :health_check
@@ -21,27 +21,27 @@ Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
       # Protected health check endpoints (require authentication)
-      get 'health/detailed', to: 'health#detailed'
-      get 'health/database', to: 'health#database'
-      
+      get "health/detailed", to: "health#detailed"
+      get "health/database", to: "health#database"
+
       # OAuth endpoints
-      get 'oauth/authorize', to: 'oauth#authorize'
-      post 'oauth/token', to: 'oauth#token'
-      
+      get "oauth/authorize", to: "oauth#authorize"
+      post "oauth/token", to: "oauth#token"
+
       # Organization management
       resources :organizations do
         member do
-          post 'members', to: 'organizations#add_member'
-          delete 'members/:user_id', to: 'organizations#remove_member'
-          get 'usage', to: 'organizations#usage'
-          get 'analytics', to: 'organizations#analytics'
+          post "members", to: "organizations#add_member"
+          delete "members/:user_id", to: "organizations#remove_member"
+          get "usage", to: "organizations#usage"
+          get "analytics", to: "organizations#analytics"
         end
-        
-        resources :api_keys, only: [:index, :show, :create, :update, :destroy]
+
+        resources :api_keys, only: [ :index, :show, :create, :update, :destroy ]
       end
 
       # Personal API Keys management
-      resources :api_keys, only: [:index, :show, :create] do
+      resources :api_keys, only: [ :index, :show, :create ] do
         member do
           delete :revoke
         end

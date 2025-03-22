@@ -1,6 +1,6 @@
 class Spread < ApplicationRecord
   include Cacheable
-  
+
   belongs_to :user, optional: true
   has_many :card_readings, dependent: :nullify
   has_many :readings

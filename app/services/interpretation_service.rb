@@ -7,7 +7,7 @@ class InterpretationService
     @reading = reading
     @birth_date = birth_date
     @name = name
-    
+
     # Initialize LlmService with user
     @llm_service = LlmService.instance
     @llm_service.set_user(user)

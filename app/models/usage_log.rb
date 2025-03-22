@@ -10,9 +10,9 @@ class UsageLog < ApplicationRecord
   validates :metadata, presence: true
 
   # Scopes
-  scope :api_calls, -> { where(metric_type: 'api_call') }
+  scope :api_calls, -> { where(metric_type: "api_call") }
   scope :readings, -> { where(metric_type: :reading) }
-  scope :active_sessions, -> { where(metric_type: :session).where('recorded_at > ?', 30.minutes.ago) }
+  scope :active_sessions, -> { where(metric_type: :session).where("recorded_at > ?", 30.minutes.ago) }
   scope :by_date_range, ->(start_date, end_date) { where(recorded_at: start_date..end_date) }
   scope :by_metric_type, ->(type) { where(metric_type: type) }
   scope :successful, -> { where("metadata->>'status' LIKE '2%'") }
@@ -53,7 +53,7 @@ class UsageLog < ApplicationRecord
 
     def record_session!(organization:, user:)
       concurrent_count = active_sessions.where(organization_id: organization.id).count + 1
-      
+
       create!(
         organization: organization,
         user: user,
@@ -102,7 +102,7 @@ class UsageLog < ApplicationRecord
       end_date ||= Time.current.end_of_day
 
       where(recorded_at: start_date..end_date)
-        .where(metric_type: 'api_call')
+        .where(metric_type: "api_call")
         .average("(metadata->>'response_time')::float")
     end
 
@@ -111,11 +111,11 @@ class UsageLog < ApplicationRecord
       end_date ||= Time.current.end_of_day
 
       total = where(recorded_at: start_date..end_date)
-        .where(metric_type: 'api_call')
+        .where(metric_type: "api_call")
         .count
 
       errors = where(recorded_at: start_date..end_date)
-        .where(metric_type: 'api_call')
+        .where(metric_type: "api_call")
         .where("metadata->>'status' LIKE '5%'")
         .count
 
@@ -142,14 +142,14 @@ class UsageLog < ApplicationRecord
   end
 
   def successful?
-    metadata['status'].to_s.start_with?('2')
+    metadata["status"].to_s.start_with?("2")
   end
 
   def failed?
-    metadata['status'].to_s.start_with?('5')
+    metadata["status"].to_s.start_with?("5")
   end
 
   def response_time
-    metadata['response_time'].to_f
+    metadata["response_time"].to_f
   end
-end 
+end

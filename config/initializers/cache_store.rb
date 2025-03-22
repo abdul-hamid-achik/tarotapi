@@ -13,7 +13,7 @@ cache_options = {
   namespace: "tarot-api:cache",
   expires_in: 1.hour, # Default TTL
   race_condition_ttl: 10.seconds, # Prevent cache stampede
-  error_handler: -> (method:, returning:, exception:) {
+  error_handler: ->(method:, returning:, exception:) {
     Rails.logger.error("Redis Cache Error: #{exception.message}")
     Sentry.capture_exception(exception) if defined?(Sentry)
   }
@@ -23,17 +23,17 @@ cache_options = {
 if defined?(RedisPool)
   # Use replica pool for read operations if available
   cache_options[:pool] = RedisPool::REPLICA_POOL || RedisPool::CACHE_POOL
-  
+
   # Configure fallback behavior
-  cache_options[:error_handler] = -> (method:, returning:, exception:) {
+  cache_options[:error_handler] = ->(method:, returning:, exception:) {
     Rails.logger.error("Redis Cache Error: #{exception.message}")
-    
+
     # Try falling back to primary if replica fails
     if RedisPool::REPLICA_POOL && cache_options[:pool] == RedisPool::REPLICA_POOL
       Rails.logger.info("Falling back to primary Redis for cache")
       cache_options[:pool] = RedisPool::CACHE_POOL
     end
-    
+
     Sentry.capture_exception(exception) if defined?(Sentry)
   }
 end
@@ -51,25 +51,25 @@ class PooledRedisStore < ActiveSupport::Cache::RedisCacheStore
       options = merged_options(names.extract_options!)
       options[:pool] = RedisPool::REPLICA_POOL
       names = names.map { |name| normalize_key(name, options) }
-      
+
       values = redis.with { |c| c.mget(*names) }
       results = {}
-      
+
       names.zip(values).each do |name, value|
         if value
           entry = deserialize_entry(value)
           results[name] = entry.value unless entry.expired?
         end
       end
-      
+
       results
     else
       super
     end
   end
-  
+
   private
-  
+
   def normalize_key(key, options)
     "tarot:#{super(key, options)}"
   end
@@ -77,4 +77,4 @@ end
 
 # Configure cache stores
 Rails.application.config.cache_store = :redis_cache_store, cache_options
-Rails.application.config.action_controller.cache_store = :redis_cache_store, cache_options 
+Rails.application.config.action_controller.cache_store = :redis_cache_store, cache_options

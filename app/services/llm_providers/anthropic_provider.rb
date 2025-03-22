@@ -68,7 +68,7 @@ module LlmProviders
         ) do |chunk|
           content = chunk["content"][0]["text"] rescue nil
           if content
-            delta = content.sub(full_response, '')
+            delta = content.sub(full_response, "")
             full_response = content
             yield delta if block_given?
           end
@@ -97,7 +97,7 @@ module LlmProviders
     end
 
     def format_prompt_for_anthropic(system_prompt, user_prompt)
-      { 
+      {
         system: system_prompt,
         messages: [
           { role: "user", content: user_prompt }
@@ -105,4 +105,4 @@ module LlmProviders
       }
     end
   end
-end 
+end

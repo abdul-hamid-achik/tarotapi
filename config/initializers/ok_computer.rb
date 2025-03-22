@@ -27,10 +27,10 @@ class PostgreSQLConnectionPoolCheck < OkComputer::Check
       idle: pool.connections.count { |c| !c.in_use? },
       waiting: pool.num_waiting_in_queue
     }
-    
+
     # Calculate usage percentage
     usage_percent = (stats[:active].to_f / stats[:size]) * 100
-    
+
     # Mark as failure if pool is almost saturated
     if usage_percent > 80
       mark_failure
@@ -55,16 +55,16 @@ if defined?(RedisPool)
 
     def check_pool(name, pool)
       return unless pool&.respond_to?(:available)
-      
+
       stats = {
         size: pool.size,
         available: pool.available,
         in_use: pool.size - pool.available
       }
-      
+
       # Calculate usage percentage
       usage_percent = (stats[:in_use].to_f / stats[:size]) * 100
-      
+
       # Mark as failure if pool is almost saturated (60% for Fargate)
       if usage_percent > 60
         mark_failure
@@ -88,7 +88,7 @@ if defined?(RedisPool)
       end
     end
   end
-  
+
   OkComputer::Registry.register "redis_pool", RedisConnectionPoolCheck.new
 end
 
@@ -103,4 +103,4 @@ OkComputer::Registry.register "default", AppRunningCheck.new
 OkComputer.make_optional %w[sidekiq redis_pool]
 
 # Make default check publicly accessible for load balancers
-OkComputer.allow_in_read_only_mode = %w[default] 
+OkComputer.allow_in_read_only_mode = %w[default]

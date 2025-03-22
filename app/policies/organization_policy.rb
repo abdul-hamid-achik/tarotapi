@@ -50,4 +50,4 @@ class OrganizationPolicy < ApplicationPolicy
     return false unless user && record
     record.memberships.active.admins.exists?(user: user)
   end
-end 
+end

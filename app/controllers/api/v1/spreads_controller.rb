@@ -1,7 +1,7 @@
 class Api::V1::SpreadsController < ApplicationController
   include AuthenticateRequest
 
-  before_action :set_spread, only: [:show, :update, :destroy, :publish]
+  before_action :set_spread, only: [ :show, :update, :destroy, :publish ]
   after_action :verify_authorized, except: :index
   after_action :verify_policy_scoped, only: :index
 

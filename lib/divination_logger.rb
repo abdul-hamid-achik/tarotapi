@@ -1,4 +1,4 @@
-require 'rainbow'
+require "rainbow"
 
 # A tarot-themed logger for the Tarot API
 module DivinationLogger
@@ -25,7 +25,7 @@ module DivinationLogger
 
     # For debugging (magenta)
     def meditate(message)
-      puts Rainbow(message).magenta if ENV['DEBUG']
+      puts Rainbow(message).magenta if ENV["DEBUG"]
     end
 
     # Optional block-style for timing operations
@@ -45,4 +45,4 @@ module DivinationLogger
       end
     end
   end
-end 
+end

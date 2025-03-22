@@ -75,15 +75,15 @@ class User < ApplicationRecord
     # Create a token using devise_token_auth's functionality
     client = SecureRandom.urlsafe_base64(nil, false)
     token = create_token(client: client, expiry: expiry.to_i)
-    
+
     # Store the token in the user's tokens hash
     tokens[client] = {
       token: token,
       expiry: expiry.to_i
     }
-    
+
     save!(validate: false)
-    
+
     # Return a JWT-like token for backward compatibility
     build_auth_header(token, client)["Authorization"].split(" ").last
   end
@@ -97,7 +97,7 @@ class User < ApplicationRecord
   # Class method to find a user from a token
   def self.from_token(token)
     return nil if token.blank?
-    
+
     # Try to extract payload from JWT if it's a JWT token
     begin
       uid, client = DeviseTokenAuth::TokenFactory.parse_token_from_request(token)
@@ -106,7 +106,7 @@ class User < ApplicationRecord
     rescue JWT::DecodeError, NoMethodError
       # Not a valid JWT token, continue to legacy token handling
     end
-    
+
     # Return nil if no user found
     nil
   end

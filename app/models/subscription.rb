@@ -14,7 +14,7 @@ class Subscription < ApplicationRecord
   # Pay integration methods
   def self.sync_from_pay_subscription(pay_subscription)
     subscription = find_or_initialize_by(stripe_id: pay_subscription.processor_id)
-    
+
     subscription.update(
       user_id: pay_subscription.customer.owner_id,
       plan_name: pay_subscription.name || pay_subscription.processor_plan,
@@ -22,10 +22,10 @@ class Subscription < ApplicationRecord
       current_period_start: pay_subscription.current_period_start,
       current_period_end: pay_subscription.ends_at
     )
-    
+
     subscription
   end
-  
+
   # Legacy methods preserved for backward compatibility
   def active?
     status == "active" && (current_period_end.nil? || current_period_end > Time.current)
@@ -51,11 +51,11 @@ class Subscription < ApplicationRecord
       begin
         # Find the Pay subscription and cancel it
         pay_subscription = user.subscriptions.find_by(processor_id: stripe_id)
-        
+
         if pay_subscription
           result = pay_subscription.cancel
           update(status: "cancelled", ends_at: pay_subscription.ends_at) if result
-          return result
+          result
         else
           # Legacy subscription without corresponding Pay record
           # Try direct Stripe cancellation as fallback
@@ -76,7 +76,7 @@ class Subscription < ApplicationRecord
       true
     end
   end
-  
+
   # Sync all subscriptions from Pay
   def self.sync_all_from_pay
     Pay::Subscription.find_each do |pay_subscription|

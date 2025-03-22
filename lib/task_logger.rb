@@ -1,4 +1,4 @@
-require 'semantic_logger'
+require "semantic_logger"
 
 # Define a helper for rake task logging
 module TaskLogger
@@ -14,11 +14,11 @@ module TaskLogger
     def error(message, payload = {})
       logger.error(message, payload)
     end
-    
+
     def warn(message, payload = {})
       logger.warn(message, payload)
     end
-    
+
     def debug(message, payload = {})
       logger.debug(message, payload)
     end
@@ -32,13 +32,13 @@ module TaskLogger
         info("Task completed", task: task_name, duration: duration.round(2))
       rescue => e
         duration = Time.now - start_time
-        error("Task failed", 
-              task: task_name, 
-              duration: duration.round(2), 
+        error("Task failed",
+              task: task_name,
+              duration: duration.round(2),
               error: e.message,
               backtrace: e.backtrace.first(5))
         raise e
       end
     end
   end
-end 
+end

@@ -21,4 +21,4 @@ class ApiClient < ApplicationRecord
     self.client_id = SecureRandom.hex(32)
     self.client_secret = BCrypt::Password.create(SecureRandom.hex(32))
   end
-end 
+end

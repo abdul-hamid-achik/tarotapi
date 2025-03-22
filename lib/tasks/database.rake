@@ -14,8 +14,8 @@ namespace :db do
       else
         TaskLogger.info("  Database: #{config.database}")
         TaskLogger.info("  Host: #{config.host}")
-        TaskLogger.info("  Port: #{config.configuration_hash['port']}" ) if config.configuration_hash["port"]
-        TaskLogger.info("  Username: #{config.configuration_hash['username']}" ) if config.configuration_hash["username"]
+        TaskLogger.info("  Port: #{config.configuration_hash['port']}") if config.configuration_hash["port"]
+        TaskLogger.info("  Username: #{config.configuration_hash['username']}") if config.configuration_hash["username"]
       end
     end
   end
@@ -64,12 +64,12 @@ namespace :db do
     desc "Check database connection pool status"
     task check: :environment do
       TaskLogger.info("Checking database connection pool...")
-      
+
       pool = ActiveRecord::Base.connection_pool
       TaskLogger.info("Pool size: #{pool.size}")
       TaskLogger.info("Connections in use: #{pool.connections.count}")
       TaskLogger.info("Available connections: #{pool.size - pool.connections.count}")
-      
+
       if pool.connections.count >= pool.size
         TaskLogger.warn("WARNING: All connections are in use!")
       end
@@ -103,4 +103,4 @@ namespace :db do
       TaskLogger.info("Sample data loaded successfully")
     end
   end
-end 
+end

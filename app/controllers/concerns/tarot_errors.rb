@@ -94,26 +94,26 @@ module TarotErrors
     # Add this method to render a tarot-themed error response
     def render_tarot_error(status_code, details = nil)
       error_card = TAROT_ERROR_CARDS[status_code] || DEFAULT_ERROR_CARD
-      
+
       error_response = {
         error: {
-          type: error_card[:card].downcase.gsub(' ', '_'),
+          type: error_card[:card].downcase.gsub(" ", "_"),
           status: status_code,
           title: error_card[:card],
           message: error_card[:message],
           emoji: error_card[:emoji]
         }
       }
-      
+
       # Add details if provided
       error_response[:error][:details] = details if details
-      
+
       # Add request ID for tracking
       if defined?(request) && request.respond_to?(:request_id)
         error_response[:error][:request_id] = request.request_id
       end
-      
+
       render json: error_response, status: status_code
     end
   end
-end 
+end

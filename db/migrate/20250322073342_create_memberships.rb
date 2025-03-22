@@ -10,8 +10,8 @@ class CreateMemberships < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :memberships, [:organization_id, :user_id], unique: true
-    add_index :memberships, [:organization_id, :role]
+    add_index :memberships, [ :organization_id, :user_id ], unique: true
+    add_index :memberships, [ :organization_id, :role ]
     add_index :memberships, :status
   end
 end

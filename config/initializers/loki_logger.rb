@@ -1,15 +1,15 @@
-require 'loki-logger'
-require 'lograge'
+require "loki-logger"
+require "lograge"
 
 # Configure Loki logger
-if ENV['LOKI_URL'].present?
+if ENV["LOKI_URL"].present?
   loki_logger = LokiLogger.new(
-    url: ENV['LOKI_URL'],
-    job_name: 'tarot-api',
+    url: ENV["LOKI_URL"],
+    job_name: "tarot-api",
     labels: {
       environment: Rails.env,
-      service: 'tarot-api',
-      version: ENV['RELEASE_VERSION'] || '0.1.0'
+      service: "tarot-api",
+      version: ENV["RELEASE_VERSION"] || "0.1.0"
     },
     flush_interval: Rails.env.production? ? 10 : 1, # Seconds
     max_batch_size: 100,
@@ -23,11 +23,11 @@ end
 # Configure Lograge for structured logging
 Rails.application.configure do
   config.lograge.enabled = true
-  config.lograge.base_controller_class = ['ActionController::API', 'ActionController::Base']
-  
+  config.lograge.base_controller_class = [ "ActionController::API", "ActionController::Base" ]
+
   # Keep original Rails logging in development
   config.lograge.keep_original_rails_log = Rails.env.development?
-  
+
   # Add custom fields to all logs
   config.lograge.custom_options = lambda do |event|
     {
@@ -46,14 +46,14 @@ Rails.application.configure do
 
   # Add SQL query logging
   config.lograge_sql.extract_event = Proc.new do |event|
-    { 
+    {
       name: event.payload[:name],
       duration: event.duration.to_f.round(2),
       sql: event.payload[:sql],
       replica: event.payload[:replica]
     }
   end
-  
+
   config.lograge_sql.formatter = Proc.new do |sql_queries|
     sql_queries
   end
@@ -86,4 +86,4 @@ end
 # Include custom logging in application controller
 ActiveSupport.on_load(:action_controller) do
   include CustomLogging
-end 
+end

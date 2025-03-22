@@ -15,6 +15,6 @@ class AccessToken < ApplicationRecord
   end
 
   def valid_scope?(required_scope)
-    scope.split(' ').include?(required_scope)
+    scope.split(" ").include?(required_scope)
   end
-end 
+end

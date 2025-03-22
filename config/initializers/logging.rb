@@ -1,7 +1,7 @@
 # Configure structured logging for the application
-require 'semantic_logger'
-require 'lograge'
-require 'socket'
+require "semantic_logger"
+require "lograge"
+require "socket"
 
 Rails.application.configure do
   # Configure Lograge for request logging
@@ -29,8 +29,8 @@ Rails.application.configure do
 
   # Add Loki appender in non-development environments
   if Rails.env.production? || Rails.env.staging?
-    loki_url = ENV.fetch('LOKI_URL', 'http://loki.tarot-api.internal:3100')
-    
+    loki_url = ENV.fetch("LOKI_URL", "http://loki.tarot-api.internal:3100")
+
     SemanticLogger.add_appender(
       appender: :http_json,
       url: "#{loki_url}/loki/api/v1/push",
@@ -44,12 +44,12 @@ Rails.application.configure do
 
   # Set log level based on environment
   config.log_level = case Rails.env
-                    when 'production', 'staging'
-                      ENV.fetch('LOG_LEVEL', 'info').to_sym
-                    else
-                      ENV.fetch('LOG_LEVEL', 'debug').to_sym
-                    end
+  when "production", "staging"
+                      ENV.fetch("LOG_LEVEL", "info").to_sym
+  else
+                      ENV.fetch("LOG_LEVEL", "debug").to_sym
+  end
 
   # Disable ActiveRecord SQL logging in production
   config.active_record.logger = nil if Rails.env.production?
-end 
+end

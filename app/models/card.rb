@@ -1,6 +1,6 @@
 class Card < ApplicationRecord
   include Cacheable
-  
+
   has_one_attached :image
   has_many :card_readings
   has_many :users, through: :card_readings

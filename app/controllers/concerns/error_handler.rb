@@ -26,12 +26,12 @@ module ErrorHandler
   def log_error(exception, context = {})
     context[:user_id] = current_user&.id if defined?(current_user)
     context[:request_id] = request.request_id if request.respond_to?(:request_id)
-    
+
     error_message = "#{exception.class.name}: #{exception.message}"
     error_context = context.map { |k, v| "#{k}=#{v}" }.join(" ")
-    
+
     Rails.logger.error("#{error_message} | #{error_context}")
-    
+
     # Report to error tracking service if available
     Sentry.capture_exception(exception, extra: context) if defined?(Sentry)
   end
@@ -40,7 +40,7 @@ module ErrorHandler
   def handle_unauthorized(exception)
     policy_name = exception.policy.class.to_s.underscore
     query = exception.query.to_s
-    
+
     # Create a more specific message based on policy
     details = case policy_name
     when "reading_policy"
@@ -74,7 +74,7 @@ module ErrorHandler
     else
       "You are not authorized to perform this action"
     end
-    
+
     log_error(exception, { policy: policy_name, query: query })
     render_tarot_error(403, details) # Use 403 Forbidden for authorization errors
   end
@@ -83,7 +83,7 @@ module ErrorHandler
   def handle_not_found(exception)
     model = exception.model.downcase rescue "resource"
     details = "The requested #{model} could not be found"
-    
+
     log_error(exception, { model: model, id: params[:id] })
     render_tarot_error(404, details)
   end
@@ -92,12 +92,12 @@ module ErrorHandler
   def handle_validation_error(exception)
     record = exception.record
     errors = record.errors.messages.transform_values { |msgs| msgs.map(&:to_s) }
-    
-    log_error(exception, { 
-      model: record.class.name, 
-      validation_errors: errors.to_json 
+
+    log_error(exception, {
+      model: record.class.name,
+      validation_errors: errors.to_json
     })
-    
+
     render_tarot_error(422, errors)
   end
 
@@ -105,7 +105,7 @@ module ErrorHandler
   def handle_parameter_missing(exception)
     parameter = exception.param
     details = "Required parameter missing: #{parameter}"
-    
+
     log_error(exception, { parameter: parameter })
     render_tarot_error(400, details)
   end
@@ -127,4 +127,4 @@ module ErrorHandler
     log_error(exception)
     render_tarot_error(401, "Authentication token has expired. Please refresh your token or log in again.")
   end
-end 
+end

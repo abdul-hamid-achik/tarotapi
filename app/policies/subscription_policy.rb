@@ -38,8 +38,8 @@ class SubscriptionPolicy < ApplicationPolicy
     # Users can reactivate their own cancelled subscriptions
     # as long as they don't have another active one
     return false unless user
-    record.user_id == user.id && 
-      record.cancelled? && 
+    record.user_id == user.id &&
+      record.cancelled? &&
       !user.subscriptions.active.exists?
   end
 
@@ -52,4 +52,4 @@ class SubscriptionPolicy < ApplicationPolicy
       end
     end
   end
-end 
+end

@@ -3,7 +3,7 @@ module Api
     class OrganizationsController < ApplicationController
       include AuthenticateRequest
 
-      before_action :set_organization, except: [:index, :create]
+      before_action :set_organization, except: [ :index, :create ]
       after_action :verify_authorized, except: :index
       after_action :verify_policy_scoped, only: :index
 
@@ -28,7 +28,7 @@ module Api
             role: :admin,
             status: :active
           )
-          
+
           render json: @organization, status: :created
         else
           render json: { errors: @organization.errors.full_messages }, status: :unprocessable_entity
@@ -55,11 +55,11 @@ module Api
         authorize @organization, :manage_members?
 
         @membership = @organization.memberships.build(membership_params)
-        
+
         if @membership.save
           # Send invitation email
           OrganizationMailer.invitation_email(@membership).deliver_later
-          
+
           render json: @membership, status: :created
         else
           render json: { errors: @membership.errors.full_messages }, status: :unprocessable_entity
@@ -71,7 +71,7 @@ module Api
 
         @membership = @organization.memberships.find_by!(user_id: params[:user_id])
         @membership.destroy
-        
+
         head :no_content
       end
 
@@ -83,7 +83,7 @@ module Api
           end_date: params[:end_date]&.to_date,
           granularity: params[:granularity]&.to_sym || :daily
         )
-        
+
         render json: metrics
       end
 
@@ -95,7 +95,7 @@ module Api
           end_date: params[:end_date]&.to_date,
           metrics: params[:metrics]
         )
-        
+
         render json: analytics
       end
 
@@ -110,7 +110,7 @@ module Api
           :name,
           :plan,
           :billing_email,
-          settings: [:white_label, :custom_domain, :webhook_url]
+          settings: [ :white_label, :custom_domain, :webhook_url ]
         )
       end
 
@@ -121,4 +121,4 @@ module Api
       end
     end
   end
-end 
+end
