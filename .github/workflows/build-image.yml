@@ -14,7 +14,6 @@ jobs:
   build-and-push:
     name: Build and push CI image
     runs-on: ubuntu-latest
-    container: ghcr.io/catthehacker/ubuntu:act-latest
     permissions:
       contents: read
       packages: write
@@ -22,6 +21,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -33,23 +37,14 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v5
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          images: ghcr.io/${{ github.repository }}/tarot-api-ci
-          tags: |
-            type=raw,value=latest
-            type=sha,format=short
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'mx-central-1' }}
       
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          target: development
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max 
+      - name: Build and push container image
+        run: |
+          bundle exec rake container:build[development]
+          bundle exec rake container:push[development] 
