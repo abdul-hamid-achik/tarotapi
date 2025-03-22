@@ -74,7 +74,7 @@ namespace :docker do
 
   def push_to_ghcr(tag, target)
     TaskLogger.info("Pushing to GitHub Container Registry...")
-    repo = ENV["GITHUB_REPOSITORY"] || "your-org/tarot-api"
+    repo = ENV["GITHUB_REPOSITORY"] || "abdul-hamid-achik/tarot-api"
     ghcr_tag = "ghcr.io/#{repo}:#{target}"
 
     # Tag and push the image

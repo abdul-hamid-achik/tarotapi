@@ -2,38 +2,24 @@ class Api::V1::SubscriptionsController < ApplicationController
   include AuthenticateRequest
 
   def create
-    # Initialize Stripe with API key
-    Stripe.api_key = ENV["STRIPE_SECRET_KEY"]
+    plan = params[:plan_name].downcase
+    
+    # Create a Stripe subscription through Pay
+    subscription = current_user.payment_processor
+                               .subscribe(plan: plan, 
+                                          automatic_tax: true,
+                                          payment_behavior: "default_incomplete",
+                                          expand: ["latest_invoice.payment_intent"])
 
-    # Find or create Stripe customer
-    customer = find_or_create_stripe_customer
-
-    # Create the subscription
-    begin
-      subscription = Stripe::Subscription.create({
-        customer: customer.id,
-        items: [ { price: params[:price_id] } ],
-        expand: [ "latest_invoice.payment_intent" ]
-      })
-
-      # Store subscription in our database
-      @subscription = current_user.subscriptions.create(
-        stripe_id: subscription.id,
-        stripe_customer_id: customer.id,
-        plan_name: params[:plan_name],
-        status: subscription.status,
-        current_period_start: Time.zone.at(subscription.current_period_start),
-        current_period_end: Time.zone.at(subscription.current_period_end)
-      )
-
-      render json: {
-        subscription_id: @subscription.id,
-        status: @subscription.status,
-        client_secret: subscription.latest_invoice.payment_intent.client_secret
-      }, status: :created
-    rescue Stripe::StripeError => e
-      render json: { error: e.message }, status: :unprocessable_entity
-    end
+    @subscription = current_user.subscriptions.find_by(processor_id: subscription.processor_id)
+    
+    render json: {
+      subscription_id: @subscription.id,
+      status: @subscription.status,
+      client_secret: subscription.client_secret
+    }, status: :created
+  rescue Pay::Error => e
+    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   def show
@@ -42,9 +28,9 @@ class Api::V1::SubscriptionsController < ApplicationController
     if @subscription
       render json: {
         id: @subscription.id,
-        plan_name: @subscription.plan_name,
+        plan_name: @subscription.name,
         status: @subscription.status,
-        current_period_end: @subscription.current_period_end
+        current_period_end: @subscription.ends_at
       }
     else
       render json: { error: "subscription not found" }, status: :not_found
@@ -54,7 +40,7 @@ class Api::V1::SubscriptionsController < ApplicationController
   def cancel
     @subscription = current_user.subscriptions.find_by(id: params[:id])
 
-    if @subscription&.cancel!
+    if @subscription&.cancel
       render json: {
         id: @subscription.id,
         status: @subscription.status,
@@ -65,19 +51,43 @@ class Api::V1::SubscriptionsController < ApplicationController
     end
   end
 
-  private
-
-  def find_or_create_stripe_customer
-    if current_user.stripe_customer_id.present?
-      Stripe::Customer.retrieve(current_user.stripe_customer_id)
+  def payment_methods
+    render json: current_user.payment_methods.as_json(only: [:id, :type, :last4, :exp_month, :exp_year, :default])
+  end
+  
+  def attach_payment_method
+    begin
+      # Attach payment method to customer
+      payment_method = current_user.add_payment_method(params[:payment_method_id])
+      
+      # Set as default if requested or if it's the only one
+      if params[:default].present? || current_user.payment_methods.count == 1
+        payment_method.make_default!
+      end
+      
+      render json: payment_method.as_json(only: [:id, :type, :last4, :exp_month, :exp_year, :default]), status: :created
+    rescue Pay::Error => e
+      render json: { error: e.message }, status: :unprocessable_entity
+    end
+  end
+  
+  def detach_payment_method
+    payment_method = current_user.payment_methods.find_by(id: params[:id])
+    
+    if payment_method.nil?
+      render json: { error: "Payment method not found" }, status: :not_found
+      return
+    end
+    
+    if payment_method.default?
+      render json: { error: "Cannot remove default payment method" }, status: :unprocessable_entity
+      return
+    end
+    
+    if payment_method.detach
+      render json: { success: true }, status: :ok
     else
-      customer = Stripe::Customer.create({
-        email: current_user.email,
-        name: current_user.email.split("@").first # Use email username as name
-      })
-
-      current_user.update(stripe_customer_id: customer.id)
-      customer
+      render json: { error: "Failed to remove payment method" }, status: :unprocessable_entity
     end
   end
 end

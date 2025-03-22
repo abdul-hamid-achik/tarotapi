@@ -1,14 +1,19 @@
 class Api::V1::AuthController < ApplicationController
   def register
     user = User.new(user_params)
+    user.provider = 'email'
+    user.uid = params[:user][:email]
     user.identity_provider = IdentityProvider.registered
 
     if user.save
-      token = user.generate_token
+      # Use devise_token_auth to generate tokens
+      token = user.create_new_auth_token
       refresh_token = user.generate_refresh_token
 
       render json: {
-        token: token,
+        token: token["access-token"],
+        client: token["client"],
+        uid: token["uid"],
         refresh_token: refresh_token,
         user: { id: user.id, email: user.email }
       }, status: :created
@@ -20,12 +25,15 @@ class Api::V1::AuthController < ApplicationController
   def login
     user = User.find_by(email: params[:email])
 
-    if user&.authenticate(params[:password])
-      token = user.generate_token
+    if user&.valid_password?(params[:password])
+      # Use devise_token_auth to generate tokens
+      token = user.create_new_auth_token
       refresh_token = user.generate_refresh_token
 
       render json: {
-        token: token,
+        token: token["access-token"],
+        client: token["client"],
+        uid: token["uid"],
         refresh_token: refresh_token,
         user: { id: user.id, email: user.email }
       }
@@ -38,22 +46,28 @@ class Api::V1::AuthController < ApplicationController
     user = User.find_by(refresh_token: params[:refresh_token])
 
     if user && user.token_expiry&.future?
-      token = user.generate_token
+      # Use devise_token_auth to generate a new token
+      token = user.create_new_auth_token
 
-      render json: { token: token }
+      render json: { 
+        token: token["access-token"],
+        client: token["client"],
+        uid: token["uid"]
+      }
     else
       render json: { error: "invalid or expired refresh token" }, status: :unauthorized
     end
   end
 
   def profile
-    user = User.from_token(request.headers["Authorization"]&.split(" ")&.last)
-
-    if user
+    # Authenticate with either token auth or basic auth
+    authenticate_request
+    
+    if @current_user
       render json: {
-        id: user.id,
-        email: user.email,
-        identity_provider: user.identity_provider&.name
+        id: @current_user.id,
+        email: @current_user.email,
+        identity_provider: @current_user.identity_provider&.name
       }
     else
       render json: { error: "unauthorized" }, status: :unauthorized
@@ -63,9 +77,9 @@ class Api::V1::AuthController < ApplicationController
   # Create or manage agent API credentials
   def create_agent
     # Ensure the current user has permission to create agents
-    user = User.from_token(request.headers["Authorization"]&.split(" ")&.last)
-
-    unless user && user.registered?
+    authenticate_request
+    
+    unless @current_user && @current_user.registered?
       return render json: { error: "unauthorized" }, status: :unauthorized
     end
 
@@ -79,18 +93,22 @@ class Api::V1::AuthController < ApplicationController
       email: params[:email],
       password: params[:password],
       password_confirmation: params[:password_confirmation],
-      created_by_user_id: user.id
+      provider: 'agent',
+      uid: params[:email] || external_id,
+      created_by_user_id: @current_user.id
     )
 
     if agent_user.persisted?
       # Generate a long-lived token for API access
-      api_token = agent_user.generate_token(expiry: 1.year.from_now)
+      api_token = agent_user.create_new_auth_token
 
       render json: {
         agent_id: agent_user.id,
         external_id: external_id,
         email: agent_user.email,
-        api_token: api_token
+        token: api_token["access-token"],
+        client: api_token["client"],
+        uid: api_token["uid"]
       }, status: :created
     else
       render json: { errors: agent_user.errors.full_messages }, status: :unprocessable_entity
@@ -101,5 +119,29 @@ class Api::V1::AuthController < ApplicationController
 
   def user_params
     params.require(:user).permit(:email, :password, :password_confirmation)
+  end
+  
+  def authenticate_request
+    # Include the AuthenticateRequest concern
+    @current_user = User.find_by_uid(uid) if uid
+    
+    # If no user found with uid, try checking the Authorization header for a token
+    unless @current_user
+      token = request.headers["Authorization"]&.split(" ")&.last
+      @current_user = User.from_token(token) if token
+    end
+    
+    # Still no user? Try API key
+    unless @current_user
+      api_key_token = request.headers["X-API-Key"]
+      if api_key_token
+        api_key = ApiKey.valid_for_use.find_by(token: api_key_token)
+        @current_user = api_key&.user
+      end
+    end
+  end
+  
+  def uid
+    request.headers["uid"]
   end
 end

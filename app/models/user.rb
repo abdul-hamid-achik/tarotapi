@@ -1,5 +1,14 @@
 class User < ApplicationRecord
-  has_secure_password validations: false
+  # Include devise modules
+  devise :database_authenticatable, :registerable,
+         :recoverable, :rememberable, :validatable
+  include DeviseTokenAuth::Concerns::User
+
+  # Pay integration
+  pay_customer
+
+  # Don't validate password with has_secure_password since devise handles it
+  # has_secure_password validations: false
 
   belongs_to :identity_provider, optional: true
   has_many :card_readings
@@ -18,7 +27,20 @@ class User < ApplicationRecord
 
   validates :external_id, uniqueness: { scope: :identity_provider_id }, allow_nil: true
   validates :email, uniqueness: true, allow_nil: true
-  validates :password, presence: true, length: { minimum: 6 }, if: :registered?
+  validates :password, presence: true, length: { minimum: 6 }, if: :should_validate_password?
+
+  # Make email optional for devise
+  def email_required?
+    false
+  end
+
+  def password_required?
+    registered? && super
+  end
+
+  def should_validate_password?
+    registered? && (new_record? || password.present?)
+  end
 
   def self.find_or_create_anonymous(external_id = nil)
     external_id ||= SecureRandom.uuid
@@ -48,13 +70,22 @@ class User < ApplicationRecord
     identity_provider&.name == IdentityProvider::REGISTERED
   end
 
+  # Legacy token method that uses devise_token_auth under the hood
   def generate_token(expiry: 24.hours.from_now)
-    Auth::JwtService.encode(
-      user_id: id,
-      email: email,
-      identity_provider: identity_provider&.name,
-      exp: expiry.to_i
-    )
+    # Create a token using devise_token_auth's functionality
+    client = SecureRandom.urlsafe_base64(nil, false)
+    token = create_token(client: client, expiry: expiry.to_i)
+    
+    # Store the token in the user's tokens hash
+    tokens[client] = {
+      token: token,
+      expiry: expiry.to_i
+    }
+    
+    save!(validate: false)
+    
+    # Return a JWT-like token for backward compatibility
+    build_auth_header(token, client)["Authorization"].split(" ").last
   end
 
   def generate_refresh_token
@@ -63,13 +94,21 @@ class User < ApplicationRecord
     refresh
   end
 
+  # Class method to find a user from a token
   def self.from_token(token)
     return nil if token.blank?
-
-    payload = Auth::JwtService.decode(token)
-    return nil unless payload
-
-    find_by(id: payload[:user_id])
+    
+    # Try to extract payload from JWT if it's a JWT token
+    begin
+      uid, client = DeviseTokenAuth::TokenFactory.parse_token_from_request(token)
+      user = find_by(uid: uid)
+      return user if user&.valid_token?(token, client)
+    rescue JWT::DecodeError, NoMethodError
+      # Not a valid JWT token, continue to legacy token handling
+    end
+    
+    # Return nil if no user found
+    nil
   end
 
   # Usage tracking methods

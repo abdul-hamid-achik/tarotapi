@@ -37,7 +37,12 @@ gem "rack-cors"
 
 # authentication and authorization gems
 gem "jwt"
+gem "devise", "~> 4.9"
+gem "devise_token_auth", "~> 1.2"
+gem "omniauth", "~> 2.1"
 gem "stripe"
+gem "pay", "~> 8.3.0"
+gem "pundit", "~> 2.3"  # For policy-based authorization
 
 # llm and ai related gems
 gem "ruby-openai", "~> 8.0.0"

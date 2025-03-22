@@ -250,19 +250,10 @@ namespace :subscriptions do
       plan_limit = user.subscription_plan&.reading_limit
 
       if plan_limit && readings_count > plan_limit
-        puts "! user #{user.id} has exceeded their plan limit (#{readings_count}/#{plan_limit})"
+        puts "! user #{user.id}: #{readings_count} readings exceeds limit of #{plan_limit}"
       else
-        puts "✓ user #{user.id} usage: #{readings_count}/#{plan_limit || 'unlimited'}"
+        puts "✓ user #{user.id}: #{readings_count} readings (limit: #{plan_limit || 'unlimited'})"
       end
     end
-  end
-
-  desc "setup all subscription components"
-  task setup: :environment do
-    puts "setting up all subscription components..."
-
-    Rake::Task["subscriptions:setup_webhooks"].invoke
-    Rake::Task["subscriptions:sync_products"].invoke
-    puts "✅ subscription setup completed"
   end
 end

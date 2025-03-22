@@ -1,6 +1,7 @@
 module AuthenticateRequest
   extend ActiveSupport::Concern
   include ActionController::HttpAuthentication::Basic::ControllerMethods
+  include DeviseTokenAuth::Concerns::SetUserByToken
 
   included do
     before_action :authenticate_request
@@ -11,10 +12,10 @@ module AuthenticateRequest
   private
 
   def authenticate_request
-    # Try JWT authentication first
-    @current_user = authenticate_with_jwt
+    # Try JWT/token authentication first via devise_token_auth
+    @current_user = authenticate_with_token
 
-    # If JWT fails, try API key authentication
+    # If token auth fails, try API key authentication
     @current_user ||= authenticate_with_api_key
 
     # If API key fails, try HTTP Basic Auth (especially for agent access)
@@ -23,8 +24,11 @@ module AuthenticateRequest
     render json: { error: "unauthorized" }, status: :unauthorized unless @current_user
   end
 
-  def authenticate_with_jwt
-    User.from_token(token)
+  def authenticate_with_token
+    # Let devise_token_auth handle the token authentication
+    # It will set @resource which we can use to get the current user
+    set_user_by_token
+    @resource
   end
 
   def authenticate_with_api_key
@@ -53,7 +57,7 @@ module AuthenticateRequest
       # Find user by email
       user = User.find_by(email: email)
 
-      if user&.authenticate(password)
+      if user&.valid_password?(password)
         # If it's an agent user, require an API key as well
         if user.agent?
           api_key_token = request.headers["X-API-Key"]

@@ -1,6 +1,10 @@
 Rails.application.routes.draw do
+  mount_devise_token_auth_for 'User', at: 'api/v1/auth'
   # api documentation
   mount Rswag::Api::Engine => "/api"
+
+  # Pay webhooks and checkout routes
+  mount Pay::Engine, at: '/pay', as: 'pay_engine'
 
   # make redoc the default documentation interface
   root to: redirect("/docs")
@@ -35,6 +39,11 @@ Rails.application.routes.draw do
       resources :subscriptions, only: [ :create, :show ] do
         member do
           post :cancel
+        end
+        collection do
+          get :payment_methods
+          post :attach_payment_method
+          delete :detach_payment_method
         end
       end
 
