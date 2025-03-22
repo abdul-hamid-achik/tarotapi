@@ -1,3 +1,7 @@
+require "dotenv"
+require "semantic_logger"
+require_relative "../task_logger"
+
 namespace :db do
   desc "Check database configuration for all environments"
   task check_config: :environment do

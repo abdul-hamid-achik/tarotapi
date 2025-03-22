@@ -1,3 +1,7 @@
+require "dotenv"
+require "semantic_logger"
+require_relative "../task_logger"
+
 namespace :dev do
   desc "Set up development environment"
   task setup: :environment do

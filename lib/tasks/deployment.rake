@@ -1,3 +1,7 @@
+require "dotenv"
+require "semantic_logger"
+require_relative "../task_logger"
+
 namespace :deploy do
   desc "Deploy the application with zero downtime"
   task :production do
