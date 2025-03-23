@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: development
-    image: tarot_api:latest
+    image: ${CONTAINER_REGISTRY:-ghcr.io/abdul-hamid-achik/tarot-api}:development
     depends_on:
       postgres:
         condition: service_healthy

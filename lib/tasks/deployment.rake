@@ -103,27 +103,33 @@ namespace :deploy do
     if registry.nil?
       TaskLogger.info("CONTAINER_REGISTRY not set, attempting to get it from Pulumi outputs...")
 
-      # Change directory to infrastructure folder
-      Dir.chdir(File.expand_path("../../infrastructure", __dir__)) do
-        # Try to get the container registry from Pulumi output
-        output = `pulumi stack output containerRegistry --stack #{env} 2>/dev/null`.strip
+      # For development env, default to GitHub Container Registry if not set
+      if env == "development"
+        registry = "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarot-api"
+        TaskLogger.info("Using GitHub Container Registry for development: #{registry}")
+      else
+        # Change directory to infrastructure folder
+        Dir.chdir(File.expand_path("../../infrastructure", __dir__)) do
+          # Try to get the container registry from Pulumi output
+          output = `pulumi stack output containerRegistry --stack #{env} 2>/dev/null`.strip
 
-        # Parse the output - match the exact format we're seeing
-        if output =~ /^\{"value":"([^"]+)"\}$/
-          registry = $1
-          TaskLogger.info("Extracted registry URL from JSON output: #{registry}")
-        elsif output =~ /^"(.+)"$/
-          registry = $1
-          TaskLogger.info("Extracted registry URL from quoted string: #{registry}")
-        else
-          registry = output
-          TaskLogger.info("Using registry URL as-is: #{registry}")
-        end
+          # Parse the output - match the exact format we're seeing
+          if output =~ /^\{"value":"([^"]+)"\}$/
+            registry = $1
+            TaskLogger.info("Extracted registry URL from JSON output: #{registry}")
+          elsif output =~ /^"(.+)"$/
+            registry = $1
+            TaskLogger.info("Extracted registry URL from quoted string: #{registry}")
+          else
+            registry = output
+            TaskLogger.info("Using registry URL as-is: #{registry}")
+          end
 
-        if registry.nil? || registry.empty?
-          raise "CONTAINER_REGISTRY not set and could not be retrieved from Pulumi outputs"
-        else
-          TaskLogger.info("Using container registry from Pulumi outputs: #{registry}")
+          if registry.nil? || registry.empty?
+            raise "CONTAINER_REGISTRY not set and could not be retrieved from Pulumi outputs"
+          else
+            TaskLogger.info("Using container registry from Pulumi outputs: #{registry}")
+          end
         end
       end
     end

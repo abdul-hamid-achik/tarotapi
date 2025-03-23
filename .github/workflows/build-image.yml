@@ -46,5 +46,11 @@ jobs:
       
       - name: Build and push container image
         run: |
+          # Set the GitHub Container Registry URL for development
+          export CONTAINER_REGISTRY="ghcr.io/${{ github.repository_owner }}/tarot-api"
+          
+          # Build the image for development environment
           bundle exec rake container:build[development]
+          
+          # Push to GitHub Container Registry
           bundle exec rake container:push[development] 

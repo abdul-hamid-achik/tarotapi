@@ -114,8 +114,19 @@ jobs:
   
       - name: Push Container Image
         run: |
-          # Get container registry from Pulumi
-          export CONTAINER_REGISTRY=$(pulumi stack output containerRegistry --stack ${{ env.TARGET }})
+          # Different registry handling based on environment
+          if [[ "${{ env.TARGET }}" == "development" ]]; then
+            # For development, use GitHub Container Registry
+            export CONTAINER_REGISTRY="ghcr.io/${{ github.repository_owner }}/tarot-api"
+          else
+            # For production/staging, use the ECR from Pulumi
+            # First make sure we're in the right directory
+            cd infrastructure
+            export CONTAINER_REGISTRY=$(pulumi stack output containerRegistry --stack ${{ env.TARGET }})
+            cd ..
+          fi
+          
+          echo "Using container registry: $CONTAINER_REGISTRY"
           
           # Push the container
           bundle exec rake deploy:push[${{ env.TARGET }}]
