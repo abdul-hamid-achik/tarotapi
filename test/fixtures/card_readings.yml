@@ -1,25 +1,15 @@
 # Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
 
 one:
-  user: one
-  tarot_card: one
+  card: one
+  reading: one
   position: 1
-  is_reversed: false
-  notes: mytext
-  reading_session: one
-  spread: one
-  interpretation: mytext
-  spread_position: {}
-  reading_date: <%= Time.current %>
+  reversed: false
+  interpretation: Sample interpretation for first card
 
 two:
-  user: two
-  tarot_card: two
+  card: two
+  reading: two
   position: 1
-  is_reversed: false
-  notes: mytext
-  reading_session: two
-  spread: two
-  interpretation: mytext
-  spread_position: {}
-  reading_date: <%= Time.current %>
+  reversed: false
+  interpretation: Sample interpretation for second card

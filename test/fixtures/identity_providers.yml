@@ -1,11 +1,14 @@
 anonymous:
   name: anonymous
-  description: anonymous users with temporary ids
+  provider_type: anonymous
+  settings: {}
 
 registered:
   name: registered
-  description: registered users with permanent accounts
+  provider_type: registered
+  settings: {}
 
 agent:
   name: agent
-  description: agent users for api integrations 
+  provider_type: agent
+  settings: {} 

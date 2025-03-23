@@ -4,16 +4,18 @@ one:
   name: the fool
   arcana: major
   suit: major arcana
+  rank: "0"
   description: represents new beginnings, innocence, and spontaneity
-  rank: 0
-  symbols: white dog, cliff, knapsack, white rose
+  keywords: ["beginnings", "innocence", "spontaneity"]
+  symbols: ["white dog", "cliff", "knapsack", "white rose"]
   image_url: https://example.com/fool.jpg
 
 two:
   name: the magician
   arcana: major
   suit: major arcana
+  rank: "1"
   description: represents manifestation, resourcefulness, and power
-  rank: 1
-  symbols: infinity symbol, red and white flowers, the four elements
-  image_url: https://example.com/magician.jpg
+  keywords: ["manifestation", "resourcefulness", "power"]
+  symbols: ["infinity symbol", "red and white flowers", "the four elements"]
+  image_url: https://example.com/magician.jpg 

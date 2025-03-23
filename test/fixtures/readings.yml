@@ -1,0 +1,17 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  user: one
+  spread: one
+  question: What does my future hold?
+  interpretation: Sample interpretation for the first reading
+  completed_at: <%= Time.current %>
+  status: completed
+
+two:
+  user: two
+  spread: two
+  question: How will my career develop?
+  interpretation: Sample interpretation for the second reading
+  completed_at: <%= Time.current %>
+  status: completed 

@@ -7,9 +7,8 @@ default: &default
   username: <%= ENV.fetch("DB_USERNAME") { "tarot_api" } %>
   password: <%= ENV.fetch("DB_PASSWORD") { "password" } %>
   port: <%= ENV.fetch("DB_PORT") { 5432 } %>
-  # Clear pattern for database names - IMPORTANT: this should always take precedence
-  # over any conflicting environment variables (DB_NAME, etc.)
-  database: tarot_api_<%= ENV["DATABASE_URL"] ? nil : Rails.env %>
+  # Set explicit database name with environment suffix
+  database: <%= ENV.fetch("DB_NAME") { "tarot_api_#{Rails.env}" } %>
   url: <%= ENV["DATABASE_URL"] %>
   # Connection pool settings
   reaping_frequency: <%= ENV.fetch("DB_REAPING_FREQUENCY") { 10 } %>
@@ -43,14 +42,14 @@ staging:
     connections:
       - role: primary
         name: primary
-        database: tarot_api_<%= ENV["DATABASE_URL"] ? nil : Rails.env %>
+        database: <%= ENV.fetch("DB_NAME") { "tarot_api_#{Rails.env}" } %>
         host: <%= ENV["DB_PRIMARY_HOST"] || ENV["DB_HOST"] %>
         port: <%= ENV["DB_PRIMARY_PORT"] || ENV["DB_PORT"] || 5432 %>
         username: <%= ENV["DB_PRIMARY_USER"] || ENV["DB_USERNAME"] %>
         password: <%= ENV["DB_PRIMARY_PASSWORD"] || ENV["DB_PASSWORD"] %>
       - role: replica
         name: replica
-        database: tarot_api_<%= ENV["DATABASE_URL"] ? nil : Rails.env %>
+        database: <%= ENV.fetch("DB_NAME") { "tarot_api_#{Rails.env}" } %>
         host: <%= ENV["DB_REPLICA_HOST"] || ENV["DB_HOST"] %>
         port: <%= ENV["DB_REPLICA_PORT"] || ENV["DB_PORT"] || 5432 %>
         username: <%= ENV["DB_REPLICA_USER"] || ENV["DB_USERNAME"] %>
@@ -73,14 +72,14 @@ production:
     connections:
       - role: primary
         name: primary
-        database: tarot_api_<%= ENV["DATABASE_URL"] ? nil : Rails.env %>
+        database: <%= ENV.fetch("DB_NAME") { "tarot_api_#{Rails.env}" } %>
         host: <%= ENV["DB_PRIMARY_HOST"] || ENV["DB_HOST"] %>
         port: <%= ENV["DB_PRIMARY_PORT"] || ENV["DB_PORT"] || 5432 %>
         username: <%= ENV["DB_PRIMARY_USER"] || ENV["DB_USERNAME"] %>
         password: <%= ENV["DB_PRIMARY_PASSWORD"] || ENV["DB_PASSWORD"] %>
       - role: replica
         name: replica
-        database: tarot_api_<%= ENV["DATABASE_URL"] ? nil : Rails.env %>
+        database: <%= ENV.fetch("DB_NAME") { "tarot_api_#{Rails.env}" } %>
         host: <%= ENV["DB_REPLICA_HOST"] || ENV["DB_HOST"] %>
         port: <%= ENV["DB_REPLICA_PORT"] || ENV["DB_PORT"] || 5432 %>
         username: <%= ENV["DB_REPLICA_USER"] || ENV["DB_USERNAME"] %>

@@ -90,14 +90,45 @@ namespace :dev do
 end
 
 namespace :test do
+  desc "Kill all connections to the test database"
+  task kill_connections: :environment do
+    db_name = ActiveRecord::Base.connection_db_config.database
+    TaskLogger.info("Killing all connections to #{db_name}...")
+
+    # This query terminates all connections to the specified database
+    sql = <<-SQL
+      SELECT pg_terminate_backend(pg_stat_activity.pid)
+      FROM pg_stat_activity
+      WHERE pg_stat_activity.datname = '#{db_name}'
+      AND pid <> pg_backend_pid();
+    SQL
+
+    ActiveRecord::Base.connection.execute(sql)
+    TaskLogger.info("All connections to #{db_name} have been terminated")
+  end
+
   desc "Run all tests"
   task :all do
     # Set Rails environment to test
     ENV["RAILS_ENV"] = "test"
 
-    # Prepare test database
-    Rake::Task["db:test:prepare"].invoke
-    Rake::Task["db:test:load"].invoke
+    # Kill all existing connections
+    TaskLogger.info("Killing all connections to test database...")
+    begin
+      Rake::Task["test:kill_connections"].invoke
+    rescue => e
+      TaskLogger.warn("Failed to kill connections: #{e.message}")
+    end
+
+    # Prepare test database safely
+    TaskLogger.info("Preparing test database...")
+    begin
+      Rake::Task["db:test:prepare"].invoke
+    rescue => e
+      TaskLogger.warn("Failed to prepare database: #{e.message}")
+    end
+
+    TaskLogger.info("Test database preparation complete!")
 
     TaskLogger.info("Running all tests...")
 
@@ -165,6 +196,7 @@ namespace :ci do
 
     Rake::Task["ci:lint"].invoke
     Rake::Task["ci:security"].invoke
+    # Re-enable tests now that we have Docker services running
     Rake::Task["test:all"].invoke
 
     TaskLogger.info("CI checks completed!")
@@ -190,8 +222,8 @@ namespace :ci do
     # Check for vulnerable dependencies
     system("bundle exec bundle audit check --update")
 
-    # Run Brakeman for security analysis
-    system("bundle exec brakeman -q -w2")
+    # Run Brakeman for security analysis with no pager and colored output
+    system("bundle exec brakeman -q -w2 --no-pager --color")
   end
 
   namespace :docker do

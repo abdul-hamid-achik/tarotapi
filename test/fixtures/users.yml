@@ -8,22 +8,30 @@ one:
   identity_provider: registered
   external_id: user-1
   email: user1@example.com
-  password_digest: <%= BCrypt::Password.create('password123') %>
+  encrypted_password: <%= BCrypt::Password.create('password123') %>
+  provider: email
+  uid: user1@example.com
 
 two:
   identity_provider: registered
   external_id: user-2
   email: user2@example.com
-  password_digest: <%= BCrypt::Password.create('password123') %>
+  encrypted_password: <%= BCrypt::Password.create('password123') %>
+  provider: email
+  uid: user2@example.com
 
 anonymous:
   identity_provider: anonymous
   external_id: anon-1
   email: anon@example.com
-  password_digest: <%= BCrypt::Password.create('password123') %>
+  encrypted_password: <%= BCrypt::Password.create('password123') %>
+  provider: email
+  uid: anon@example.com
 
 agent:
   identity_provider: agent
   external_id: agent-1
   email: agent@example.com
-  password_digest: <%= BCrypt::Password.create('password123') %>
+  encrypted_password: <%= BCrypt::Password.create('password123') %>
+  provider: email
+  uid: agent@example.com
