@@ -1,7 +1,7 @@
 FactoryBot.define do
   factory :identity_provider do
-    provider { %w[google github].sample }
-    uid { Faker::Internet.uuid }
-    association :user
+    sequence(:name) { |n| "provider-#{n}" }
+    provider_type { %w[oauth email anonymous].sample }
+    settings { {} }
   end
 end

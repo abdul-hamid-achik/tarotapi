@@ -10,7 +10,17 @@ RSpec.describe Card, type: :model do
 
   describe 'validations' do
     it { should validate_presence_of(:name) }
-    it { should validate_uniqueness_of(:name) }
+
+    it 'validates uniqueness of name' do
+      # Create a test card first
+      create(:card, name: 'Test Card')
+
+      # Then test uniqueness
+      duplicate_card = build(:card, name: 'Test Card')
+      expect(duplicate_card).not_to be_valid
+      expect(duplicate_card.errors[:name]).to include('has already been taken')
+    end
+
     it { should validate_presence_of(:arcana) }
     it { should validate_presence_of(:description) }
 

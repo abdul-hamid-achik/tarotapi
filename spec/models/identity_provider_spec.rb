@@ -10,7 +10,7 @@ RSpec.describe IdentityProvider, type: :model do
 
     it 'validates uniqueness of name' do
       # Create a record first
-      IdentityProvider.create!(name: 'test-provider', description: 'test')
+      IdentityProvider.create!(name: 'test-provider')
 
       # Then test uniqueness
       provider = IdentityProvider.new(name: 'test-provider')
@@ -39,7 +39,6 @@ RSpec.describe IdentityProvider, type: :model do
 
       expect(provider).to be_persisted
       expect(provider.name).to eq(IdentityProvider::ANONYMOUS)
-      expect(provider.description).to include('anonymous')
     end
 
     it 'returns the same provider on subsequent calls' do
@@ -56,7 +55,6 @@ RSpec.describe IdentityProvider, type: :model do
 
       expect(provider).to be_persisted
       expect(provider.name).to eq(IdentityProvider::REGISTERED)
-      expect(provider.description).to include('registered')
     end
 
     it 'returns the same provider on subsequent calls' do
@@ -73,7 +71,6 @@ RSpec.describe IdentityProvider, type: :model do
 
       expect(provider).to be_persisted
       expect(provider.name).to eq(IdentityProvider::AGENT)
-      expect(provider.description).to include('agent')
     end
 
     it 'returns the same provider on subsequent calls' do

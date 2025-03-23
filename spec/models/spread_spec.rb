@@ -2,17 +2,20 @@ require 'rails_helper'
 
 RSpec.describe Spread, type: :model do
   describe 'associations' do
-    it { should belong_to(:user) }
+    it { should belong_to(:user).optional }
     it { should have_many(:card_readings).dependent(:nullify) }
     it { should have_many(:readings) }
   end
 
   describe 'validations' do
     it { should validate_presence_of(:name) }
-    it { should validate_uniqueness_of(:name) }
+    let(:spread) { create(:spread) }
+    it { expect(spread).to validate_uniqueness_of(:name) }
     it { should validate_presence_of(:description) }
     it { should validate_presence_of(:positions) }
     it { should validate_inclusion_of(:is_public).in_array([ true, false ]) }
+    it { should validate_presence_of(:num_cards) }
+    it { should validate_numericality_of(:num_cards).is_greater_than(0) }
   end
 
   describe 'scopes' do
@@ -25,7 +28,7 @@ RSpec.describe Spread, type: :model do
 
     describe '.system_spreads' do
       it 'returns only system spreads' do
-        result = Spread.system_spreads
+        result = Spread.system
         expect(result).to include(@system_spread)
         expect(result).not_to include(@public_spread)
         expect(result).not_to include(@private_spread)

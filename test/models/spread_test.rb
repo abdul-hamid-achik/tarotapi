@@ -36,7 +36,7 @@ class SpreadTest < ActiveSupport::TestCase
   end
 
   test "scope system_spreads returns only system spreads" do
-    system_spreads = Spread.system_spreads
+    system_spreads = Spread.system
     assert system_spreads.all?(&:is_system)
   end
 
