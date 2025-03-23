@@ -16,6 +16,7 @@ class Spread < ApplicationRecord
   scope :public_spreads, -> { where(is_public: true) }
   scope :default_available, -> { where(is_system: true).or(where(is_public: true)) }
   scope :accessible_by, ->(user) { where("is_public = ? OR is_system = ? OR user_id = ?", true, true, user.id) }
+  scope :system_spreads, -> { where(system: true) }
 
   def self.default_spread
     SpreadService.default_spread

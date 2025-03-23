@@ -9,20 +9,14 @@ class IdentityProvider < ApplicationRecord
   AGENT = "agent"
 
   def self.anonymous
-    find_or_create_by!(name: ANONYMOUS) do |provider|
-      provider.description = "anonymous users with temporary ids"
-    end
+    find_or_create_by!(name: ANONYMOUS)
   end
 
   def self.registered
-    find_or_create_by!(name: REGISTERED) do |provider|
-      provider.description = "registered users with permanent accounts"
-    end
+    find_or_create_by!(name: REGISTERED)
   end
 
   def self.agent
-    find_or_create_by!(name: AGENT) do |provider|
-      provider.description = "agent users for api integrations"
-    end
+    find_or_create_by!(name: AGENT)
   end
 end

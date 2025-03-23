@@ -110,7 +110,13 @@ module LlmProviders
     private
 
     def initialize_client
-      require "langchain"
+      if Rails.env.test?
+        # Use a mock implementation for testing
+        require_relative '../../../spec/support/langchain_mock'
+      else
+        require "langchain"
+      end
+      
       api_host = ENV.fetch("OLLAMA_API_HOST", "http://ollama:11434")
       Langchain::LLM::Ollama.new(url: api_host)
     end

@@ -7,7 +7,7 @@ class User < ApplicationRecord
   # Pay integration
   pay_customer
 
-  # Don't validate password with has_secure_password since devise handles it
+  # Don't use has_secure_password since Devise handles authentication
   # has_secure_password validations: false
 
   belongs_to :identity_provider, optional: true
@@ -20,13 +20,18 @@ class User < ApplicationRecord
   has_many :active_storage_blobs, through: :active_storage_attachments
   has_one :reading_quota
   has_many :api_keys, dependent: :destroy
+  
+  # Add reading_sessions association for the tests
+  has_many :reading_sessions
 
   # Track created agent users
   belongs_to :created_by, class_name: "User", foreign_key: "created_by_user_id", optional: true
   has_many :created_agents, class_name: "User", foreign_key: "created_by_user_id"
 
   validates :external_id, uniqueness: { scope: :identity_provider_id }, allow_nil: true
-  validates :email, uniqueness: true, allow_nil: true
+  validates :email, uniqueness: true, allow_nil: true, 
+            format: { with: URI::MailTo::EMAIL_REGEXP, message: "is invalid" }, 
+            if: :registered?
   validates :password, presence: true, length: { minimum: 6 }, if: :should_validate_password?
 
   # Make email optional for devise
@@ -35,11 +40,16 @@ class User < ApplicationRecord
   end
 
   def password_required?
-    registered? && super
+    registered? 
   end
 
   def should_validate_password?
     registered? && (new_record? || password.present?)
+  end
+
+  # Add authenticate method for the tests
+  def authenticate(password)
+    valid_password?(password) ? self : false
   end
 
   def self.find_or_create_anonymous(external_id = nil)

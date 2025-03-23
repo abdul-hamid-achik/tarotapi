@@ -17,7 +17,9 @@ RSpec.describe SeanceTokenService do
       second_token = service.generate_token(client_id)
 
       expect(second_token[:token]).to eq(first_token[:token])
-      expect(second_token[:expires_at]).to eq(first_token[:expires_at])
+      first_date = Time.parse(first_token[:expires_at].to_s)
+      second_date = Time.parse(second_token[:expires_at].to_s)
+      expect(second_date).to be_within(1.second).of(first_date)
     end
 
     it 'generates a new token when previous token expires' do

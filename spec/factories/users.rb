@@ -2,7 +2,6 @@ FactoryBot.define do
   factory :user do
     email { Faker::Internet.email }
     external_id { Faker::Internet.uuid }
-    metadata { {} }
     password { "password123" }
     password_confirmation { "password123" }
 

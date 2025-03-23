@@ -68,6 +68,8 @@ Rails.application.routes.draw do
 
       resources :users, only: [ :create, :show ]
       resources :cards, only: [ :index, :show ]
+      # Add TarotCard routes for testing
+      resources :tarot_cards, only: [ :index, :show ]
       resources :card_readings, only: [ :create, :index, :show ] do
         collection do
           post :interpret
@@ -82,6 +84,8 @@ Rails.application.routes.draw do
           get :symbolism
         end
       end
+      # Add ReadingSession routes for testing
+      resources :reading_sessions, only: [ :create, :index, :show ]
 
       # Arcana explanation endpoint
       get "arcana/:arcana_type", to: "readings#arcana_explanation"

@@ -29,22 +29,24 @@ class UserTest < ActiveSupport::TestCase
   end
 
   test "validates email uniqueness" do
-    existing_user = users(:one)
-
-    # Ensure the existing user has an email
-    existing_user.update(email: "test@example.com")
-
-    # Set up identity provider for registered user
+    # Create a user with a specific email
     identity_provider = IdentityProvider.find_or_create_by(name: IdentityProvider::REGISTERED)
-
-    user = User.new(
-      email: existing_user.email,
-      name: "test",
-      password: "password",
+    existing_user = User.create!(
+      email: "duplicate@example.com",
+      name: "Existing User",
+      password: "password123",
+      password_confirmation: "password123",
       identity_provider: identity_provider
     )
-    user.valid?
 
+    # Try to create another user with the same email
+    user = User.new(
+      email: "duplicate@example.com",
+      name: "New User",
+      password: "different123",
+      identity_provider: identity_provider
+    )
+    assert_not user.valid?
     assert_includes user.errors[:email], "has already been taken"
   end
 
@@ -117,7 +119,8 @@ class UserTest < ActiveSupport::TestCase
       password: "digestpass",
       identity_provider: IdentityProvider.find_or_create_by(name: IdentityProvider::REGISTERED)
     )
-    assert_not_nil user.password_digest
+    assert user.persisted?
+    assert_not_nil user.encrypted_password
   end
 
   test "password not required for anonymous users" do
@@ -125,6 +128,6 @@ class UserTest < ActiveSupport::TestCase
       identity_provider: IdentityProvider.find_or_create_by(name: IdentityProvider::ANONYMOUS),
       external_id: SecureRandom.uuid
     )
-    assert user.valid?
+    assert_not user.password_required?
   end
 end

@@ -44,6 +44,9 @@ module TarotApi
 
     # Add app/middleware to the eager load paths
     config.eager_load_paths << Rails.root.join("app/middleware")
+    
+    # Add app/models/test_support to the autoload paths for tests
+    config.autoload_paths += %W(#{config.root}/app/models/test_support)
 
     # Only loads a smaller set of middleware suitable for API only apps.
     # Middleware like session, flash, cookies can be added back manually.

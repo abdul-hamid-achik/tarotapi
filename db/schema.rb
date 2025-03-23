@@ -114,12 +114,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.text "interpretation"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "reading_session_id"
+    t.boolean "is_reversed", default: false, null: false
+    t.datetime "reading_date"
+    t.bigint "user_id"
+    t.bigint "spread_id"
     t.index ["card_id", "created_at"], name: "index_card_readings_on_card_id_and_created_at"
     t.index ["card_id", "reading_id"], name: "index_card_readings_on_card_id_and_reading_id"
     t.index ["card_id"], name: "index_card_readings_on_card_id"
     t.index ["reading_id", "card_id"], name: "index_card_readings_on_reading_id_and_card_id"
     t.index ["reading_id", "position"], name: "index_card_readings_on_reading_id_and_position", unique: true
     t.index ["reading_id"], name: "index_card_readings_on_reading_id"
+    t.index ["reading_session_id"], name: "index_card_readings_on_reading_session_id"
+    t.index ["spread_id"], name: "index_card_readings_on_spread_id"
+    t.index ["user_id", "created_at"], name: "index_card_readings_on_user_id_and_created_at"
+    t.index ["user_id"], name: "index_card_readings_on_user_id"
   end
 
   create_table "cards", force: :cascade do |t|
@@ -287,6 +296,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.index ["user_id"], name: "index_reading_quotas_on_user_id"
   end
 
+  create_table "reading_sessions", force: :cascade do |t|
+    t.string "session_id", null: false
+    t.datetime "reading_date"
+    t.string "status", default: "completed"
+    t.bigint "user_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "question"
+    t.bigint "spread_id"
+    t.index ["session_id"], name: "index_reading_sessions_on_session_id", unique: true
+    t.index ["spread_id"], name: "index_reading_sessions_on_spread_id"
+    t.index ["user_id"], name: "index_reading_sessions_on_user_id"
+  end
+
   create_table "readings", force: :cascade do |t|
     t.bigint "user_id"
     t.bigint "spread_id"
@@ -415,7 +438,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
   add_foreign_key "authorizations", "users"
   add_foreign_key "card_interpretations", "cards"
   add_foreign_key "card_readings", "cards"
+  add_foreign_key "card_readings", "reading_sessions"
   add_foreign_key "card_readings", "readings"
+  add_foreign_key "card_readings", "spreads"
+  add_foreign_key "card_readings", "users"
   add_foreign_key "memberships", "organizations"
   add_foreign_key "memberships", "users"
   add_foreign_key "pay_charges", "pay_customers", column: "customer_id"
@@ -423,6 +449,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
   add_foreign_key "pay_payment_methods", "pay_customers", column: "customer_id"
   add_foreign_key "pay_subscriptions", "pay_customers", column: "customer_id"
   add_foreign_key "reading_quotas", "users"
+  add_foreign_key "reading_sessions", "spreads"
+  add_foreign_key "reading_sessions", "users"
   add_foreign_key "readings", "spreads"
   add_foreign_key "readings", "users"
   add_foreign_key "spreads", "users"
