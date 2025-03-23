@@ -36,6 +36,6 @@ class CardsController < ApplicationController
   def params_cache_key
     # Sort query parameters to ensure consistent cache keys
     sorted_params = request.query_parameters.sort.map { |k, v| "#{k}=#{v}" }
-    Digest::MD5.hexdigest(sorted_params.join("&"))
+    Digest::SHA256.hexdigest(sorted_params.join("&"))
   end
 end

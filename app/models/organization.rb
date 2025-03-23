@@ -39,9 +39,21 @@ class Organization < ApplicationRecord
     start_date ||= 30.days.ago.beginning_of_day
     end_date ||= Time.current.end_of_day
 
+    # Whitelist allowed granularity values to prevent SQL injection
+    allowed_granularities = {
+      hourly: 'hour',
+      daily: 'day',
+      weekly: 'week',
+      monthly: 'month',
+      yearly: 'year'
+    }
+    
+    # Default to daily if an invalid granularity is provided
+    safe_granularity = allowed_granularities[granularity.to_sym] || 'day'
+
     metrics = usage_logs
       .where(recorded_at: start_date..end_date)
-      .group("date_trunc('#{granularity}', recorded_at)")
+      .group("date_trunc('#{safe_granularity}', recorded_at)")
       .group(:metric_type)
       .count
 
