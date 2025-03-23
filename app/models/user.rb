@@ -20,7 +20,7 @@ class User < ApplicationRecord
   has_many :active_storage_blobs, through: :active_storage_attachments
   has_one :reading_quota
   has_many :api_keys, dependent: :destroy
-  
+
   # Add reading_sessions association for the tests
   has_many :reading_sessions
 
@@ -29,8 +29,8 @@ class User < ApplicationRecord
   has_many :created_agents, class_name: "User", foreign_key: "created_by_user_id"
 
   validates :external_id, uniqueness: { scope: :identity_provider_id }, allow_nil: true
-  validates :email, uniqueness: true, allow_nil: true, 
-            format: { with: URI::MailTo::EMAIL_REGEXP, message: "is invalid" }, 
+  validates :email, uniqueness: true, allow_nil: true,
+            format: { with: URI::MailTo::EMAIL_REGEXP, message: "is invalid" },
             if: :registered?
   validates :password, presence: true, length: { minimum: 6 }, if: :should_validate_password?
 
@@ -40,7 +40,7 @@ class User < ApplicationRecord
   end
 
   def password_required?
-    registered? 
+    registered?
   end
 
   def should_validate_password?

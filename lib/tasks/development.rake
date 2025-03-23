@@ -91,10 +91,10 @@ namespace :dev do
   desc "Start Docker development environment"
   task :up do
     TaskLogger.info("Starting Docker development environment...")
-    
+
     # Set development container registry
     ENV["CONTAINER_REGISTRY"] = "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarot-api"
-    
+
     system("docker-compose up -d")
     TaskLogger.info("Docker development environment started!")
   end
@@ -105,14 +105,14 @@ namespace :dev do
     system("docker-compose down")
     TaskLogger.info("Docker development environment stopped!")
   end
-  
+
   desc "Rebuild Docker development environment"
   task :rebuild do
     TaskLogger.info("Rebuilding Docker development environment...")
-    
+
     # Set development container registry
     ENV["CONTAINER_REGISTRY"] = "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarot-api"
-    
+
     system("docker-compose build --no-cache")
     TaskLogger.info("Docker development environment rebuilt!")
   end
@@ -273,10 +273,10 @@ namespace :docker do
   desc "Build development Docker image"
   task :build do
     TaskLogger.info("Building development Docker image...")
-    
+
     # Set development container registry
     ENV["CONTAINER_REGISTRY"] = "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarot-api"
-    
+
     system("docker-compose build")
     TaskLogger.info("Development Docker image built!")
   end
@@ -284,14 +284,14 @@ namespace :docker do
   desc "Push development Docker image to GitHub Container Registry"
   task :push do
     TaskLogger.info("Pushing development Docker image to GitHub Container Registry...")
-    
+
     # Set development container registry
     registry = ENV["CONTAINER_REGISTRY"] || "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarot-api"
-    
+
     # Tag and push the image
     system("docker tag tarot_api:latest #{registry}:development")
     system("docker push #{registry}:development")
-    
+
     TaskLogger.info("Development Docker image pushed to #{registry}:development")
   end
 end

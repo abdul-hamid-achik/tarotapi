@@ -104,7 +104,7 @@ class CardReadingTest < ActiveSupport::TestCase
       card: cards(:one),
       reading_session: session
     )
-    
+
     assert card_reading.valid?
   end
 end

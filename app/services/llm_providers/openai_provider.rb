@@ -20,7 +20,7 @@ module LlmProviders
         response = @client.complete(
           prompt: {
             system: opts[:system_prompt],
-            messages: [{ role: "user", content: prompt }]
+            messages: [ { role: "user", content: prompt } ]
           },
           model: opts[:model],
           max_tokens: opts[:max_tokens],
@@ -60,7 +60,7 @@ module LlmProviders
         @client.stream(
           prompt: {
             system: opts[:system_prompt],
-            messages: [{ role: "user", content: prompt }]
+            messages: [ { role: "user", content: prompt } ]
           },
           model: opts[:model],
           max_tokens: opts[:max_tokens],
@@ -93,11 +93,11 @@ module LlmProviders
     def initialize_client
       if Rails.env.test?
         # Use a mock implementation for testing
-        require_relative '../../../spec/support/langchain_mock'
+        require_relative "../../../spec/support/langchain_mock"
       else
         require "langchain"
       end
-      
+
       Langchain::LLM::OpenAI.new(api_key: ENV.fetch("OPENAI_API_KEY"))
     end
   end

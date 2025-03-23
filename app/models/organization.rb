@@ -41,15 +41,15 @@ class Organization < ApplicationRecord
 
     # Whitelist allowed granularity values to prevent SQL injection
     allowed_granularities = {
-      hourly: 'hour',
-      daily: 'day',
-      weekly: 'week',
-      monthly: 'month',
-      yearly: 'year'
+      hourly: "hour",
+      daily: "day",
+      weekly: "week",
+      monthly: "month",
+      yearly: "year"
     }
-    
+
     # Default to daily if an invalid granularity is provided
-    safe_granularity = allowed_granularities[granularity.to_sym] || 'day'
+    safe_granularity = allowed_granularities[granularity.to_sym] || "day"
 
     metrics = usage_logs
       .where(recorded_at: start_date..end_date)

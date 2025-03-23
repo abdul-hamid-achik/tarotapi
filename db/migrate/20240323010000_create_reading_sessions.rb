@@ -5,10 +5,10 @@ class CreateReadingSessions < ActiveRecord::Migration[7.0]
       t.datetime :reading_date
       t.string :status, default: 'completed'
       t.references :user, foreign_key: true
-      
+
       t.timestamps
     end
-    
+
     add_index :reading_sessions, :session_id, unique: true
   end
-end 
+end

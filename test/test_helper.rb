@@ -26,7 +26,7 @@ class User
 
   # This is needed to support the tests that directly call password_digest
   def method_missing(method, *args)
-    if method.to_s == 'password_digest' && args.present?
+    if method.to_s == "password_digest" && args.present?
       self.encrypted_password
     else
       super
@@ -34,7 +34,7 @@ class User
   end
 
   def respond_to_missing?(method, include_private = false)
-    method.to_s == 'password_digest' || super
+    method.to_s == "password_digest" || super
   end
 end
 
@@ -79,12 +79,12 @@ module ActiveSupport
     fixtures :all
 
     # Add more helper methods to be used by all tests here...
-    
+
     # Alias cards fixtures as tarot_cards for test compatibility
     def tarot_cards(name)
       cards(name)
     end
-    
+
     # Add reading_sessions fixture method for tests
     def reading_sessions(name)
       # If we have reading fixtures, return those, otherwise try to create a mock
@@ -93,7 +93,7 @@ module ActiveSupport
       else
         # Create a mock fixture on the fly
         @mock_reading_sessions ||= {}
-        
+
         unless @mock_reading_sessions[name]
           @mock_reading_sessions[name] = ReadingSession.create!(
             session_id: "test-#{name}-#{SecureRandom.hex(4)}",
@@ -101,14 +101,14 @@ module ActiveSupport
             user: users(:one),
             spread: spreads(:one),
             reading_date: Time.current,
-            status: 'completed'
+            status: "completed"
           )
         end
-        
+
         @mock_reading_sessions[name]
       end
     end
-    
+
     # Add card_readings fixture method for tests
     def card_readings(name)
       # If we have card_readings fixtures, return those, otherwise try to create a mock
@@ -117,7 +117,7 @@ module ActiveSupport
       else
         # Create a mock fixture on the fly
         @mock_card_readings ||= {}
-        
+
         unless @mock_card_readings[name]
           @mock_card_readings[name] = CardReading.create!(
             position: "Test position for #{name}",
@@ -127,7 +127,7 @@ module ActiveSupport
             reading_date: Time.current
           )
         end
-        
+
         @mock_card_readings[name]
       end
     end

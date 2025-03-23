@@ -16,7 +16,7 @@ class CardReading < ApplicationRecord
 
   # Add these attributes for the tests if they don't exist on the model
   attribute :is_reversed, :boolean, default: false
-  
+
   private
 
   def set_reading_date

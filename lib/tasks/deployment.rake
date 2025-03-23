@@ -87,15 +87,15 @@ namespace :deploy do
   desc "Build container image"
   task :build, [ :env ] do |t, args|
     env = args[:env] || "production"
-    commit_hash = ENV['GITHUB_SHA'] || `git rev-parse --short HEAD`.strip
-    
+    commit_hash = ENV["GITHUB_SHA"] || `git rev-parse --short HEAD`.strip
+
     TaskLogger.info("Building container image for #{env} with commit hash #{commit_hash}...")
 
     system("docker build -t tarot-api:#{commit_hash} \
       --build-arg RAILS_ENV=#{env} \
       --build-arg RAILS_MASTER_KEY=#{ENV['RAILS_MASTER_KEY']} \
       .")
-      
+
     # Also tag as latest for convenience
     system("docker tag tarot-api:#{commit_hash} tarot-api:latest")
   end
@@ -103,7 +103,7 @@ namespace :deploy do
   desc "Push container image to registry"
   task :push, [ :env ] do |t, args|
     env = args[:env] || "production"
-    commit_hash = ENV['GITHUB_SHA'] || `git rev-parse --short HEAD`.strip
+    commit_hash = ENV["GITHUB_SHA"] || `git rev-parse --short HEAD`.strip
     registry = ENV["CONTAINER_REGISTRY"]
 
     if registry.nil?
@@ -150,15 +150,15 @@ namespace :deploy do
     # Tag and push with commit hash
     system("docker tag tarot-api:#{commit_hash} #{registry}:#{commit_hash}")
     system("docker push #{registry}:#{commit_hash}")
-    
+
     # Also tag and push as latest
     system("docker tag tarot-api:#{commit_hash} #{registry}:latest")
     system("docker push #{registry}:latest")
-    
+
     # Tag with environment name for backward compatibility
     system("docker tag tarot-api:#{commit_hash} #{registry}:#{env}")
     system("docker push #{registry}:#{env}")
-    
+
     # For production, also tag as stable
     if env == "production"
       system("docker tag tarot-api:#{commit_hash} #{registry}:stable")

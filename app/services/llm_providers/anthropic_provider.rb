@@ -94,11 +94,11 @@ module LlmProviders
     def initialize_client
       if Rails.env.test?
         # Use a mock implementation for testing
-        require_relative '../../../spec/support/langchain_mock'
+        require_relative "../../../spec/support/langchain_mock"
       else
         require "langchain"
       end
-      
+
       Langchain::LLM::Anthropic.new(api_key: ENV.fetch("ANTHROPIC_API_KEY"))
     end
 

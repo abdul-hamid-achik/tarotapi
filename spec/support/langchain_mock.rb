@@ -16,14 +16,14 @@ module Langchain
       end
 
       def stream(prompt:, model:, options: {})
-        yield({"response" => "Mocked stream chunk"})
+        yield({ "response" => "Mocked stream chunk" })
       end
 
       def models
         {
           "models" => [
-            {"name" => "llama3:8b"},
-            {"name" => "llama3:70b"}
+            { "name" => "llama3:8b" },
+            { "name" => "llama3:70b" }
           ]
         }
       end
@@ -37,13 +37,13 @@ module Langchain
       def complete(prompt:, model:, max_tokens:, temperature:)
         {
           "content" => [
-            {"text" => "Mocked Anthropic response"}
+            { "text" => "Mocked Anthropic response" }
           ]
         }
       end
 
       def stream(prompt:, model:, max_tokens:, temperature:)
-        yield({"content" => [{"text" => "Mocked stream chunk"}]})
+        yield({ "content" => [ { "text" => "Mocked stream chunk" } ] })
       end
     end
 
@@ -55,7 +55,7 @@ module Langchain
       def complete(prompt:, model:, max_tokens:, temperature:)
         {
           "choices" => [
-            {"message" => {"content" => "Mocked OpenAI response"}}
+            { "message" => { "content" => "Mocked OpenAI response" } }
           ],
           "usage" => {
             "prompt_tokens" => 10,
@@ -66,8 +66,8 @@ module Langchain
       end
 
       def stream(prompt:, model:, max_tokens:, temperature:)
-        yield({"choices" => [{"delta" => {"content" => "Mocked stream chunk"}}]})
+        yield({ "choices" => [ { "delta" => { "content" => "Mocked stream chunk" } } ] })
       end
     end
   end
-end 
+end

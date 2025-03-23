@@ -21,7 +21,7 @@ class SeanceTokenService
     unless token.match?(/\A[A-Za-z0-9_-]{43}\z/)
       return invalid_token("invalid token format")
     end
-    
+
     token_data = retrieve_token(token)
     return invalid_token("token not found") unless token_data
     return invalid_token("token expired") if token_expired?(token_data[:expires_at])
