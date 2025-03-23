@@ -49,7 +49,12 @@ jobs:
           # Set the GitHub Container Registry URL for development
           export CONTAINER_REGISTRY="ghcr.io/${{ github.repository_owner }}/tarot-api"
           
-          # Build the image for development environment
+          # Get short commit hash
+          COMMIT_HASH="${{ github.sha }}"
+          SHORT_HASH="${COMMIT_HASH:0:7}"
+          echo "Using commit hash: $SHORT_HASH"
+          
+          # Build the image 
           bundle exec rake container:build[development]
           
           # Push to GitHub Container Registry

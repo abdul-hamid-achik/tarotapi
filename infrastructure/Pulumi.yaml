@@ -297,26 +297,29 @@ resources:
       networkMode: "awsvpc"
       requiresCompatibilities: ["FARGATE"]
       executionRoleArn: "${ecsTaskExecutionRole.arn}"
-      containerDefinitions:
-        fn::toJSON:
-          - name: "ollama"
-            image: "ollama/ollama:latest"
-            essential: true
-            portMappings:
-              - containerPort: 11434
-                hostPort: 11434
-                protocol: "tcp"
-            environment:
-              - name: "OLLAMA_API_KEY"
-                value: "${ollama_api_key}"
-              - name: "OLLAMA_MODELS"
-                value: "llama3:8b"
-            logConfiguration:
-              logDriver: "awslogs"
-              options:
-                awslogs-group: "/ecs/tarot-api-llm-${pulumi.stack}"
-                awslogs-region: "mx-central-1"
-                awslogs-stream-prefix: "ollama"
+      containerDefinitions: |
+        [
+          {
+            "name": "ollama",
+            "image": "ollama/ollama:latest",
+            "essential": true,
+            "portMappings": [
+              { "containerPort": 11434, "hostPort": 11434, "protocol": "tcp" }
+            ],
+            "environment": [
+              { "name": "OLLAMA_API_KEY", "value": "${ollama_api_key}" },
+              { "name": "OLLAMA_MODELS", "value": "llama3:8b" }
+            ],
+            "logConfiguration": {
+              "logDriver": "awslogs",
+              "options": {
+                "awslogs-group": "/ecs/tarot-api-llm-${pulumi.stack}",
+                "awslogs-region": "mx-central-1",
+                "awslogs-stream-prefix": "ollama"
+              }
+            }
+          }
+        ]
       tags:
         Name: "tarot-api-ollama-task-${pulumi.stack}"
 
@@ -359,26 +362,29 @@ resources:
       networkMode: "awsvpc"
       requiresCompatibilities: ["FARGATE"]
       executionRoleArn: "${ecsTaskExecutionRole.arn}"
-      containerDefinitions:
-        fn::toJSON:
-          - name: "openai-proxy"
-            image: "nginx:alpine"
-            essential: true
-            portMappings:
-              - containerPort: 80
-                hostPort: 80
-                protocol: "tcp"
-            environment:
-              - name: "OPENAI_API_KEY"
-                value: "${openai_api_key}"
-              - name: "MODEL_NAME"
-                value: "gpt-4o-mini"
-            logConfiguration:
-              logDriver: "awslogs"
-              options:
-                awslogs-group: "/ecs/tarot-api-llm-${pulumi.stack}"
-                awslogs-region: "mx-central-1"
-                awslogs-stream-prefix: "openai"
+      containerDefinitions: |
+        [
+          {
+            "name": "openai-proxy",
+            "image": "nginx:alpine",
+            "essential": true,
+            "portMappings": [
+              { "containerPort": 80, "hostPort": 80, "protocol": "tcp" }
+            ],
+            "environment": [
+              { "name": "OPENAI_API_KEY", "value": "${openai_api_key}" },
+              { "name": "MODEL_NAME", "value": "gpt-4o-mini" }
+            ],
+            "logConfiguration": {
+              "logDriver": "awslogs",
+              "options": {
+                "awslogs-group": "/ecs/tarot-api-llm-${pulumi.stack}",
+                "awslogs-region": "mx-central-1",
+                "awslogs-stream-prefix": "openai"
+              }
+            }
+          }
+        ]
       tags:
         Name: "tarot-api-openai-task-${pulumi.stack}"
 
@@ -411,26 +417,29 @@ resources:
   #     networkMode: "awsvpc"
   #     requiresCompatibilities: ["FARGATE"]
   #     executionRoleArn: "${ecsTaskExecutionRole.arn}"
-  #     containerDefinitions:
-  #       fn::toJSON:
-  #         - name: "anthropic-proxy"
-  #           image: "nginx:alpine"
-  #           essential: true
-  #           portMappings:
-  #             - containerPort: 80
-  #               hostPort: 80
-  #               protocol: "tcp"
-  #           environment:
-  #             - name: "ANTHROPIC_API_KEY"
-  #               value: "${anthropic_api_key}"
-  #             - name: "MODEL_NAME"
-  #               value: "claude-3-5-sonnet-v2"
-  #           logConfiguration:
-  #             logDriver: "awslogs"
-  #             options:
-  #               awslogs-group: "/ecs/tarot-api-llm-${pulumi.stack}"
-  #               awslogs-region: "mx-central-1"
-  #               awslogs-stream-prefix: "anthropic"
+  #     containerDefinitions: |
+  #       [
+  #         {
+  #           "name": "anthropic-proxy",
+  #           "image": "nginx:alpine",
+  #           "essential": true,
+  #           "portMappings": [
+  #             { "containerPort": 80, "hostPort": 80, "protocol": "tcp" }
+  #           ],
+  #           "environment": [
+  #             { "name": "ANTHROPIC_API_KEY", "value": "${anthropic_api_key}" },
+  #             { "name": "MODEL_NAME", "value": "claude-3-5-sonnet-v2" }
+  #           ],
+  #           "logConfiguration": {
+  #             "logDriver": "awslogs",
+  #             "options": {
+  #               "awslogs-group": "/ecs/tarot-api-llm-${pulumi.stack}",
+  #               "awslogs-region": "mx-central-1",
+  #               "awslogs-stream-prefix": "anthropic"
+  #             }
+  #           }
+  #         }
+  #       ]
   #     tags:
   #       Name: "tarot-api-anthropic-task-${pulumi.stack}"
   # 

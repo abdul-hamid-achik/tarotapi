@@ -85,6 +85,9 @@ jobs:
       env:
         RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        RAILS_ENV: staging
+        PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+        PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
 
     - name: Deploy Infrastructure to Staging
       run: |
