@@ -7,7 +7,7 @@ class ApplicationController < ActionController::API
 
   # Only include TestAuthentication in test environment, and only for non-integration tests
   # Integration tests should provide auth headers
-  if Rails.env.test?
+  if Rails.env == "test"
     include TestAuthentication
 
     # Add a helper method to skip authentication for test access

@@ -3,9 +3,9 @@
 # Configure Secure Headers
 SecureHeaders::Configuration.default do |config|
   # For testing environment, we'll use a basic permissive configuration
-  config.csp = SecureHeaders::OPT_OUT if Rails.env.test?
+  config.csp = SecureHeaders::OPT_OUT if Rails.env == "test"
 
-  unless Rails.env.test?
+  unless Rails.env == "test"
     config.csp = {
       default_src: %w['self'],
       script_src: %w['self' 'unsafe-inline'],

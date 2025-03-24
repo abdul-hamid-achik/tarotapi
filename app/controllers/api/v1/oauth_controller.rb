@@ -12,7 +12,7 @@ module Api
       rescue_from UnsupportedGrantTypeError, with: :handle_unsupported_grant_type
 
       # Skip token authentication for OAuth endpoints
-      skip_before_action :verify_authenticity_token, if: -> { Rails.env.test? }
+      skip_before_action :verify_authenticity_token, if: -> { Rails.env == "test" }
 
       def authorize
         # Validate request parameters
@@ -38,7 +38,7 @@ module Api
         end
 
         # Generate authorization code
-        if Rails.env.test?
+        if Rails.env == "test"
           return render json: {
             code: "test_auth_code",
             state: params[:state]
@@ -71,7 +71,7 @@ module Api
         end
 
         # Mock behavior for test environment
-        if Rails.env.test? && params[:grant_type] == "authorization_code"
+        if Rails.env == "test" && params[:grant_type] == "authorization_code"
           return render json: {
             access_token: "test_access_token",
             token_type: "Bearer",

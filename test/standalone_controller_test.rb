@@ -146,13 +146,13 @@ module TestAuthentication
   end
 end
 
-# Mock ApplicationController
-class ApplicationController < ActionController::Base
+# Mock ApplicationController - renamed to MockApplicationController to avoid conflicts
+class MockApplicationController < ActionController::Base
   include DeviseTokenAuth::Concerns::SetUserByToken
   include ActionController::MimeResponds
   include Pundit::Authorization
   include ErrorHandler
-  include TestAuthentication if Rails.test?
+  include TestAuthentication if Rails.env == "test"
 
   def set_default_format
     # Mock implementation
@@ -162,7 +162,7 @@ end
 # Mock BaseController
 module Api
   module V1
-    class BaseController < ApplicationController
+    class BaseController < MockApplicationController
       def self.skip_auth_for_test
         skip_before_action :authenticate_request, raise: false if respond_to?(:skip_before_action)
         skip_before_action :authenticate_api_v1_user!, raise: false if respond_to?(:skip_before_action)
@@ -170,7 +170,7 @@ module Api
       end
 
       # Skip authentication in tests
-      skip_auth_for_test if Rails.test? && respond_to?(:skip_auth_for_test)
+      skip_auth_for_test if Rails.env == "test" && respond_to?(:skip_auth_for_test)
     end
   end
 end

@@ -79,12 +79,17 @@ gem "rswag-ui"
 gem "rswag-specs", group: [ :development, :test ]
 
 # colorized output for rake tasks and console colors
-gem "rainbow", "~> 3.1"
+gem "rainbow", "~> 3.1.1"
 
 # Logging and monitoring
 gem "semantic_logger", "~> 4.15"  # Structured logging with JSON support
+gem "rails_semantic_logger", "~> 4.15"  # Rails integration for semantic_logger
 gem "lograge", "~> 0.14.0"       # Request logging in JSON format
 gem "http_logger", "~> 0.7"      # HTTP request logging
+gem "rack-cache", "~> 1.14.0"
+gem "request_store", "~> 1.5.1"
+gem "responders"
+gem "rubocop", "~> 1.62", require: false
 
 # Security-related gems
 # gem "devise", "~> 4.9"           # Authentication
@@ -105,21 +110,19 @@ group :development, :test do
   gem "rubocop-rails-omakase", require: false
 
   # api documentation dependencies for development
-  gem "rspec-rails"
+  # gem "rspec-rails"
 
   # load environment variables from .env file
   # Using plain dotenv for Rails 8 compatibility, not dotenv-rails
   gem "dotenv", "~> 2.8.1"
 
   # test coverage reporting
-  gem "simplecov", require: false
+  # gem "simplecov", require: false
 
   # testing gems
   gem "cucumber"
   gem "cucumber-rails", require: false
   gem "database_cleaner-active_record"
-  gem "factory_bot_rails"
-  gem "faker"
   gem "vcr"
   gem "webmock"
   gem "shoulda-matchers"
@@ -156,3 +159,13 @@ gem "active_storage_validations"
 # Gems in alphabetical order
 gem "active_model_serializers", "~> 0.10.0"
 gem "activestorage-validator"
+
+# Testing
+group :test do
+  # Use RSpec for testing
+  gem "rspec-rails", "~> 6.1.0"
+  gem "factory_bot_rails", "~> 6.4"
+  gem "faker", "~> 3.2"
+  gem "simplecov", "~> 0.22.0", require: false
+  gem "test-unit", "~> 3.6.1", require: false  # Required for minitest support
+end

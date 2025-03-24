@@ -76,6 +76,6 @@ module TarotApi
     config.active_storage.content_types_to_serve_as_binary += [ "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel" ]
 
     # Skip pending migrations check for tests
-    config.active_record.maintain_test_schema = false if Rails.env.test?
+    config.active_record.maintain_test_schema = false if Rails.env == "test"
   end
 end

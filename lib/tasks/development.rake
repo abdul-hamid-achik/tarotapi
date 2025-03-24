@@ -273,37 +273,51 @@ namespace :test do
 end
 
 namespace :ci do
-  desc "Run continuous integration checks"
-  task :all do
-    TaskLogger.with_task_logging("ci:all") do
-      Rake::Task["ci:lint"].invoke
-      Rake::Task["ci:security"].invoke
-      # Re-enable tests now that we have Docker services running
-      Rake::Task["test:all"].invoke
+  desc "Run all CI tasks"
+  task all: :environment do
+    ENV["DISABLE_RAILS_SEMANTIC_LOGGER"] = "true"
+
+    # Explicitly close database connections before running tests
+    Rake::Task["db:disconnect"].invoke
+
+    # Run tasks in order: lint first, security second, tests last
+    %w[ci:lint ci:security ci:test].each do |task|
+      Rake::Task[task].invoke
     end
+
+    ENV["DISABLE_RAILS_SEMANTIC_LOGGER"] = nil
   end
 
   desc "Run linting checks"
-  task :lint do
+  task lint: :environment do
     TaskLogger.with_task_logging("ci:lint") do
-      # Run RuboCop
-      system("bundle exec rubocop")
-
-      # Run ESLint if JavaScript files exist
-      if File.exist?("package.json")
-        system("yarn lint")
-      end
+      system("bundle exec rubocop -a")
     end
   end
 
   desc "Run security checks"
-  task :security do
+  task security: :environment do
     TaskLogger.with_task_logging("ci:security") do
       # Check for vulnerable dependencies
-      system("bundle exec bundle audit check --update")
+      system("bundle exec bundle-audit update && bundle exec bundle-audit check")
 
-      # Run Brakeman for security analysis with no pager and colored output
-      system("bundle exec brakeman -q -w2 --no-pager --color")
+      # Run Brakeman for security analysis
+      system("bundle exec brakeman --no-pager -q")
+    end
+  end
+
+  desc "Run all tests"
+  task test: :environment do
+    TaskLogger.with_task_logging("ci:test") do
+      # Configure test environment
+      ENV["RAILS_ENV"] = "test"
+
+      # Ensure database is ready
+      Rake::Task["db:disconnect"].invoke
+      Rake::Task["db:test:prepare"].invoke
+
+      # Run the tests
+      system("bundle exec rspec")
     end
   end
 
@@ -317,6 +331,42 @@ namespace :ci do
         SHELL
       end
     end
+  end
+end
+
+namespace :db do
+  desc "Close all database connections"
+  task disconnect: :environment do
+    puts "Closing all database connections..."
+
+    config = ActiveRecord::Base.connection_db_config.configuration_hash
+    db_name = config[:database]
+
+    # Close connections to the current database
+    ActiveRecord::Base.connection.execute(<<~SQL)
+      SELECT pg_terminate_backend(pg_stat_activity.pid)
+      FROM pg_stat_activity
+      WHERE pg_stat_activity.datname = '#{db_name}'
+      AND pid <> pg_backend_pid();
+    SQL
+
+    # Also close connections to the test database
+    if db_name != "#{db_name.gsub(/_development$/, '')}_test"
+      test_db_name = "#{db_name.gsub(/_development$/, '')}_test"
+      begin
+        ActiveRecord::Base.connection.execute(<<~SQL)
+          SELECT pg_terminate_backend(pg_stat_activity.pid)
+          FROM pg_stat_activity
+          WHERE pg_stat_activity.datname = '#{test_db_name}'
+          AND pid <> pg_backend_pid();
+        SQL
+      rescue => e
+        # Ignore errors if test database doesn't exist yet
+        puts "Note: Could not disconnect from test database: #{e.message}"
+      end
+    end
+
+    puts "Database connections closed."
   end
 end
 

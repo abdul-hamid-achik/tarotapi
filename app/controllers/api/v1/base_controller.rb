@@ -5,7 +5,7 @@ module Api
       rescue_from ActiveRecord::RecordInvalid, with: :unprocessable_entity
 
       # Skip authentication in tests
-      skip_auth_for_test if Rails.env.test? && respond_to?(:skip_auth_for_test)
+      skip_auth_for_test if Rails.env == "test" && respond_to?(:skip_auth_for_test)
 
       private
 

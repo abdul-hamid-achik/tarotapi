@@ -5,8 +5,33 @@ require_relative "../../lib/tarot_logger"
 # Configure SemanticLogger as the Rails logger
 Rails.application.configure do
   config.semantic_logger.application = Rails.application.class.module_parent_name
-  config.rails_semantic_logger.format = :json
-  config.rails_semantic_logger.semantic = true
+
+  # Skip rails_semantic_logger if explicitly disabled (for CI or when having compatibility issues)
+  if ENV["DISABLE_RAILS_SEMANTIC_LOGGER"].present? || Rails.env == "test"
+    # Use standard semantic_logger without rails integration
+    SemanticLogger.add_appender(io: STDOUT, formatter: :default)
+
+    # Completely disable rails_semantic_logger ActiveRecord integration
+    # to avoid the 'undefined method type for Symbol' error in Rails 8.0.2
+    if defined?(RailsSemanticLogger) && defined?(RailsSemanticLogger::ActiveRecord)
+      # Remove the ActiveRecord LogSubscriber to prevent binding errors
+      ActiveSupport::LogSubscriber.log_subscribers.each do |subscriber|
+        if subscriber.is_a?(RailsSemanticLogger::ActiveRecord::LogSubscriber)
+          ActiveSupport::Notifications.notifier.listeners_for("sql.active_record").each do |listener|
+            if listener.instance_variable_get(:@delegate) == subscriber
+              ActiveSupport::Notifications.unsubscribe(listener)
+            end
+          end
+        end
+      end
+    end
+  else
+    # Only use rails_semantic_logger configs if defined and available
+    if defined?(config.rails_semantic_logger) && config.respond_to?(:rails_semantic_logger)
+      # Bypass rails_semantic_logger functionality that's incompatible with Rails 8.0.2
+      # We'll just use semantic_logger directly
+    end
+  end
 
   # Set log level based on environment
   config.log_level = case Rails.env
