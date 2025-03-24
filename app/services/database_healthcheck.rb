@@ -1,127 +1,148 @@
 class DatabaseHealthcheck
+  include Loggable
+
   class << self
     # Check database connection health and restore if necessary
     def check_connection
       begin
-        # Try to execute a simple query to test the connection
-        result = ActiveRecord::Base.connection.execute("SELECT 1 AS health_check")
+        result = ActiveRecord::Base.connection.execute("SELECT 1 as alive").first["alive"] == 1
 
-        # If successful, connection is healthy
-        if result.first["health_check"] == 1
-          Rails.logger.debug "Database connection is healthy" if Rails.env.development?
+        if result
+          log_debug("Database connection is healthy") if Rails.env.development?
           true
         else
-          Rails.logger.warn "Database connection returned unexpected result ⚠️"
-          reconnect
+          log_warn("Database connection returned unexpected result", { result: result })
           false
         end
       rescue => e
-        Rails.logger.error "Database connection error detected ⚠️: #{e.message}"
-        reconnect
+        log_error("Database connection error detected", {
+          error: e.message,
+          error_class: e.class.name,
+          connection_config: sanitized_connection_config
+        })
         false
       end
     end
 
     # Verify connection pool health
     def check_pool_health
-      begin
-        pool = ActiveRecord::Base.connection_pool
+      pool = ActiveRecord::Base.connection_pool
 
-        # Get pool statistics
+      begin
         stats = {
           size: pool.size,
+          connections: pool.connections.size,
           active: pool.connections.count(&:in_use?),
           idle: pool.connections.count { |c| !c.in_use? },
           waiting: pool.num_waiting_in_queue
         }
 
-        # Check for potential issues
+        # Calculate usage percentages for better observability
+        stats[:usage_percent] = ((stats[:active].to_f / stats[:size]) * 100).round(1)
+        stats[:status] = stats[:usage_percent] > 80 ? "high_load" : "normal"
+
         issues = []
-        issues << "high usage (#{stats[:active]}/#{stats[:size]})" if stats[:active] > (stats[:size] * 0.8)
-        issues << "waiting connections (#{stats[:waiting]})" if stats[:waiting] > 0
+        issues << "high_usage" if stats[:usage_percent] > 85
+        issues << "queue_waiting" if stats[:waiting] > 0
+        issues << "connection_limit_approaching" if stats[:active] >= stats[:size] - 1
 
         if issues.any?
-          Rails.logger.warn "Connection pool health issues detected ⚠️: #{issues.join(', ')}"
+          log_warn("Connection pool health issues detected", {
+            issues: issues,
+            stats: stats
+          })
 
-          # If we have too many connections, try to recover
-          if stats[:active] >= stats[:size]
-            Rails.logger.warn "Connection pool saturated ⚠️ - attempting recovery"
-            reap_connections
-          end
+          # Try recovery if we're approaching saturation
+          recover_connection_pool if stats[:usage_percent] > 90
 
-          return false
+          false
+        else
+          log_debug("Connection pool is healthy: #{stats.inspect}") if Rails.env.development?
+          true
         end
-
-        Rails.logger.debug "Connection pool is healthy: #{stats.inspect}" if Rails.env.development?
-        true
       rescue => e
-        Rails.logger.error "Error checking connection pool health ⚠️: #{e.message}"
+        log_error("Error checking connection pool health", {
+          error: e.message,
+          error_class: e.class.name,
+          backtrace: e.backtrace&.first(3)
+        })
         false
       end
     end
 
-    # Verify all connections in the pool
-    def verify_all_connections
+    # Verify and clean up all connections in the pool
+    def verify_connections
+      pool = ActiveRecord::Base.connection_pool
+
+      initial_count = pool.connections.size
+      bad_connections = []
+
       begin
-        pool = ActiveRecord::Base.connection_pool
-        initial_count = pool.connections.length
-
-        # This will verify all connections and remove bad ones
-        removed = pool.connections.reject do |conn|
+        pool.connections.each do |conn|
           begin
-            conn.verify!
+            # Test the connection with a simple query
+            unless conn.active? && conn.select_value("SELECT 1") == 1
+              bad_connections << conn
+            end
           rescue => e
-            Rails.logger.warn "Removing bad connection from pool ⚠️: #{e.message}"
-            false
+            log_warn("Removing bad connection from pool", { error: e.message })
+            bad_connections << conn
           end
-        end.count
-
-        # Log result
-        if removed > 0
-          Rails.logger.info "Removed #{removed} bad connections from pool, #{pool.connections.length}/#{pool.size} remaining"
-        else
-          Rails.logger.debug "All #{initial_count} connections verified successfully" if Rails.env.development?
         end
 
-        removed == 0
+        # Remove bad connections
+        bad_connections.each do |conn|
+          pool.remove(conn)
+        end
+
+        if bad_connections.any?
+          log_info("Removed #{bad_connections.size} bad connections from pool", {
+            total_before: initial_count,
+            total_after: pool.connections.size,
+            pool_size: pool.size
+          })
+        else
+          log_debug("All #{initial_count} connections verified successfully") if Rails.env.development?
+        end
+
+        true
       rescue => e
-        Rails.logger.error "Error verifying connections ⚠️: #{e.message}"
+        log_error("Error verifying connections", {
+          error: e.message,
+          error_class: e.class.name,
+          backtrace: e.backtrace&.first(3)
+        })
         false
+      end
+    end
+
+    # Recover connection pool by clearing bad connections
+    def recover_connection_pool
+      pool = ActiveRecord::Base.connection_pool
+
+      divine_ritual("connection_pool_recovery") do
+        log_info("Attempting connection pool recovery", {
+          size: pool.size,
+          active: pool.connections.count(&:in_use?),
+          idle: pool.connections.count { |c| !c.in_use? }
+        })
+
+        verify_connections
+
+        log_info("Connection pool recovery completed", {
+          size: pool.size,
+          active: pool.connections.count(&:in_use?),
+          idle: pool.connections.count { |c| !c.in_use? }
+        })
       end
     end
 
     private
 
-    # Reconnect to the database
-    def reconnect
-      begin
-        # Clear active connections first
-        ActiveRecord::Base.clear_active_connections!
-
-        # Try to reconnect
-        ActiveRecord::Base.connection.reconnect!
-        Rails.logger.info "Successfully reconnected to database"
-      rescue => e
-        Rails.logger.error "Failed to reconnect to database ⚠️: #{e.message}"
-      end
-    end
-
-    # Reap connections to recover from pool saturation
-    def reap_connections
-      begin
-        # First try normal reaping
-        ActiveRecord::Base.connection_pool.reap
-
-        # If that's not enough, clear all connections
-        if ActiveRecord::Base.connection_pool.connections.count(&:in_use?) >= (ActiveRecord::Base.connection_pool.size * 0.8)
-          Rails.logger.warn "Aggressively clearing connection pool ⚠️"
-          ActiveRecord::Base.connection_pool.disconnect!
-        end
-
-        Rails.logger.info "Connection pool cleaned up"
-      rescue => e
-        Rails.logger.error "Failed to reap connections ⚠️: #{e.message}"
-      end
+    def sanitized_connection_config
+      config = ActiveRecord::Base.connection_config.dup
+      # Remove sensitive information
+      config.except(:password)
     end
   end
 end

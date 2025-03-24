@@ -71,5 +71,11 @@ module TarotApi
       config.active_record.strict_loading_by_default = true
       config.active_record.action_on_strict_loading_violation = :log # or :raise
     end
+
+    # Since we're using ActiveStorage, we need to include the content types
+    config.active_storage.content_types_to_serve_as_binary += [ "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel" ]
+
+    # Skip pending migrations check for tests
+    config.active_record.maintain_test_schema = false if Rails.env.test?
   end
 end

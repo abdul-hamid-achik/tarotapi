@@ -27,8 +27,21 @@ RUN apt-get update -qq && \
     libyaml-dev \
     curl \
     cmake \
-    wget && \
-    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+    wget \
+    # For native extension compilation
+    libclang-dev \
+    clang \
+    llvm \
+    llvm-dev \
+    # Install Rust for tokenizers gem
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    && echo 'source $HOME/.cargo/env' >> $HOME/.bashrc \
+    && /root/.cargo/bin/rustup default stable \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+
+# Add cargo to PATH
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # set workdir
 WORKDIR /app
@@ -36,9 +49,14 @@ WORKDIR /app
 # development stage
 FROM base AS development
 
-# install development gems before copying application code
+# Set bundle config for platform-specific gems
+RUN bundle config set --local force_ruby_platform true
+
+# Install development gems with improved error output
 COPY Gemfile Gemfile.lock ./
-RUN bundle install --jobs 4 --retry 3
+RUN bundle install --jobs 4 --retry 3 --full-index || \
+    (echo "Bundle install failed, retrying with more verbosity" && \
+    bundle install --jobs 4 --retry 3 --verbose)
 
 # copy application code
 COPY . .

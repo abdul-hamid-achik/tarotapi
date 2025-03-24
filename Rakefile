@@ -2,6 +2,7 @@
 # for example lib/tasks/capistrano.rake, and they will automatically be available to Rake.
 
 require_relative "config/application"
+require_relative "lib/tarot_logger"
 
 Rails.application.load_tasks
 
@@ -22,5 +23,5 @@ end
 # Add a special task to set the development container registry
 task :set_dev_registry do
   ENV["CONTAINER_REGISTRY"] ||= "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarotapi"
-  puts "Using container registry: #{ENV['CONTAINER_REGISTRY']}"
+  TarotLogger.info("Container registry configuration", { registry: ENV['CONTAINER_REGISTRY'] })
 end

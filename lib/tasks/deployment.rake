@@ -1,6 +1,7 @@
 require "dotenv"
 require "semantic_logger"
 require_relative "../task_logger"
+require_relative "../tarot_logger"
 
 namespace :deploy do
   desc "Deploy the application with zero downtime"
@@ -359,6 +360,388 @@ namespace :deploy do
       exit 1
     end
   end
+
+  desc "Deploy infrastructure and application"
+  task all: [ :pulumi, :kamal ]
+
+  desc "Deploy infrastructure using Pulumi"
+  task :pulumi do
+    TaskLogger.info("Deploying infrastructure with Pulumi...")
+
+    # Set the Pulumi access token from environment variable
+    pulumi_token = ENV["PULUMI_ACCESS_TOKEN"]
+    unless pulumi_token
+      TaskLogger.error("PULUMI_ACCESS_TOKEN environment variable is not set")
+      exit 1
+    end
+
+    stack = ENV["PULUMI_STACK"] || "development"
+
+    # Login using the access token from environment
+    system("pulumi login")
+
+    # Change to the infrastructure directory
+    Dir.chdir(Rails.root.join("infrastructure")) do
+      # Select the stack
+      system("pulumi stack select #{stack}")
+
+      # Automatically set up ESC environment if it doesn't exist yet
+      esc_env_exists = system("pulumi env get #{stack} --organization=#{ENV['PULUMI_ORG'] || 'abdul-hamid-achik'} > /dev/null 2>&1")
+
+      unless esc_env_exists
+        TaskLogger.info("ESC environment doesn't exist, creating it...")
+        # Create the ESC environment
+        system("pulumi env init #{stack} --organization=#{ENV['PULUMI_ORG'] || 'abdul-hamid-achik'}")
+
+        # Convert the existing stack configuration to the ESC environment
+        system("pulumi config cp stack://tarotapi/#{stack} env://#{stack}")
+
+        # Set the AWS region in the environment
+        system("pulumi config set-all --env #{stack} --path aws -- region=#{ENV['AWS_REGION'] || 'mx-central-1'}")
+
+        # Set the domain names in the environment
+        system("pulumi config set-all --env #{stack} --path tarotapi -- domainName=#{ENV['DOMAIN_NAME'] || "#{stack}.tarotapi.cards"}")
+        system("pulumi config set-all --env #{stack} --path tarotapi -- altDomainName=#{ENV['ALT_DOMAIN_NAME'] || "#{stack}.tarot.cards"}")
+
+        # Set API keys as secrets
+        system("pulumi config set-all --env #{stack} --path tarotapi --secret -- ollamaApiKey=#{ENV['OLLAMA_API_KEY'] || ''}")
+        system("pulumi config set-all --env #{stack} --path tarotapi --secret -- openaiApiKey=#{ENV['OPENAI_API_KEY'] || ''}")
+
+        # Set other environment-specific configuration
+        system("pulumi config set-all --env #{stack} --path tarotapi -- environment=#{stack}")
+        system("pulumi config set-all --env #{stack} --path tarotapi -- projectName=tarotapi")
+        system("pulumi config set-all --env #{stack} --path tarotapi -- repoName=#{ENV['GITHUB_REPOSITORY'] || 'abdul-hamid-achik/tarotapi'}")
+        system("pulumi config set-all --env #{stack} --path tarotapi -- enableCostSaving=#{stack == 'production' ? 'false' : 'true'}")
+      end
+
+      # Use ESC environment in the stack
+      system("pulumi config set --stack #{stack} pulumi:environment #{stack}")
+
+      # Preview the changes (optional but helpful)
+      system("pulumi preview")
+
+      # Deploy the infrastructure
+      if ENV["PULUMI_SKIP_PREVIEW"] == "true"
+        system("pulumi up --yes")
+      else
+        system("pulumi up")
+      end
+    end
+
+    TaskLogger.info("Pulumi deployment completed!")
+  end
+
+  desc "Deploy application using Kamal"
+  task :kamal do
+    TaskLogger.info("Deploying application with Kamal...")
+
+    # Get the environment name
+    environment = ENV["RAILS_ENV"] || "development"
+
+    # Deploy using Kamal
+    system("kamal setup #{environment}")
+    system("kamal deploy #{environment}")
+
+    TaskLogger.info("Kamal deployment completed!")
+  end
+
+  desc "Rollback application deployment"
+  task :rollback do
+    TaskLogger.info("Rolling back the latest deployment...")
+
+    # Get the environment name
+    environment = ENV["RAILS_ENV"] || "development"
+
+    # Rollback using Kamal
+    system("kamal rollback #{environment}")
+
+    TaskLogger.info("Rollback completed!")
+  end
+
+  desc "Destroy infrastructure"
+  task :destroy_infra do
+    TaskLogger.with_task_logging("deploy:destroy_infra") do |logger|
+      logger.info("Destroying infrastructure (USE WITH CAUTION)...")
+
+      # Ask for confirmation
+      TarotLogger.warn("DESTRUCTIVE ACTION", { action: "This will destroy all infrastructure resources." })
+      TarotLogger.warn("Type 'destroy' to confirm:")
+      confirmation = STDIN.gets.chomp
+
+      if confirmation == "destroy"
+        # Set the Pulumi access token from environment variable
+        pulumi_token = ENV["PULUMI_ACCESS_TOKEN"]
+        unless pulumi_token
+          logger.error("PULUMI_ACCESS_TOKEN environment variable is not set")
+          exit 1
+        end
+
+        stack = ENV["PULUMI_STACK"] || "development"
+
+        # Login using the access token from environment
+        system("pulumi login")
+
+        # Change to the infrastructure directory
+        Dir.chdir(Rails.root.join("infrastructure")) do
+          # Select the stack
+          system("pulumi stack select #{stack}")
+
+          # Destroy the infrastructure
+          system("pulumi destroy")
+        end
+
+        logger.info("Infrastructure destruction completed!")
+      else
+        logger.info("Infrastructure destruction aborted.")
+      end
+    end
+  end
+
+  desc "Get the database endpoint from Pulumi"
+  task :db_endpoint do
+    # Set the Pulumi access token from environment variable
+    pulumi_token = ENV["PULUMI_ACCESS_TOKEN"]
+    unless pulumi_token
+      TaskLogger.error("PULUMI_ACCESS_TOKEN environment variable is not set")
+      exit 1
+    end
+
+    stack = ENV["PULUMI_STACK"] || "development"
+
+    # Login using the access token from environment
+    system("pulumi login")
+
+    # Change to the infrastructure directory
+    Dir.chdir(Rails.root.join("infrastructure")) do
+      # Select the stack
+      system("pulumi stack select #{stack}")
+
+      # Get the database endpoint output
+      system("pulumi stack output dbEndpoint")
+    end
+  end
+
+  desc "Get the Redis endpoint from Pulumi"
+  task :redis_endpoint do
+    # Set the Pulumi access token from environment variable
+    pulumi_token = ENV["PULUMI_ACCESS_TOKEN"]
+    unless pulumi_token
+      TaskLogger.error("PULUMI_ACCESS_TOKEN environment variable is not set")
+      exit 1
+    end
+
+    stack = ENV["PULUMI_STACK"] || "development"
+
+    # Login using the access token from environment
+    system("pulumi login")
+
+    # Change to the infrastructure directory
+    Dir.chdir(Rails.root.join("infrastructure")) do
+      # Select the stack
+      system("pulumi stack select #{stack}")
+
+      # Get the Redis endpoint output
+      system("pulumi stack output redisEndpoint")
+    end
+  end
+
+  desc "Get all Pulumi outputs"
+  task :outputs do
+    # Set the Pulumi access token from environment variable
+    pulumi_token = ENV["PULUMI_ACCESS_TOKEN"]
+    unless pulumi_token
+      TaskLogger.error("PULUMI_ACCESS_TOKEN environment variable is not set")
+      exit 1
+    end
+
+    stack = ENV["PULUMI_STACK"] || "development"
+
+    # Login using the access token from environment
+    system("pulumi login")
+
+    # Change to the infrastructure directory
+    Dir.chdir(Rails.root.join("infrastructure")) do
+      # Select the stack
+      system("pulumi stack select #{stack}")
+
+      # Get all outputs
+      system("pulumi stack output")
+    end
+  end
+
+  desc "Generate Pulumi config file for current environment"
+  task :generate_config do
+    TaskLogger.with_task_logging("deploy:generate_config") do |logger|
+      logger.info("Generating Pulumi config file...")
+
+      # Get the environment name
+      environment = ENV["RAILS_ENV"] || "development"
+
+      # Create the config file path
+      config_file = Rails.root.join("infrastructure", "Pulumi.#{environment}.yaml")
+
+      # Check if the file already exists
+      if File.exist?(config_file)
+        logger.warn("Config file already exists", { file: config_file.to_s })
+        TarotLogger.warn("Do you want to overwrite it? (y/n)")
+        should_continue = STDIN.gets.chomp.downcase == "y"
+
+        unless should_continue
+          logger.info("Config generation aborted.")
+          exit
+        end
+      end
+
+      # Generate the config content
+      config_content = <<~YAML
+        config:
+          aws:region: #{ENV["AWS_REGION"] || "mx-central-1"}
+          tarotapi:environment: #{environment}
+          tarotapi:projectName: tarotapi
+          tarotapi:repoName: #{ENV["GITHUB_REPOSITORY"] || "abdul-hamid-achik/tarotapi"}
+          tarotapi:domainName: #{ENV["DOMAIN_NAME"] || "tarotapi.cards"}
+          tarotapi:altDomainName: #{ENV["ALT_DOMAIN_NAME"] || "tarot.cards"}
+          tarotapi:ollamaApiKey: #{ENV["OLLAMA_API_KEY"] || ""}
+          tarotapi:openaiApiKey: #{ENV["OPENAI_API_KEY"] || ""}
+          tarotapi:enableCostSaving: #{environment == "production" ? "false" : "true"}
+      YAML
+
+      # Write the config file
+      File.write(config_file, config_content)
+
+      logger.info("Pulumi config file generated", { file: config_file.to_s })
+    end
+  end
+
+  desc "Set up Pulumi ESC environment"
+  task :setup_esc do
+    TaskLogger.info("Setting up Pulumi ESC environment...")
+
+    # Set the Pulumi access token from environment variable
+    pulumi_token = ENV["PULUMI_ACCESS_TOKEN"]
+    unless pulumi_token
+      TaskLogger.error("PULUMI_ACCESS_TOKEN environment variable is not set")
+      exit 1
+    end
+
+    # Get the environment name
+    environment = ENV["RAILS_ENV"] || "development"
+
+    # Login using the access token from environment
+    system("pulumi login")
+
+    # Change to the infrastructure directory
+    Dir.chdir(Rails.root.join("infrastructure")) do
+      # Create the ESC environment
+      system("pulumi env init #{environment} --organization=#{ENV['PULUMI_ORG'] || 'abdul-hamid-achik'}")
+
+      # Convert the existing stack configuration to the ESC environment
+      system("pulumi config cp stack://tarotapi/#{environment} env://#{environment}")
+
+      # Set the AWS region in the environment
+      system("pulumi config set-all --env #{environment} --path aws -- region=#{ENV['AWS_REGION'] || 'mx-central-1'}")
+
+      # Set the domain names in the environment
+      system("pulumi config set-all --env #{environment} --path tarotapi -- domainName=#{ENV['DOMAIN_NAME'] || "#{environment}.tarotapi.cards"}")
+      system("pulumi config set-all --env #{environment} --path tarotapi -- altDomainName=#{ENV['ALT_DOMAIN_NAME'] || "#{environment}.tarot.cards"}")
+
+      # Set API keys as secrets
+      system("pulumi config set-all --env #{environment} --path tarotapi --secret -- ollamaApiKey=#{ENV['OLLAMA_API_KEY'] || ''}")
+      system("pulumi config set-all --env #{environment} --path tarotapi --secret -- openaiApiKey=#{ENV['OPENAI_API_KEY'] || ''}")
+
+      # Set other environment-specific configuration
+      system("pulumi config set-all --env #{environment} --path tarotapi -- environment=#{environment}")
+      system("pulumi config set-all --env #{environment} --path tarotapi -- projectName=tarotapi")
+      system("pulumi config set-all --env #{environment} --path tarotapi -- repoName=#{ENV['GITHUB_REPOSITORY'] || 'abdul-hamid-achik/tarotapi'}")
+      system("pulumi config set-all --env #{environment} --path tarotapi -- enableCostSaving=#{environment == 'production' ? 'false' : 'true'}")
+
+      # Use ESC environment in the stack
+      system("pulumi stack select #{environment}")
+      system("pulumi stack change-secrets-provider passphrase")
+      system("pulumi config set --stack #{environment} pulumi:environment #{environment}")
+    end
+
+    TaskLogger.info("Pulumi ESC environment setup completed!")
+  end
+
+  desc "Convert all stacks to Pulumi ESC environments"
+  task :convert_all_to_esc do
+    TaskLogger.info("Converting all stacks to Pulumi ESC environments...")
+
+    # Set the Pulumi access token from environment variable
+    pulumi_token = ENV["PULUMI_ACCESS_TOKEN"]
+    unless pulumi_token
+      TaskLogger.error("PULUMI_ACCESS_TOKEN environment variable is not set")
+      exit 1
+    end
+
+    # Login using the access token from environment
+    system("pulumi login")
+
+    # Change to the infrastructure directory
+    Dir.chdir(Rails.root.join("infrastructure")) do
+      # List all stacks
+      stack_output = `pulumi stack ls`
+      stacks = stack_output.split("\n").map { |line| line.strip.split.first }.reject { |s| s == "NAME" || s.nil? || s.empty? }
+
+      stacks.each do |stack|
+        TaskLogger.info("Converting stack '#{stack}' to ESC environment...")
+
+        # Check if ESC environment already exists
+        esc_env_exists = system("pulumi env get #{stack} --organization=#{ENV['PULUMI_ORG'] || 'abdul-hamid-achik'} > /dev/null 2>&1")
+
+        unless esc_env_exists
+          # Create the ESC environment
+          system("pulumi env init #{stack} --organization=#{ENV['PULUMI_ORG'] || 'abdul-hamid-achik'}")
+
+          # Convert the existing stack configuration to the ESC environment
+          system("pulumi config cp stack://tarotapi/#{stack} env://#{stack}")
+
+          # Set the AWS region in the environment
+          system("pulumi config set-all --env #{stack} --path aws -- region=#{ENV['AWS_REGION'] || 'mx-central-1'}")
+
+          # Set standard configuration
+          system("pulumi config set-all --env #{stack} --path tarotapi -- projectName=tarotapi")
+          system("pulumi config set-all --env #{stack} --path tarotapi -- environment=#{stack}")
+          system("pulumi config set-all --env #{stack} --path tarotapi -- repoName=#{ENV['GITHUB_REPOSITORY'] || 'abdul-hamid-achik/tarotapi'}")
+          system("pulumi config set-all --env #{stack} --path tarotapi -- enableCostSaving=#{stack == 'production' ? 'false' : 'true'}")
+
+          # Set domain names
+          system("pulumi config set-all --env #{stack} --path tarotapi -- domainName=#{stack == 'production' ? 'tarotapi.cards' : "#{stack}.tarotapi.cards"}")
+          system("pulumi config set-all --env #{stack} --path tarotapi -- altDomainName=#{stack == 'production' ? 'tarot.cards' : "#{stack}.tarot.cards"}")
+        end
+
+        # Apply ESC environment to the stack
+        system("pulumi stack select #{stack}")
+        system("pulumi config set --stack #{stack} pulumi:environment #{stack}")
+      end
+    end
+
+    TaskLogger.info("All stacks converted to Pulumi ESC environments!")
+  end
+
+  desc "Use Pulumi ESC environment for deployment"
+  task :use_esc do
+    # Set the Pulumi access token from environment variable
+    pulumi_token = ENV["PULUMI_ACCESS_TOKEN"]
+    unless pulumi_token
+      TaskLogger.error("PULUMI_ACCESS_TOKEN environment variable is not set")
+      exit 1
+    end
+
+    # Get the environment name
+    environment = ENV["RAILS_ENV"] || "development"
+
+    # Login using the access token from environment
+    system("pulumi login")
+
+    # Change to the infrastructure directory
+    Dir.chdir(Rails.root.join("infrastructure")) do
+      # Set the stack to use the ESC environment
+      system("pulumi stack select #{environment}")
+      system("pulumi config set --stack #{environment} pulumi:environment #{environment}")
+    end
+  end
 end
 
 # Convenience aliases
@@ -466,12 +849,8 @@ namespace :release do
 
       # Step 7: Prompt for production deployment unless auto-confirmed
       unless confirm_prod
-        puts "\n"
-        puts "=============================================================="
-        puts "✅ Staging deployment complete and verified healthy."
-        puts "Do you want to proceed with production deployment? (y/n)"
-        puts "=============================================================="
-        puts "\n"
+        TarotLogger.divine("Staging deployment complete and verified healthy")
+        TarotLogger.warn("Do you want to proceed with production deployment? (y/n)")
 
         response = STDIN.gets.chomp.downcase
         confirm_prod = response == "y"
@@ -531,12 +910,8 @@ namespace :release do
       TaskLogger.info("⚠️ Starting HOTFIX release process for version: #{version}")
       TaskLogger.info("⚠️ HOTFIX will deploy directly to production - USE WITH CAUTION")
 
-      puts "\n"
-      puts "=============================================================="
-      puts "⚠️ WARNING: You are about to deploy a HOTFIX directly to PRODUCTION"
-      puts "Are you sure you want to proceed? This skips staging verification. (y/n)"
-      puts "=============================================================="
-      puts "\n"
+      TarotLogger.warn("WARNING: You are about to deploy a HOTFIX directly to PRODUCTION")
+      TarotLogger.warn("Are you sure you want to proceed? This skips staging verification. (y/n)")
 
       response = STDIN.gets.chomp.downcase
       if response != "y"
@@ -590,12 +965,8 @@ namespace :release do
     begin
       TaskLogger.info("⚠️ Rolling back #{env} to version: #{version}")
 
-      puts "\n"
-      puts "=============================================================="
-      puts "⚠️ WARNING: Rolling back #{env} to version #{version}"
-      puts "Are you sure you want to proceed? (y/n)"
-      puts "=============================================================="
-      puts "\n"
+      TarotLogger.warn("WARNING: Rolling back #{env} to version #{version}")
+      TarotLogger.warn("Are you sure you want to proceed? (y/n)")
 
       response = STDIN.gets.chomp.downcase
       if response != "y"

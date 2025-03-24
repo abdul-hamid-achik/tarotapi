@@ -27,6 +27,7 @@ A Ruby on Rails API for tarot card reading and interpretation, leveraging OpenAI
 - [Connection Pooling & Health Checks](#connection-pooling--health-checks)
 - [Secrets Management](#secrets-management)
 - [Security](#security)
+- [Monitoring Stack](#monitoring-stack)
 
 ## Quick Start
 
@@ -614,3 +615,124 @@ bundle audit check --update
 # Check for hardcoded secrets
 git grep -i "password\|secret\|token\|key" -- ":(exclude)*.md" ":(exclude).gitignore"
 ```
+
+# Deployment to production
+bundle exec rake deploy:production
+
+### New Deployment Tasks
+
+The application uses a hybrid approach with Pulumi for infrastructure management and Kamal for application deployment. Several Rake tasks are available to facilitate this process:
+
+```bash
+# Deploy both infrastructure and application
+bundle exec rake deploy:all
+
+# Deploy only infrastructure with Pulumi
+bundle exec rake deploy:pulumi
+
+# Deploy only application with Kamal
+bundle exec rake deploy:kamal
+
+# Rollback application deployment
+bundle exec rake deploy:rollback
+
+# Destroy infrastructure (use with caution)
+bundle exec rake deploy:destroy_infra
+
+# Get database endpoint from Pulumi
+bundle exec rake deploy:db_endpoint
+
+# Get Redis endpoint from Pulumi
+bundle exec rake deploy:redis_endpoint
+
+# Get all Pulumi outputs
+bundle exec rake deploy:outputs
+
+# Generate Pulumi config file for current environment
+bundle exec rake deploy:generate_config
+```
+
+Note that for Pulumi tasks, you need to set the `PULUMI_ACCESS_TOKEN` environment variable with your Pulumi access token.
+
+### Pulumi ESC Environments
+
+This project uses Pulumi ESC (Environments, Secrets, and Configuration) for managing configuration across different environments. ESC environments are automatically set up when you run deployment tasks, so you don't need to worry about creating them separately.
+
+The deployment process will:
+1. Check if an ESC environment exists for your current stack
+2. Create one automatically if it doesn't exist
+3. Configure it with appropriate settings and secrets
+4. Use it for all deployments
+
+If you want to manually work with ESC environments, these tasks are still available:
+
+```bash
+# Manually set up or update a Pulumi ESC environment
+bundle exec rake deploy:setup_esc
+
+# Convert all existing stacks to Pulumi ESC environments
+bundle exec rake deploy:convert_all_to_esc
+```
+
+Using ESC environments provides several benefits:
+- Consistent configuration across stacks
+- Better secrets management with proper encryption of sensitive values
+- Cleaner separation of environment-specific settings
+- More organized configuration structure
+
+Note that for Pulumi tasks, you need to set the `PULUMI_ACCESS_TOKEN` environment variable with your Pulumi access token, and optionally `PULUMI_ORG` to specify your organization name (defaults to "abdul-hamid-achik").
+
+## Monitoring Stack
+
+The project includes a comprehensive monitoring stack that can be enabled with Docker Compose profiles:
+
+### Available Profiles
+
+The docker-compose.yml supports several profiles for optional services:
+
+- **monitoring**: Grafana, Loki, and Tempo for observability
+- **replica**: PostgreSQL and Redis replicas for read scaling
+- **ai**: Ollama for local AI model hosting
+
+### Using the Monitoring Stack
+
+To start the API with monitoring:
+
+```bash
+# Start the API with monitoring enabled
+docker-compose --profile monitoring up
+
+# Start everything including replicas and monitoring
+docker-compose --profile monitoring --profile replica up
+```
+
+### Monitoring Components
+
+- **Grafana**: Visualization platform at http://localhost:3001 (default login: admin/admin)
+- **Loki**: Log aggregation system that captures logs from the Rails application
+- **Tempo**: Distributed tracing backend for performance monitoring
+
+### Configuring Loki
+
+To properly send Rails logs to Loki, ensure your Rails application is configured with a compatible logger. In `config/environments/development.rb` or through a gem like `rails_semantic_logger`:
+
+```ruby
+# Example configuration for development.rb
+config.log_formatter = ::Logger::Formatter.new
+config.logger = ActiveSupport::TaggedLogging.new(
+  Logger.new(STDOUT)
+)
+```
+
+### AWS Credentials
+
+The application uses AWS credentials for S3 access (via MinIO locally). Set these in your `.env` file:
+
+```
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+```
+
+This configuration is used by both the API and MinIO containers.
+
+## API Documentation

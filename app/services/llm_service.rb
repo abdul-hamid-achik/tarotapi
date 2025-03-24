@@ -1,5 +1,6 @@
 class LlmService
   include Singleton
+  include Loggable
 
   # Tier configurations
   QUOTA_MULTIPLIERS = {
@@ -14,6 +15,16 @@ class LlmService
     premium: ENV.fetch("PREMIUM_LLM_MODEL", "claude-3-5-sonnet-v2@20241022"),
     professional: ENV.fetch("PROFESSIONAL_LLM_MODEL", "claude-3-7-sonnet@20250219")
   }.freeze
+
+  # LLM providers mapping
+  PROVIDERS = {
+    openai: "LlmProviders::OpenaiProvider",
+    anthropic: "LlmProviders::AnthropicProvider",
+    ollama: "LlmProviders::OllamaProvider"
+  }.freeze
+
+  DEFAULT_PROVIDER = :openai
+  DEFAULT_MODEL = "gpt-4o-mini".freeze
 
   def initialize
     # Initialize with no user - will be set per-request
@@ -51,8 +62,24 @@ class LlmService
     provider = LlmProviderFactory.get_provider_for_model(model, @quota)
 
     # Generate response
-    Rails.logger.info("Using #{model} via #{provider.class.name}")
-    provider.generate_response(prompt, options.merge(model: model))
+    log_info("Using LLM", {
+      provider: DEFAULT_PROVIDER,
+      model: model,
+      user_id: @user&.id,
+      prompt_tokens: prompt.size,
+      options: options.except(:api_key)
+    })
+    response = provider.generate_response(prompt, options.merge(model: model))
+
+    # Log successful completion
+    log_info("LLM request completed", {
+      provider: DEFAULT_PROVIDER,
+      model: model,
+      user_id: @user&.id,
+      response_tokens: response.to_s.size
+    })
+
+    response
   end
 
   # Stream a response
@@ -78,8 +105,24 @@ class LlmService
     provider = LlmProviderFactory.get_provider_for_model(model, @quota)
 
     # Generate streaming response
-    Rails.logger.info("Streaming from #{model} via #{provider.class.name}")
+    log_info("Streaming from LLM", {
+      provider: DEFAULT_PROVIDER,
+      model: model,
+      user_id: @user&.id,
+      prompt_tokens: prompt.size,
+      streaming: true
+    })
     provider.generate_streaming_response(prompt, options.merge(model: model), &block)
+
+    # Log streaming completion
+    log_info("LLM streaming completed", {
+      provider: DEFAULT_PROVIDER,
+      model: model,
+      user_id: @user&.id,
+      streaming: true
+    })
+
+    { success: true }
   end
 
   # Get available models for the user's tier
@@ -348,5 +391,117 @@ class LlmService
     end
 
     prompt
+  end
+
+  def self.call(prompt, provider_name: nil, model: nil, user: nil, quota: nil, **options)
+    provider_name ||= DEFAULT_PROVIDER
+    model ||= DEFAULT_MODEL
+
+    provider_class = PROVIDERS[provider_name.to_sym]
+    return { error: "Invalid provider" } unless provider_class
+
+    provider = provider_class.constantize.new(model: model, user: user, quota: quota)
+
+    begin
+      # Log the LLM call with detailed context
+      log_info("Using LLM", {
+        provider: provider_name,
+        model: model,
+        user_id: user&.id,
+        prompt_tokens: prompt.size,
+        options: options.except(:api_key)
+      })
+
+      response = provider.call(prompt, **options)
+
+      # Log successful completion
+      log_info("LLM request completed", {
+        provider: provider_name,
+        model: model,
+        user_id: user&.id,
+        response_tokens: response.to_s.size
+      })
+
+      response
+    rescue => e
+      # Log errors with detailed context
+      log_error("LLM request failed", {
+        provider: provider_name,
+        model: model,
+        user_id: user&.id,
+        error: e.message,
+        error_class: e.class.name,
+        backtrace: e.backtrace&.first(3)
+      })
+
+      { error: e.message }
+    end
+  end
+
+  def self.stream(prompt, provider_name: nil, model: nil, user: nil, quota: nil, **options, &block)
+    return unless block_given?
+
+    provider_name ||= DEFAULT_PROVIDER
+    model ||= DEFAULT_MODEL
+
+    provider_class = PROVIDERS[provider_name.to_sym]
+    return { error: "Invalid provider" } unless provider_class
+
+    provider = provider_class.constantize.new(model: model, user: user, quota: quota)
+
+    begin
+      # Log streaming start with context
+      log_info("Streaming from LLM", {
+        provider: provider_name,
+        model: model,
+        user_id: user&.id,
+        prompt_tokens: prompt.size,
+        streaming: true
+      })
+
+      provider.stream(prompt, **options, &block)
+
+      # Log streaming completion
+      log_info("LLM streaming completed", {
+        provider: provider_name,
+        model: model,
+        user_id: user&.id,
+        streaming: true
+      })
+
+      { success: true }
+    rescue => e
+      # Log streaming errors with detailed context
+      log_error("LLM streaming failed", {
+        provider: provider_name,
+        model: model,
+        user_id: user&.id,
+        streaming: true,
+        error: e.message,
+        error_class: e.class.name,
+        backtrace: e.backtrace&.first(3)
+      })
+
+      { error: e.message }
+    end
+  end
+
+  def self.available_models(provider_name = nil)
+    providers = provider_name ? { provider_name.to_sym => PROVIDERS[provider_name.to_sym] } : PROVIDERS
+
+    providers.each_with_object({}) do |(key, provider_class), models|
+      next unless provider_class
+
+      begin
+        provider = provider_class.constantize.new
+        models[key] = provider.available_models
+      rescue => e
+        log_error("Failed to fetch available models", {
+          provider: key,
+          error: e.message
+        })
+        models[key] = []
+      end
+    end
   end
 end

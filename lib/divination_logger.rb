@@ -1,31 +1,32 @@
 require "rainbow"
+require_relative "tarot_logger"
 
 # A tarot-themed logger for the Tarot API
 module DivinationLogger
   class << self
     # Divine - highest level, for important information (green)
     def divine(message)
-      puts Rainbow(message).bright.green
+      TarotLogger.divine(message)
     end
 
     # Reveal - for regular information (cyan)
     def reveal(message)
-      puts Rainbow(message).cyan
+      TarotLogger.info(message)
     end
 
     # Obscure - for warnings (yellow)
     def obscure(message)
-      puts Rainbow(message).yellow
+      TarotLogger.warn(message)
     end
 
     # Prophecy - for errors (red)
     def prophecy(message)
-      puts Rainbow(message).red.bright
+      TarotLogger.error(message)
     end
 
     # For debugging (magenta)
     def meditate(message)
-      puts Rainbow(message).magenta if ENV["DEBUG"]
+      TarotLogger.debug(message) if ENV["DEBUG"]
     end
 
     # Optional block-style for timing operations

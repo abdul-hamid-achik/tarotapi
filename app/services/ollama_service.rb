@@ -1,95 +1,121 @@
 class OllamaService
-  class << self
-    def available_models
-      url = URI.parse("#{base_url}/api/tags")
+  include Loggable
 
-      begin
-        response = Net::HTTP.get_response(url)
+  OLLAMA_URL = ENV.fetch("OLLAMA_URL", "http://localhost:11434")
 
-        if response.is_a?(Net::HTTPSuccess)
-          JSON.parse(response.body)["models"].map { |m| m["name"] }
-        else
-          []
-        end
-      rescue => e
-        Rails.logger.error("Failed to fetch Ollama models: #{e.message}")
-        []
-      end
+  def self.available_models
+    begin
+      response = Faraday.get("#{OLLAMA_URL}/api/tags")
+      return [] unless response.success?
+
+      models = JSON.parse(response.body)["models"]
+      models.map { |model| model["name"] }
+    rescue => e
+      log_error("Failed to fetch Ollama models", { error: e.message, url: OLLAMA_URL })
+      []
     end
+  end
 
-    def pull_model(model_name)
-      url = URI.parse("#{base_url}/api/pull")
+  def self.list_models
+    available_models
+  end
 
-      body = { name: model_name }.to_json
-      headers = { "Content-Type" => "application/json" }
+  def self.generate(prompt, model: "llama2", options: {})
+    url = "#{OLLAMA_URL}/api/generate"
 
-      begin
-        http = Net::HTTP.new(url.host, url.port)
-        request = Net::HTTP::Post.new(url.path, headers)
-        request.body = body
+    # Log request details for observability
+    log_info("Sending request to Ollama", {
+      model: model,
+      prompt_length: prompt.length,
+      options: options.except(:api_key)
+    })
 
-        response = http.request(request)
+    start_time = Time.now
 
-        if response.is_a?(Net::HTTPSuccess)
-          { success: true, message: "Model #{model_name} pulled successfully" }
-        else
-          { success: false, message: "Failed to pull model: #{response.body}" }
-        end
-      rescue => e
-        { success: false, message: "Error pulling model: #{e.message}" }
+    payload = {
+      model: model,
+      prompt: prompt,
+      options: options
+    }
+
+    begin
+      response = Faraday.post(url) do |req|
+        req.headers["Content-Type"] = "application/json"
+        req.body = payload.to_json
       end
-    end
 
-    def generate_response(model_name, prompt, options = {})
-      url = URI.parse("#{base_url}/api/generate")
+      duration = Time.now - start_time
 
-      # Default options
-      opts = {
-        temperature: 0.7,
-        num_predict: 256,
-        stream: false
-      }.merge(options)
+      if response.success?
+        parsed = JSON.parse(response.body)
 
-      body = {
-        model: model_name,
-        prompt: prompt,
-        stream: opts[:stream],
-        temperature: opts[:temperature],
-        num_predict: opts[:num_predict]
-      }.to_json
+        # Log successful completion with metrics
+        log_info("Ollama request completed", {
+          model: model,
+          duration_seconds: duration.round(2),
+          response_length: parsed["response"].length,
+          total_duration: parsed["total_duration"]
+        })
 
-      headers = { "Content-Type" => "application/json" }
+        parsed
+      else
+        # Log error response
+        log_error("Ollama API error", {
+          model: model,
+          status: response.status,
+          body: response.body,
+          duration_seconds: duration.round(2)
+        })
 
-      begin
-        http = Net::HTTP.new(url.host, url.port)
-        request = Net::HTTP::Post.new(url.path, headers)
-        request.body = body
-
-        response = http.request(request)
-
-        if response.is_a?(Net::HTTPSuccess)
-          JSON.parse(response.body)
-        else
-          { error: true, message: "Failed to generate response: #{response.body}" }
-        end
-      rescue => e
-        { error: true, message: "Error generating response: #{e.message}" }
+        { error: "API Error: #{response.status}", status: response.status }
       end
+    rescue => e
+      duration = Time.now - start_time
+
+      # Log connection/parsing errors with detailed context
+      log_error("Ollama error", {
+        model: model,
+        error: e.message,
+        error_class: e.class.name,
+        duration_seconds: duration.round(2),
+        backtrace: e.backtrace&.first(3)
+      })
+
+      { error: e.message }
     end
+  end
 
-    def check_status
-      url = URI.parse("#{base_url}/api/version")
+  def self.pull_model(model_name)
+    url = URI.parse("#{OLLAMA_URL}/api/pull")
 
-      begin
-        response = Net::HTTP.get_response(url)
-        response.is_a?(Net::HTTPSuccess)
-      rescue
-        false
+    body = { name: model_name }.to_json
+    headers = { "Content-Type" => "application/json" }
+
+    begin
+      http = Net::HTTP.new(url.host, url.port)
+      request = Net::HTTP::Post.new(url.path, headers)
+      request.body = body
+
+      response = http.request(request)
+
+      if response.is_a?(Net::HTTPSuccess)
+        { success: true, message: "Model #{model_name} pulled successfully" }
+      else
+        { success: false, message: "Failed to pull model: #{response.body}" }
       end
+    rescue => e
+      { success: false, message: "Error pulling model: #{e.message}" }
     end
+  end
 
-    def base_url
-      @base_url ||= ENV.fetch("OLLAMA_API_HOST", "http://localhost:11434").gsub(/\/$/, "")
+  def self.check_status
+    url = URI.parse("#{OLLAMA_URL}/api/version")
+
+    begin
+      response = Net::HTTP.get_response(url)
+      response.is_a?(Net::HTTPSuccess)
+    rescue
+      false
     end
   end
 end

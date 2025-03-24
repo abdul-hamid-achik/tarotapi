@@ -1,5 +1,7 @@
 # Create default subscription plans
-puts "Creating default subscription plans..."
+require_relative '../../lib/tarot_logger'
+
+TarotLogger.info("Creating default subscription plans...")
 
 free_tier_limit = ENV.fetch("DEFAULT_FREE_TIER_LIMIT", 100).to_i
 llm_calls_limit = ENV.fetch("DEFAULT_LLM_CALLS_LIMIT", 1000).to_i
@@ -9,7 +11,7 @@ SubscriptionPlan.find_or_create_by(name: "free") do |plan|
   plan.price_cents = 0
   plan.reading_limit = free_tier_limit
   plan.interval = "month"
-  puts "Created FREE plan with #{free_tier_limit} readings per month"
+  TarotLogger.info("Created FREE plan", { reading_limit: free_tier_limit, interval: "month" })
 end
 
 # Basic Subscription ($5.99/month)
@@ -18,7 +20,7 @@ SubscriptionPlan.find_or_create_by(name: "basic") do |plan|
   plan.reading_limit = 250
   plan.interval = "month"
   plan.features = [ "ad_free", "full_history", "basic_agent" ]
-  puts "Created BASIC plan with 250 readings for $5.99/month"
+  TarotLogger.info("Created BASIC plan", { reading_limit: 250, price: "$5.99", interval: "month" })
 end
 
 # Premium Subscription ($12.99/month)
@@ -27,7 +29,7 @@ SubscriptionPlan.find_or_create_by(name: "premium") do |plan|
   plan.reading_limit = nil # unlimited
   plan.interval = "month"
   plan.features = [ "ad_free", "full_history", "advanced_agent", "priority_access", "custom_spreads", "downloadable_reports" ]
-  puts "Created PREMIUM plan with unlimited readings for $12.99/month"
+  TarotLogger.info("Created PREMIUM plan", { reading_limit: "unlimited", price: "$12.99", interval: "month" })
 end
 
 # Professional API Plan ($19.95/month)
@@ -36,7 +38,7 @@ SubscriptionPlan.find_or_create_by(name: "professional") do |plan|
   plan.reading_limit = nil # unlimited
   plan.interval = "month"
   plan.features = [ "ad_free", "full_history", "advanced_agent", "priority_access", "custom_spreads", "downloadable_reports", "priority_support", "api_access", "custom_integrations", "unlimited_llm" ]
-  puts "Created PROFESSIONAL plan with unlimited readings and API access for $19.95/month"
+  TarotLogger.info("Created PROFESSIONAL plan", { reading_limit: "unlimited", price: "$19.95", interval: "month", api_access: true })
 end
 
 # Define credit packages
@@ -51,10 +53,15 @@ credit_packages = [
 # Since we don't have a dedicated model for packages yet, we'll store in Rails cache
 if defined?(Rails.cache)
   Rails.cache.write('credit_packages', credit_packages, expires_in: 1.week)
-  puts "Defined #{credit_packages.size} credit packages:"
+
+  TarotLogger.info("Defined credit packages", { count: credit_packages.size })
   credit_packages.each do |package|
-    puts "  - #{package[:name]} (#{package[:credits]} credits): $#{package[:price_cents].to_f / 100}"
+    TarotLogger.info("Credit package", {
+      name: package[:name],
+      credits: package[:credits],
+      price: "$#{package[:price_cents].to_f / 100}"
+    })
   end
 end
 
-puts "Subscription plans created successfully!"
+TarotLogger.divine("Subscription plans creation complete", { plans_count: SubscriptionPlan.count })

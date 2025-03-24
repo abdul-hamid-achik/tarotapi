@@ -10,6 +10,7 @@
 
 require "json"
 require "fileutils"
+require_relative '../lib/tarot_logger'
 
 def load_json_data(filename)
   json_path = Rails.root.join("db", "seed_data", filename)
@@ -17,65 +18,234 @@ def load_json_data(filename)
 end
 
 # setup card images
-puts 'setting up card images in seed_data...'
-cards_dir = Rails.root.join('db', 'seed_data', 'cards')
-FileUtils.mkdir_p(cards_dir)
+TarotLogger.divine_ritual("database_seeding") do
+  # Set up card images
+  seed_data_dir = Rails.root.join("db", "seed_data", "cards")
+  FileUtils.mkdir_p(seed_data_dir) unless Dir.exist?(seed_data_dir)
 
-# if we have a backup in public, move it to seed_data
-backup_dir = Rails.root.join('public', 'cards_backup')
-if Dir.exist?(backup_dir)
-  puts 'found backup directory, moving images to seed_data...'
-  FileUtils.cp_r(Dir[File.join(backup_dir, '*')], cards_dir)
-  puts 'moved images to seed_data'
-end
+  # Check if we need to set up images
+  if Dir.glob(File.join(seed_data_dir, "*.jpg")).count < 78
+    TarotLogger.info("Setting up card images in seed_data...")
 
-# if we still have images in public/cards, move those too
-public_cards = Rails.root.join('public', 'cards')
-if Dir.exist?(public_cards)
-  puts 'found public cards directory, moving images to seed_data...'
-  FileUtils.cp_r(Dir[File.join(public_cards, '*')], cards_dir)
-  puts 'moved images to seed_data'
+    # First check if we have a backup folder already
+    backup_dir = Rails.root.join("card_images_backup")
 
-  # backup and remove the public directory
-  FileUtils.mv(public_cards, backup_dir) unless Dir.exist?(backup_dir)
-  puts 'backed up public cards directory'
-end
+    if Dir.exist?(backup_dir) && Dir.glob(File.join(backup_dir, "*.jpg")).count >= 78
+      # Use images from backup if available
+      TarotLogger.info("Found backup directory, moving images to seed_data...")
+      FileUtils.cp(Dir.glob(File.join(backup_dir, "*.jpg")), seed_data_dir)
+      TarotLogger.info("Moved images to seed_data")
+    elsif Dir.exist?(Rails.root.join("public", "cards")) &&
+          Dir.glob(File.join(Rails.root.join("public", "cards"), "*.jpg")).count >= 78
+      # Use images from public/cards if available
+      TarotLogger.info("Found public cards directory, moving images to seed_data...")
+      FileUtils.cp(Dir.glob(File.join(Rails.root.join("public", "cards"), "*.jpg")), seed_data_dir)
+      TarotLogger.info("Moved images to seed_data")
 
-# seed tarot cards
-tarot_data = load_json_data("cards.json")
-tarot_data["cards"].each do |card_data|
-  # Skip cards without a name
-  next unless card_data["name"].present?
-
-  # Clean up the filename - remove spaces and downcase
-  file_name = card_data["name"].gsub(/\s+/, '').downcase
-
-  # Create or update the card
-  card = Card.find_or_create_by!(name: card_data["name"]) do |c|
-    c.arcana = card_data["arcana"]
-    c.suit = card_data["suit"]
-    c.description = card_data["description"]
-    c.rank = card_data["rank"].to_s if card_data["rank"].present?
-    c.symbols = card_data["symbols"]
-    # Add default image_url if needed - look for PNG first, then JPG
-    if card_data["image_url"].blank?
-      if card_data["arcana"].downcase == "major"
-        c.image_url = "cards/#{file_name}.png"
-      else
-        c.image_url = "cards/#{card_data['arcana'].downcase}_#{card_data['suit']}_#{card_data['rank']}.png"
-      end
-    else
-      c.image_url = card_data["image_url"]
+      # Backup the cards
+      FileUtils.mkdir_p(backup_dir)
+      FileUtils.cp(Dir.glob(File.join(Rails.root.join("public", "cards"), "*.jpg")), backup_dir)
+      TarotLogger.info("Backed up public cards directory")
     end
   end
 
-  # Try to attach the image if it's not already attached
-  unless card.image.attached?
-    card.attach_image_from_file_system
-  end
-end
+  # Create cards if they don't exist
+  if Card.count == 0
+    # Create Major Arcana
+    major_arcana = [
+      { name: "The Fool", number: 0, suit: "major", description: "New beginnings, innocence, spontaneity" },
+      { name: "The Magician", number: 1, suit: "major", description: "Manifestation, resourcefulness, power" },
+      { name: "The High Priestess", number: 2, suit: "major", description: "Intuition, sacred knowledge, divine feminine" },
+      { name: "The Empress", number: 3, suit: "major", description: "Femininity, beauty, nature" },
+      { name: "The Emperor", number: 4, suit: "major", description: "Authority, structure, control" },
+      { name: "The Hierophant", number: 5, suit: "major", description: "Spiritual wisdom, religious beliefs, tradition" },
+      { name: "The Lovers", number: 6, suit: "major", description: "Love, harmony, relationships" },
+      { name: "The Chariot", number: 7, suit: "major", description: "Control, willpower, success" },
+      { name: "Strength", number: 8, suit: "major", description: "Courage, inner strength, conviction" },
+      { name: "The Hermit", number: 9, suit: "major", description: "Soul-searching, introspection, solitude" },
+      { name: "Wheel of Fortune", number: 10, suit: "major", description: "Good luck, karma, destiny" },
+      { name: "Justice", number: 11, suit: "major", description: "Justice, fairness, truth" },
+      { name: "The Hanged Man", number: 12, suit: "major", description: "Surrender, letting go, sacrifice" },
+      { name: "Death", number: 13, suit: "major", description: "Endings, change, transformation" },
+      { name: "Temperance", number: 14, suit: "major", description: "Balance, moderation, patience" },
+      { name: "The Devil", number: 15, suit: "major", description: "Shadow self, attachment, addiction" },
+      { name: "The Tower", number: 16, suit: "major", description: "Sudden change, upheaval, chaos" },
+      { name: "The Star", number: 17, suit: "major", description: "Hope, faith, purpose" },
+      { name: "The Moon", number: 18, suit: "major", description: "Illusion, fear, anxiety" },
+      { name: "The Sun", number: 19, suit: "major", description: "Positivity, fun, warmth" },
+      { name: "Judgement", number: 20, suit: "major", description: "Judgement, rebirth, inner calling" },
+      { name: "The World", number: 21, suit: "major", description: "Completion, accomplishment, travel" }
+    ]
 
-puts "seeded #{Card.count} cards"
+    # Create each major arcana card
+    major_arcana.each do |card_info|
+      Card.create!(card_info)
+    end
+
+    # Create Minor Arcana
+    suits = [ "cups", "pentacles", "swords", "wands" ]
+
+    suits.each do |suit|
+      (1..10).each do |number|
+        Card.create!(
+          name: "#{number} of #{suit.capitalize}",
+          number: number,
+          suit: suit,
+          description: "Minor Arcana #{suit} card"
+        )
+      end
+
+      # Create court cards
+      [ "Page", "Knight", "Queen", "King" ].each do |court|
+        Card.create!(
+          name: "#{court} of #{suit.capitalize}",
+          number: case court
+                  when "Page" then 11
+                  when "Knight" then 12
+                  when "Queen" then 13
+                  when "King" then 14
+                  end,
+          suit: suit,
+          description: "Minor Arcana #{suit} court card"
+        )
+      end
+    end
+
+    TarotLogger.info("Seeded card data", { count: Card.count })
+  end
+
+  # Create admin user
+  admin_email = "admin@example.com"
+  admin_password = "password"
+
+  if defined?(User) && !User.find_by(email: admin_email)
+    admin = User.new(
+      email: admin_email,
+      password: admin_password,
+      password_confirmation: admin_password,
+      admin: true
+    )
+
+    admin.save!
+    TarotLogger.info("Created admin user", { email: admin.email })
+  end
+
+  # Create traditional spreads
+  if defined?(Spread) && Spread.count == 0
+    traditional_spreads = [
+      { name: "Three Card", description: "Past, Present, Future", card_count: 3, layout: [
+        { position: 0, name: "Past", x: 0, y: 0 },
+        { position: 1, name: "Present", x: 1, y: 0 },
+        { position: 2, name: "Future", x: 2, y: 0 }
+      ].to_json },
+      { name: "Celtic Cross", description: "Detailed 10-card spread", card_count: 10, layout: [
+        { position: 0, name: "Present", x: 1, y: 1 },
+        { position: 1, name: "Challenge", x: 1, y: 1, rotation: 90 },
+        { position: 2, name: "Foundation", x: 1, y: 2 },
+        { position: 3, name: "Recent Past", x: 0, y: 1 },
+        { position: 4, name: "Potential", x: 1, y: 0 },
+        { position: 5, name: "Near Future", x: 2, y: 1 },
+        { position: 6, name: "Self", x: 3, y: 3 },
+        { position: 7, name: "Environment", x: 3, y: 2 },
+        { position: 8, name: "Hopes/Fears", x: 3, y: 1 },
+        { position: 9, name: "Outcome", x: 3, y: 0 }
+      ].to_json },
+      { name: "Horseshoe", description: "7-card spread in horseshoe shape", card_count: 7, layout: [
+        { position: 0, name: "Past", x: 0, y: 1 },
+        { position: 1, name: "Present", x: 1, y: 0 },
+        { position: 2, name: "Hidden Influences", x: 2, y: 0 },
+        { position: 3, name: "Obstacles", x: 3, y: 0 },
+        { position: 4, name: "External Influences", x: 4, y: 0 },
+        { position: 5, name: "Advice", x: 5, y: 0 },
+        { position: 6, name: "Outcome", x: 6, y: 1 }
+      ].to_json },
+      { name: "Single Card", description: "Simple one card reading", card_count: 1, layout: [
+        { position: 0, name: "Card", x: 0, y: 0 }
+      ].to_json }
+    ]
+
+    traditional_spreads.each do |spread_info|
+      Spread.create!(spread_info)
+    end
+
+    TarotLogger.info("Seeded traditional spreads", { count: Spread.count })
+  end
+
+  # Create system spreads for each card
+  TarotLogger.info("Seeding system spreads...")
+
+  if defined?(Spread) && Spread.where(system: true).count == 0
+    system_spreads = []
+
+    Card.all.each do |card|
+      system_spreads << Spread.create!(
+        name: "#{card.name} Exploration",
+        description: "Deep dive into the meaning of #{card.name}",
+        system: true,
+        card_count: 4,
+        focus_card_id: card.id,
+        layout: [
+          { position: 0, name: "Focus Card: #{card.name}", x: 1, y: 1, fixed_card_id: card.id },
+          { position: 1, name: "Light Aspect", x: 1, y: 0 },
+          { position: 2, name: "Shadow Aspect", x: 0, y: 1 },
+          { position: 3, name: "Lesson", x: 2, y: 1 },
+          { position: 4, name: "Integration", x: 1, y: 2 }
+        ].to_json
+      )
+    end
+
+    TarotLogger.info("Created system spreads", { count: system_spreads.count })
+  end
+
+  # Load subscription plans
+  begin
+    load Rails.root.join('db', 'seeds', 'subscription_plans.rb')
+  rescue => e
+    TarotLogger.error("Error loading subscription plans", { error: e.message })
+  end
+
+  # Create reading quotas for users
+  if defined?(ReadingQuota) && ReadingQuota.count == 0 && defined?(User)
+    TarotLogger.info("Setting up reading quotas for existing users...")
+
+    # Default limits for free users
+    free_monthly_limit = ENV.fetch("FREE_TIER_READING_LIMIT", 5).to_i
+    free_llm_calls_limit = ENV.fetch("FREE_TIER_LLM_LIMIT", 50).to_i
+
+    # Create default quotas for all users without active subscriptions
+    users_without_quotas = User.where(subscription_status: [ nil, "inactive" ])
+
+    quotas_created = 0
+    users_without_quotas.find_each do |user|
+      # Skip if already has a quota
+      next if user.reading_quota.present?
+
+      # Create quota with free tier limits
+      ReadingQuota.create!(
+        user: user,
+        monthly_limit: free_monthly_limit,
+        readings_count: 0,
+        last_reset_at: Time.current,
+        next_reset_at: Time.current.end_of_month,
+        llm_calls_limit: free_llm_calls_limit,
+        llm_calls_count: 0
+      )
+
+      quotas_created += 1
+    end
+
+    TarotLogger.info("Reading quotas initialized for free users", { count: quotas_created })
+  end
+
+  # Summary of what was created
+  TarotLogger.divine("Seeds completed!", {
+    spreads: Spread.count,
+    cards: Card.count,
+    users: defined?(User) ? User.count : 0,
+    reading_quotas: defined?(ReadingQuota) ? ReadingQuota.count : 0,
+    subscription_plans: defined?(SubscriptionPlan) ? SubscriptionPlan.count : 0
+  })
+end
 
 # create default admin user for testing
 admin = User.find_or_create_by!(email: "admin@tarotapi.cards") do |user|

@@ -12,8 +12,22 @@ config:
   tarotapi:ollamaApiKey: ""
   tarotapi:openaiApiKey: ""
   tarotapi:enableCostSaving: true
+  pulumi:disable_default_providers:
+    - aws
+  # Pulumi Cloud state management configuration
 
 variables:
+  # Get values from config
+  projectName:
+    fn::fromConfig: tarotapi:projectName
+  domainName:
+    fn::fromConfig: tarotapi:domainName
+  altDomainName:
+    fn::fromConfig: tarotapi:altDomainName
+  environment:
+    fn::fromConfig: tarotapi:environment
+  stackName: ${pulumi.stack}
+  
   # Network Configuration
   vpcCidr: "10.0.0.0/16"
   publicSubnetEastCidr: "10.0.3.0/24"
@@ -29,61 +43,61 @@ variables:
   
   # Tags
   commonTags:
-    Project: "${tarotapi:projectName}"
-    Environment: "${pulumi.stack}"
+    Project: ${projectName}
+    Environment: ${stackName}
     ManagedBy: "pulumi"
 
 resources:
   vpc:
     type: "aws:ec2:Vpc"
     properties:
-      cidrBlock: "${vpcCidr}"
+      cidrBlock: ${vpcCidr}
       enableDnsHostnames: true
       enableDnsSupport: true
       tags:
-        Name: "${tarotapi:projectName}-vpc-${pulumi.stack}"
-        Project: "${tarotapi:projectName}"
-        Environment: "${pulumi.stack}"
+        Name: "${projectName}-vpc-${stackName}"
+        Project: ${projectName}
+        Environment: ${stackName}
         ManagedBy: "pulumi"
 
   publicSubnetEast:
     type: "aws:ec2:Subnet"
     properties:
-      vpcId: "${vpc.id}"
-      cidrBlock: "${publicSubnetEastCidr}"
+      vpcId: ${vpc.id}
+      cidrBlock: ${publicSubnetEastCidr}
       availabilityZone: "mx-central-1a"
       mapPublicIpOnLaunch: true
       tags:
-        Name: "${tarotapi:projectName}-public-subnet-east-${pulumi.stack}"
-        Project: "${tarotapi:projectName}"
-        Environment: "${pulumi.stack}"
+        Name: "${projectName}-public-subnet-east-${stackName}"
+        Project: ${projectName}
+        Environment: ${stackName}
         ManagedBy: "pulumi"
 
   publicSubnetWest:
     type: "aws:ec2:Subnet"
     properties:
-      vpcId: "${vpc.id}"
-      cidrBlock: "${publicSubnetWestCidr}"
+      vpcId: ${vpc.id}
+      cidrBlock: ${publicSubnetWestCidr}
       availabilityZone: "mx-central-1b"
       mapPublicIpOnLaunch: true
       tags:
-        Name: "${tarotapi:projectName}-public-subnet-west-${pulumi.stack}"
-        Project: "${tarotapi:projectName}"
-        Environment: "${pulumi.stack}"
+        Name: "${projectName}-public-subnet-west-${stackName}"
+        Project: ${projectName}
+        Environment: ${stackName}
         ManagedBy: "pulumi"
 
   dbSubnetGroup:
     type: "aws:rds:SubnetGroup"
     properties:
-      name: "${tarotapi:projectName}-db-subnet-${pulumi.stack}"
+      name: "${projectName}-db-subnet-${stackName}"
       subnetIds:
-        - "${publicSubnetEast.id}"
-        - "${publicSubnetWest.id}"
+        - ${publicSubnetEast.id}
+        - ${publicSubnetWest.id}
       description: "Subnet group for RDS instances"
       tags:
-        Name: "${tarotapi:projectName}-db-subnet-group-${pulumi.stack}"
-        Project: "${tarotapi:projectName}"
-        Environment: "${pulumi.stack}"
+        Name: "${projectName}-db-subnet-group-${stackName}"
+        Project: ${projectName}
+        Environment: ${stackName}
         ManagedBy: "pulumi"
 
   dbPassword:
@@ -97,61 +111,61 @@ resources:
   dbInstance:
     type: "aws:rds:Instance"
     properties:
-      identifier: "${tarotapi:projectName}-db-${pulumi.stack}"
+      identifier: "${projectName}-db-${stackName}"
       engine: "postgres"
       engineVersion: "14.13"
-      instanceClass: "${dbInstanceClass}"
+      instanceClass: ${dbInstanceClass}
       allocatedStorage: 20
-      dbSubnetGroupName: "${dbSubnetGroup.name}"
+      dbSubnetGroupName: ${dbSubnetGroup.name}
       username: "tarotapi"
-      password: "${dbPassword.result}"
+      password: ${dbPassword.result}
       skipFinalSnapshot: true
       backupRetentionPeriod: 7
       autoMinorVersionUpgrade: true
       performanceInsightsEnabled: false
       tags:
-        Name: "${tarotapi:projectName}-db-${pulumi.stack}"
-        Project: "${tarotapi:projectName}"
-        Environment: "${pulumi.stack}"
+        Name: "${projectName}-db-${stackName}"
+        Project: ${projectName}
+        Environment: ${stackName}
         ManagedBy: "pulumi"
 
   cacheSubnetGroup:
     type: "aws:elasticache:SubnetGroup"
     properties:
-      name: "${tarotapi:projectName}-cache-subnet-${pulumi.stack}"
+      name: "${projectName}-cache-subnet-${stackName}"
       description: "Subnet group for ElastiCache instances"
       subnetIds:
-        - "${publicSubnetEast.id}"
-        - "${publicSubnetWest.id}"
+        - ${publicSubnetEast.id}
+        - ${publicSubnetWest.id}
       tags:
-        Name: "${tarotapi:projectName}-cache-subnet-group-${pulumi.stack}"
-        Project: "${tarotapi:projectName}"
-        Environment: "${pulumi.stack}"
+        Name: "${projectName}-cache-subnet-group-${stackName}"
+        Project: ${projectName}
+        Environment: ${stackName}
         ManagedBy: "pulumi"
 
   cacheCluster:
     type: "aws:elasticache:Cluster"
     properties:
-      clusterId: "${tarotapi:projectName}-redis-${pulumi.stack}"
+      clusterId: "${projectName}-redis-${stackName}"
       engine: "redis"
-      nodeType: "${cacheInstanceClass}"
+      nodeType: ${cacheInstanceClass}
       numCacheNodes: 1
       parameterGroupName: "default.redis7"
       port: 6379
-      subnetGroupName: "${cacheSubnetGroup.name}"
+      subnetGroupName: ${cacheSubnetGroup.name}
       securityGroupIds: []  # We'll configure this later
       applyImmediately: true
       autoMinorVersionUpgrade: true
       tags:
-        Name: "${tarotapi:projectName}-redis-${pulumi.stack}"
-        Project: "${tarotapi:projectName}"
-        Environment: "${pulumi.stack}"
+        Name: "${projectName}-redis-${stackName}"
+        Project: ${projectName}
+        Environment: ${stackName}
         ManagedBy: "pulumi"
 
   s3Bucket:
     type: "aws:s3:Bucket"
     properties:
-      bucket: "${tarotapi:projectName}-storage-${pulumi.stack}"
+      bucket: "${projectName}-storage-${stackName}"
       acl: "private"
       versioning:
         enabled: true
@@ -163,45 +177,45 @@ resources:
             - days: 90
               storageClass: "GLACIER"
       tags:
-        Name: "${tarotapi:projectName}-storage-${pulumi.stack}"
-        Project: "${tarotapi:projectName}"
-        Environment: "${pulumi.stack}"
+        Name: "${projectName}-storage-${stackName}"
+        Project: ${projectName}
+        Environment: ${stackName}
         ManagedBy: "pulumi"
 
   dnsZone:
     type: "aws:route53:Zone"
     properties:
-      name: "${tarotapi:domainName}"
+      name: ${domainName}
       tags:
-        Name: "${tarotapi:projectName}-dns-zone-${pulumi.stack}"
-        Project: "${tarotapi:projectName}"
-        Environment: "${pulumi.stack}"
+        Name: "${projectName}-dns-zone-${stackName}"
+        Project: ${projectName}
+        Environment: ${stackName}
         ManagedBy: "pulumi"
 
   certificate:
     type: "aws:acm:Certificate"
     properties:
-      domainName: "${tarotapi:domainName}"
+      domainName: ${domainName}
       validationMethod: "DNS"
       subjectAlternativeNames:
-        - "${tarotapi:altDomainName}"
+        - ${altDomainName}
       tags:
-        Name: "${tarotapi:projectName}-cert-${pulumi.stack}"
-        Project: "${tarotapi:projectName}"
-        Environment: "${pulumi.stack}"
+        Name: "${projectName}-cert-${stackName}"
+        Project: ${projectName}
+        Environment: ${stackName}
         ManagedBy: "pulumi"
 
   ecsCluster:
     type: "aws:ecs:Cluster"
     properties:
-      name: "${tarotapi:projectName}-cluster-${pulumi.stack}"
+      name: "${projectName}-cluster-${stackName}"
       settings:
         - name: "containerInsights"
           value: "disabled"
       tags:
-        Name: "${tarotapi:projectName}-cluster-${pulumi.stack}"
-        Project: "${tarotapi:projectName}"
-        Environment: "${pulumi.stack}"
+        Name: "${projectName}-cluster-${stackName}"
+        Project: ${projectName}
+        Environment: ${stackName}
         ManagedBy: "pulumi"
 
   ecsTaskExecutionRole:
@@ -221,32 +235,32 @@ resources:
       managedPolicyArns:
         - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
       tags:
-        Name: "${tarotapi:projectName}-ecs-exec-role-${pulumi.stack}"
-        Project: "${tarotapi:projectName}"
-        Environment: "${pulumi.stack}"
+        Name: "${projectName}-ecs-exec-role-${stackName}"
+        Project: ${projectName}
+        Environment: ${stackName}
         ManagedBy: "pulumi"
 
   containerRepository:
     type: "aws:ecr:Repository"
     properties:
-      name: "${tarotapi:projectName}-${pulumi.stack}"
+      name: "${projectName}-${stackName}"
       imageScanningConfiguration:
         scanOnPush: true
       imageTagMutability: "MUTABLE"
       tags:
-        Name: "${tarotapi:projectName}-ecr-${pulumi.stack}"
-        Project: "${tarotapi:projectName}"
-        Environment: "${pulumi.stack}"
+        Name: "${projectName}-ecr-${stackName}"
+        Project: ${projectName}
+        Environment: ${stackName}
         ManagedBy: "pulumi"
 
 outputs:
   dbEndpoint:
-    value: "postgres-database-endpoint"
+    value: ${dbInstance.endpoint}
   redisEndpoint:
-    value: "redis-cache-endpoint"
+    value: ${cacheCluster.cacheNodes[0].address}
   ecsClusterId:
-    value: "ecs-cluster-id"
+    value: ${ecsCluster.name}
   containerRegistry:
-    value: "registry.ecr.aws.com"
+    value: ${containerRepository.repositoryUrl}
   s3BucketName:
-    value: "tarotapi-storage-bucket"
+    value: ${s3Bucket.bucket}

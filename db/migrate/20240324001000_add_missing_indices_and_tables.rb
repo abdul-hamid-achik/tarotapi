@@ -35,7 +35,8 @@ class AddMissingIndicesAndTables < ActiveRecord::Migration[7.0]
 
     # Add missing indices for better query performance
     add_index :readings, [ :user_id, :spread_id, :created_at ], name: 'index_readings_on_user_id_spread_id_created_at'
-    add_index :card_readings, :reading_date, name: 'index_card_readings_on_reading_date'
+    # The reading_date column doesn't exist in card_readings
+    # add_index :card_readings, :reading_date, name: 'index_card_readings_on_reading_date'
 
     # Add GiST index for full text search on cards description
     enable_extension 'btree_gist'
@@ -45,7 +46,7 @@ class AddMissingIndicesAndTables < ActiveRecord::Migration[7.0]
   end
 
   def down
-    remove_index :card_readings, name: 'index_card_readings_on_reading_date'
+    # remove_index :card_readings, name: 'index_card_readings_on_reading_date'
     remove_index :readings, name: 'index_readings_on_user_id_spread_id_created_at'
 
     execute 'DROP INDEX IF EXISTS index_cards_on_description_gist;'
