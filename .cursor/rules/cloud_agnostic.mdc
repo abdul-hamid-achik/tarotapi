@@ -1,0 +1,56 @@
+# Cloud-Agnostic Development and Deployment
+
+## Core Principles
+
+- **Provider Neutrality**: All code, tasks, and infrastructure references should avoid tight coupling to specific cloud providers.
+- **Abstraction First**: Use abstract terminology in public interfaces, with specific implementations hidden behind.
+- **Future Compatibility**: Design for multi-cloud capability from the start, even when initially using a single provider.
+- **Graceful Degradation**: Tools should work seamlessly across cloud environments with reasonable defaults when specific features aren't available.
+
+## Naming Conventions
+
+- Use generic terms over provider-specific ones:
+  - ✅ `registry` instead of ❌ `ecr`
+  - ✅ `container_service` instead of ❌ `ecs`
+  - ✅ `object_storage` instead of ❌ `s3`
+  - ✅ `key_value_store` instead of ❌ `dynamodb`
+
+## Implementation Guidelines
+
+### Docker and Containers
+
+- Use provider-agnostic image references:
+  - ✅ `${REGISTRY_URL}/${APP_NAME}:${TAG}`
+  - ❌ `${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}:${TAG}`
+
+- Registry authentication should be implemented per provider but called through common interfaces:
+  ```ruby
+  def push_to_registry(tag, target, provider="aws")
+    # Provider-specific implementation hidden behind generic interface
+  end
+  ```
+
+### Infrastructure as Code
+
+- Organize Pulumi code with a clean separation between:
+  - Provider-agnostic core logic
+  - Provider-specific implementations
+  - Environment configuration
+
+### Deployment Rake Tasks
+
+- Maintain backward compatibility with deprecated provider-specific task names
+- Provide clear task logger output identifying the generic action being performed
+- Normalize environment variables with both generic and provider-specific names
+
+### Environment Variables
+
+- Prefer generic environment variables:
+  - ✅ `REGISTRY_URL` over ❌ `ECR_REGISTRY`
+  - ✅ `REPOSITORY_URL` over ❌ `ECR_REPO`
+
+## Backward Compatibility
+
+- Support legacy task names through aliases that emit deprecation warnings
+- Maintain backward compatibility environment variables alongside new generic ones
+- Document migration path for developers to update their workflows 

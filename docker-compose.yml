@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: development
-    image: ${CONTAINER_REGISTRY:-ghcr.io/abdul-hamid-achik/tarot-api}:development
+    image: ${CONTAINER_REGISTRY:-ghcr.io/abdul-hamid-achik/tarotapi}:development
     depends_on:
       postgres:
         condition: service_healthy
@@ -18,27 +18,19 @@ services:
       - .env
     environment:
       - RAILS_ENV=development
-      - RAILS_MASTER_KEY=${RAILS_MASTER_KEY}
       - S3_ENDPOINT=http://minio:9000
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minioadmin}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin}
-      - AWS_BUCKET=${AWS_BUCKET:-tarot-api}
-      - AWS_REGION=${AWS_DEFAULT_REGION:-mx-central-1}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AWS_DEFAULT_REGION=mx-central-1
       # Database connection settings
       - DB_HOST=postgres
-      - DB_USERNAME=tarot_api
-      - DB_PASSWORD=password
+      - DB_USERNAME=tarotapi
       # PostgreSQL connection pooling and replica setup
       - DB_REPLICA_ENABLED=${ENABLE_REPLICA:-false}
       - DB_PRIMARY_HOST=postgres
       - DB_PRIMARY_PORT=5432
-      - DB_PRIMARY_USER=tarot_api
-      - DB_PRIMARY_PASSWORD=password
+      - DB_PRIMARY_USER=tarotapi
       - DB_REPLICA_HOST=${ENABLE_REPLICA:-false}
       - DB_REPLICA_PORT=${ENABLE_REPLICA:-false}
       - DB_REPLICA_USER=${ENABLE_REPLICA:-false}
-      - DB_REPLICA_PASSWORD=${ENABLE_REPLICA:-false}
       # Redis connection pooling and replica setup
       - REDIS_REPLICA_ENABLED=${ENABLE_REPLICA:-false}
       - REDIS_PRIMARY_URL=redis://redis:6379/0
@@ -55,11 +47,11 @@ services:
       - REDIS_TIMEOUT=2
       # Health check credentials
       - HEALTH_CHECK_USERNAME=admin
-      - HEALTH_CHECK_PASSWORD=tarot_health_check
       # Ollama - only included if explicitly enabled
       - OLLAMA_API_HOST=${ENABLE_OLLAMA:-false}
     volumes:
       - gem_cache:/usr/local/bundle
+      - ~/.aws:/root/.aws:ro
     develop:
       watch:
         - action: sync+restart
@@ -88,7 +80,7 @@ services:
           path: Gemfile.lock
     command: bundle exec rails server -b 0.0.0.0
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+      test: [ "CMD-SHELL", "curl -f http://localhost:3000/health || exit 1" ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -108,17 +100,24 @@ services:
       default:
         aliases:
           - api
+    secrets:
+      - rails_master_key
+      - openai_api_key
+      - db_password
+      - jwt_secret
+      - health_check_password
 
   # Ollama is expensive - only enable when needed
   ollama:
-    profiles: ["ai"]  # Only starts when explicitly included
+    profiles: [ "ai" ] # Only starts when explicitly included
     image: ollama/ollama:latest
     volumes:
       - ollama_data:/root/.ollama
+      - ~/.ollama:/etc/ollama:ro
     ports:
       - "11434:11434"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
+      test: [ "CMD", "curl", "-f", "http://localhost:11434/api/version" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -144,11 +143,12 @@ services:
     env_file:
       - .env
     environment:
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_USER=tarot_api
-      - POSTGRES_DB=tarot_api_${RAILS_ENV:-development}
+      - POSTGRES_USER=tarotapi
+      - POSTGRES_DB=tarotapi_${RAILS_ENV:-development}
+    secrets:
+      - db_password
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tarot_api"]
+      test: [ "CMD-SHELL", "pg_isready -U tarotapi" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -173,18 +173,19 @@ services:
   # Replica is costly - only run when explicitly needed
   # Docker Compose v2 profiles feature to make it optional
   postgres_replica:
-    profiles: ["replica"]  # Only starts when explicitly included with --profile replica
+    profiles: [ "replica" ] # Only starts when explicitly included with --profile replica
     image: postgres:16-alpine
     volumes:
       - postgres_replica_data:/var/lib/postgresql/data
     env_file:
       - .env
     environment:
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_USER=tarot_api
-      - POSTGRES_DB=tarot_api_${RAILS_ENV:-development}
+      - POSTGRES_USER=tarotapi
+      - POSTGRES_DB=tarotapi_${RAILS_ENV:-development}
       - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
-    command: 
+    secrets:
+      - db_password
+    command:
       - "postgres"
       - "-c"
       - "superuser_reserved_connections=0"
@@ -199,7 +200,7 @@ services:
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tarot_api"]
+      test: [ "CMD-SHELL", "pg_isready -U tarotapi" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -227,20 +228,14 @@ services:
     ports:
       - "6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
     # Optimize Redis for dev (lower memory usage)
     command: >
-      redis-server 
-      --appendonly yes 
-      --maxclients 100 
-      --maxmemory 128mb 
-      --maxmemory-policy allkeys-lru 
-      --save 900 1 
-      --save 300 10
+      redis-server  --appendonly yes  --maxclients 100  --maxmemory 128mb  --maxmemory-policy allkeys-lru  --save 900 1  --save 300 10
     deploy:
       resources:
         limits:
@@ -258,7 +253,7 @@ services:
 
   # Redis replica for read operations
   redis_replica:
-    profiles: ["replica"]  # Only starts when explicitly included with --profile replica
+    profiles: [ "replica" ] # Only starts when explicitly included with --profile replica
     image: redis:7-alpine
     volumes:
       - redis_replica_data:/data
@@ -268,19 +263,14 @@ services:
     ports:
       - "6380:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
     # Configure as a replica of the master
     command: >
-      redis-server
-      --replicaof redis 6379
-      --maxclients 100
-      --maxmemory 128mb
-      --maxmemory-policy allkeys-lru
-      --replica-read-only yes
+      redis-server --replicaof redis 6379 --maxclients 100 --maxmemory 128mb --maxmemory-policy allkeys-lru --replica-read-only yes
     deploy:
       resources:
         limits:
@@ -302,14 +292,16 @@ services:
       - "9001:9001"
     volumes:
       - minio_data:/data
+      - ~/.aws:/root/.aws:ro
     env_file:
       - .env
     environment:
-      - MINIO_ROOT_USER=${AWS_ACCESS_KEY_ID:-minioadmin}
-      - MINIO_ROOT_PASSWORD=${AWS_SECRET_ACCESS_KEY:-minioadmin}
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+      - AWS_DEFAULT_REGION=mx-central-1
     command: server /data --console-address ":9001"
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: [ "CMD", "mc", "ready", "local" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -329,15 +321,15 @@ services:
 
   # Monitoring stack (only starts with --profile monitoring)
   grafana:
-    profiles: ["monitoring"]
+    profiles: [ "monitoring" ]
     image: grafana/grafana:latest
     volumes:
       - grafana_data:/var/lib/grafana
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=false
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
       - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
       - GF_UNIFIED_ALERTING_ENABLED=true
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
     ports:
       - "3001:3000"
     depends_on:
@@ -353,7 +345,7 @@ services:
           memory: 128M
 
   loki:
-    profiles: ["monitoring"]
+    profiles: [ "monitoring" ]
     image: grafana/loki:latest
     command: -config.file=/etc/loki/local-config.yaml
     ports:
@@ -370,15 +362,15 @@ services:
           memory: 128M
 
   tempo:
-    profiles: ["monitoring"]
+    profiles: [ "monitoring" ]
     image: grafana/tempo:latest
     command: -config.file=/etc/tempo/tempo-local.yaml
     volumes:
       - tempo_data:/tmp/tempo
     ports:
-      - "3200:3200"    # tempo
-      - "4317:4317"    # otlp grpc
-      - "4318:4318"    # otlp http
+      - "3200:3200" # tempo
+      - "4317:4317" # otlp grpc
+      - "4318:4318" # otlp http
     deploy:
       resources:
         limits:
@@ -395,12 +387,24 @@ volumes:
   redis_replica_data:
   minio_data:
   gem_cache:
-  ollama_data:
-  # Monitoring volumes
+  ollama_data: # Monitoring volumes
   grafana_data:
   loki_data:
   tempo_data:
 
+
+secrets:
+  rails_master_key:
+    file: ./config/master.key
+  openai_api_key:
+    file: ./config/openai_api_key.txt
+  db_password:
+    file: ./secrets/db_password.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+  health_check_password:
+    file: ./secrets/health_check_password.txt
+
 networks:
   default:
-    driver: bridge 
+    driver: bridge

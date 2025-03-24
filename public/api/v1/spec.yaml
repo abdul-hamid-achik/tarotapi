@@ -6,7 +6,7 @@ info:
   description: tarot card reading and interpretation api
   contact:
     name: API Support
-    url: https://github.com/yourusername/tarot_api/issues
+    url: https://github.com/yourusername/tarotapi/issues
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT

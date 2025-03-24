@@ -41,7 +41,7 @@ Rswag::Api.configure do |c|
     # Ensure info section has proper contact and license info
     swagger["info"]["contact"] ||= {
       "name" => "API Support",
-      "url" => "https://github.com/yourusername/tarot_api/issues"
+      "url" => "https://github.com/yourusername/tarotapi/issues"
     }
 
     swagger["info"]["license"] ||= {

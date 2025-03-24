@@ -1,46 +1,84 @@
 # Name of your application. Used to uniquely configure containers.
-service: tarot_api
+service: tarotapi
 
 # Name of the container image.
-image: <%= ENV['ECR_REGISTRY'] %>/<%= ENV['APP_NAME'] %>:<%= ENV['TAG'] || 'latest' %>
+image: ghcr.io/abdul-hamid-achik/tarotapi:latest
 
 # Deploy to these servers - note that these will be populated from Pulumi outputs at runtime
 servers:
   web:
     # For ECS Fargate deployment, the actual host information comes from Pulumi
     hosts:
-      - <%= ENV['ECS_DEPLOY_USER'] || 'deploy' %>@<%= ENV['ECS_HOST'] || 'localhost' %>
+      - <%= ENV['KAMAL_HOSTS'] %>
     labels:
-      traefik.http.routers.tarot_api.rule: Host(`tarotapi.cards`)
-      traefik.http.routers.tarot_api.tls: true
-      traefik.http.routers.tarot_api.tls.certresolver: letsencrypt
+      traefik.enable: true
+      traefik.http.routers.tarotapi.rule: Host(`tarotapi.cards`)
+      traefik.http.routers.tarotapi.tls: true
+      traefik.http.routers.tarotapi.tls.certresolver: letsencrypt
 
 # Credentials for your image host.
 registry:
-  server: "<%= ENV['ECR_REGISTRY'] %>"
-  username: <%= ENV['AWS_ACCESS_KEY_ID'] || 'AWS' %>
-  password: <%= ENV['AWS_SECRET_ACCESS_KEY'] || 'dummy-secret-key' %>
+  username: <%= ENV['KAMAL_REGISTRY_USERNAME'] %>
+  password: <%= ENV['KAMAL_REGISTRY_PASSWORD'] %>
+  server: <%= ENV['KAMAL_REGISTRY_SERVER'] %>
 
 # Inject ENV variables into containers
 env:
   clear:
-    RAILS_ENV: <%= ENV['RAILS_ENV'] || 'production' %>
+    RAILS_ENV: production
     RAILS_LOG_TO_STDOUT: true
     RAILS_SERVE_STATIC_FILES: true
-    APP_NAME: tarot_api
-    DB_HOST: <%= ENV['DB_HOST'] || 'localhost' %>
-    # Database name follows Rails convention: tarot_api_#{Rails.env}
-    # This is configured in config/database.yml and should not be overridden here
-    DB_USERNAME: <%= ENV['DB_USERNAME'] || 'tarot_api' %>
-    S3_ENDPOINT: "<%= ENV['S3_ENDPOINT'] || 'http://localhost:9000' %>"
-    AWS_REGION: <%= ENV['AWS_REGION'] || 'mx-central-1' %>
-    AWS_BUCKET: <%= ENV['AWS_BUCKET'] || 'tarot-api' %>
+    APP_NAME: tarotapi
+
+    # Database configuration
+    # Database name follows Rails convention: tarotapi_#{Rails.env}
+    DB_HOST: <%= ENV['DB_HOST'] %>
+    DB_USERNAME: <%= ENV['DB_USERNAME'] || 'tarotapi' %>
+    DB_PASSWORD: <%= ENV['DB_PASSWORD'] %>
+
+    # Redis configuration
+    REDIS_URL: <%= ENV['REDIS_URL'] %>
+
+    # S3 configuration
+    AWS_ACCESS_KEY_ID: <%= ENV['AWS_ACCESS_KEY_ID'] %>
+    AWS_SECRET_ACCESS_KEY: <%= ENV['AWS_SECRET_ACCESS_KEY'] %>
+    AWS_BUCKET: <%= ENV['AWS_BUCKET'] %>
+    AWS_REGION: <%= ENV['AWS_REGION'] %>
+
+    # Stripe configuration
+    STRIPE_PUBLIC_KEY: <%= ENV['STRIPE_PUBLIC_KEY'] %>
+    STRIPE_SECRET_KEY: <%= ENV['STRIPE_SECRET_KEY'] %>
+    STRIPE_WEBHOOK_SECRET: <%= ENV['STRIPE_WEBHOOK_SECRET'] %>
+
+    # CORS configuration
+    CORS_ORIGINS: <%= ENV['CORS_ORIGINS'] %>
+
+    # JWT configuration
+    JWT_SECRET: <%= ENV['JWT_SECRET'] %>
+    JWT_EXPIRATION: <%= ENV['JWT_EXPIRATION'] %>
+
+    # Feature flags
+    ENABLE_AI_FEATURES: <%= ENV['ENABLE_AI_FEATURES'] %>
+    ENABLE_SUBSCRIPTIONS: <%= ENV['ENABLE_SUBSCRIPTIONS'] %>
+
+    # Email configuration
+    SMTP_ADDRESS: <%= ENV['SMTP_ADDRESS'] %>
+    SMTP_PORT: <%= ENV['SMTP_PORT'] %>
+    SMTP_USERNAME: <%= ENV['SMTP_USERNAME'] %>
+    SMTP_PASSWORD: <%= ENV['SMTP_PASSWORD'] %>
+    SMTP_DOMAIN: <%= ENV['SMTP_DOMAIN'] %>
+    MAIL_FROM: <%= ENV['MAIL_FROM'] %>
+
   secret:
     - RAILS_MASTER_KEY
     - DB_PASSWORD
+    - REDIS_URL
     - AWS_ACCESS_KEY_ID
     - AWS_SECRET_ACCESS_KEY
-    - OPENAI_API_KEY
+    - STRIPE_SECRET_KEY
+    - STRIPE_WEBHOOK_SECRET
+    - JWT_SECRET
+    - SMTP_PASSWORD
 
 # Aliases for common commands
 aliases:
@@ -67,20 +105,26 @@ builder:
 # The minimal accessories configuration needed for validation purposes
 # In practice, this is handled by AWS RDS, ElastiCache, etc.
 accessories:
-  db:
-    image: postgres:16
-    host: localhost
+  postgres:
+    image: postgres:16-alpine
+    host: db.tarotapi.cards
     port: 5432
     env:
       clear:
-        POSTGRES_USER: tarot_api
+        POSTGRES_USER: tarotapi
       secret:
         - POSTGRES_PASSWORD
-    volumes:
-      - db_data:/var/lib/postgresql/data
+
   redis:
-    image: redis:7
-    host: localhost
+    image: redis:7-alpine
+    host: redis.tarotapi.cards
     port: 6379
-    volumes:
-      - redis_data:/data
+    env:
+      secret:
+        - REDIS_PASSWORD
+
+healthcheck:
+  path: /health
+  port: 3000
+  max_attempts: 10
+  interval: 2

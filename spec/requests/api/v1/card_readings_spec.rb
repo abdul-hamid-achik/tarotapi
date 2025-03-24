@@ -2,6 +2,25 @@ require 'swagger_helper'
 require 'rails_helper'
 
 RSpec.describe 'api/v1/card_readings', type: :request do
+  let(:id) { create(:card_reading).id }
+  let(:reading) do
+    spread = create(:spread)
+    card = create(:card)
+    position_id = spread.positions.first["name"]
+    {
+      spread_id: spread.id,
+      notes: "Test reading",
+      positions: [
+        {
+          position_id: position_id,
+          card_id: card.id,
+          interpretation: "This card represents your current situation",
+          reversed: false
+        }
+      ]
+    }
+  end
+
   path '/api/v1/card_readings' do
     get 'list all card readings' do
       tags 'card readings'

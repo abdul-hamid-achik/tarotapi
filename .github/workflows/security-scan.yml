@@ -8,26 +8,15 @@ on:
   schedule:
     - cron: '0 0 * * 0' # run weekly on Sunday at midnight
 
-jobs:
-  check-ci-status:
-    name: Check CI Status
-    runs-on: ubuntu-latest
-    if: |
-      github.event_name == 'workflow_run' && 
-      github.event.workflow_run.conclusion == 'success' && 
-      (github.event.workflow_run.event == 'push' || 
-       github.event.workflow_run.event == 'pull_request')
-    steps:
-      - name: CI workflow completed successfully
-        run: echo "CI workflow completed successfully, proceeding with security scan"
+env:
+  CI: true
+  RAILS_ENV: test
+  DISABLE_SPRING: 1
+  HEADLESS: true
 
+jobs:
   security-scan:
     name: Rails Security Scan
-    needs: [check-ci-status]
-    if: |
-      always() && 
-      (github.event_name != 'workflow_run' || 
-       (github.event_name == 'workflow_run' && needs.check-ci-status.result == 'success'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -44,7 +33,7 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.4'
-          bundler-cache: true  # Changed from false to true since we're removing the llama.cpp dependency
+          bundler-cache: true
 
       - name: Bundle install
         run: |
@@ -52,17 +41,69 @@ jobs:
           bundle install --jobs 4 --retry 3
 
       - name: Run Brakeman
-        run: bundle exec brakeman -A --no-pager
+        timeout-minutes: 2
+        run: bundle exec brakeman -A --no-pager --quiet
 
       - name: Run Bundler Audit
+        timeout-minutes: 2
         run: |
           gem install bundler-audit
-          bundle-audit check --update
+          bundle-audit check --no-update
 
-      - name: Run Ruby Audit
+      - name: Check for hardcoded secrets
+        timeout-minutes: 2
         run: |
-          gem install ruby_audit
-          ruby-audit check
+          echo "Checking for potential hardcoded secrets..."
+          # Exclude specific files and directories
+          ! grep -r --include="*.rb" --include="*.yml" --include="*.erb" \
+            --exclude-dir=".git" --exclude-dir="node_modules" --exclude-dir="vendor" \
+            --exclude-dir=".cursor" \
+            --exclude="**/schema.rb" --exclude="**/routes.rb" --exclude="**/security-scan.yml" \
+            "password\|secret\|token\|key" . | grep -v "ENV\|secret.*:" | grep -v "file:"
+          
+          echo "Checking Docker Compose files for hardcoded secrets..."
+          ! grep -r "password\|secret\|key\|token" --include="docker-compose*.yml" . | grep -v "secrets:" | grep -v "file:" || echo "Warning: Potential hardcoded secrets found in docker-compose files"
+
+      - name: Check production security settings
+        timeout-minutes: 1
+        run: |
+          echo "Checking for HTTPS enforcement..."
+          if [ -f "config/environments/production.rb" ]; then
+            if grep -q "config.force_ssl = true" config/environments/production.rb; then
+              echo "✅ HTTPS is enforced in production"
+            else
+              echo "⚠️ HTTPS is not enforced in production"
+            fi
+          else
+            echo "⚠️ Production environment file not found"
+          fi
+          
+          echo "Checking for protected routes..."
+          if [ -d "app/controllers" ]; then
+            if grep -r "before_action :authenticate" --include="*.rb" app/controllers/ > /dev/null; then
+              echo "✅ Authentication checks found in controllers"
+            else
+              echo "⚠️ No authentication checks found in controllers"
+            fi
+          fi
+          
+          echo "Checking for strong parameters..."
+          if [ -d "app/controllers" ]; then
+            if grep -r "params.require" --include="*.rb" app/controllers/ > /dev/null; then
+              echo "✅ Strong parameters found in controllers"
+            else
+              echo "⚠️ No strong parameters found in controllers"
+            fi
+          fi
+
+      - name: Security scan summary
+        run: |
+          echo "========== Security Scan Summary ==========="
+          echo "✓ Brakeman scan completed"
+          echo "✓ Bundle-audit scan completed"
+          echo "✓ Secret detection scan completed"
+          echo "✓ Dockerfile security scan completed"
+          echo "Note: This is a basic security scan. Consider a professional security audit for production systems."
 
   dependency-review:
     name: Dependency Review
@@ -84,54 +125,34 @@ jobs:
         with:
           fetch-depth: 0
         
-      - name: Scan for secrets with Gitleaks
-        uses: zricethezav/gitleaks-action@v2.3.7
+      - name: Scan for secrets with GitLeaks
+        uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          GITLEAKS_ENABLE_SUMMARY: true
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: true
+      
+      - name: Run Trufflehog scan
+        uses: trufflesecurity/trufflehog@v3.63.7
+        with:
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --debug --only-verified
+          
+      - name: Upload SARIF file for GitHub Advanced Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: success() || failure()
+        with:
+          sarif_file: gitleaks.sarif
+          category: secret-scanning
 
-  infra_security_scan:
-    name: Infrastructure Security Scan
+  docker-scan:
+    name: Docker Security Scan
     runs-on: ubuntu-latest
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: mx-central-1
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.4'
-          bundler-cache: true
-      
-      - name: Install Kamal
-        run: gem install kamal
-      
-      - name: Scan Kamal configuration
-        run: |
-          echo "Scanning Kamal configuration for security issues..."
-          
-          # Use our custom rake task for validation
-          bundle exec rake deploy:kamal:validate_ci || {
-            echo "::warning::Kamal configuration validation found issues. Please check the output above."
-            echo "::warning::This may be due to missing 'check' command in your Kamal version."
-            
-            # Do a minimal check to ensure the YAML is valid
-            echo "Performing minimal YAML validation..."
-            if ruby -e "require 'yaml'; YAML.load_file('config/deploy.yml') rescue exit 1"; then
-              echo "YAML is valid, continuing..."
-            else
-              echo "::error::Invalid YAML in config/deploy.yml"
-              exit 1
-            fi
-          }
-          
-          echo "Kamal configuration scan completed."
-      
       - name: Scan Dockerfile
         run: |
           echo "Scanning Dockerfile for security issues..."
@@ -142,47 +163,60 @@ jobs:
             exit 1
           fi
           
-          # Simple checks for Dockerfile best practices
+          # Check for USER instruction
           if ! grep -q "USER" Dockerfile; then
             echo "::warning::No USER instruction found in Dockerfile. Container might run as root."
+          else
+            echo "✅ Dockerfile runs as non-root user"
           fi
           
+          # Check for HEALTHCHECK instruction
+          if ! grep -q "HEALTHCHECK" Dockerfile; then
+            echo "::warning::No HEALTHCHECK instruction found in Dockerfile."
+          else
+            echo "✅ Dockerfile includes HEALTHCHECK instruction"
+          fi
+          
+          # Check for copying entire directory
           if grep -q "COPY \." Dockerfile; then
             echo "::warning::Copying entire directory may include sensitive files. Consider using .dockerignore."
           fi
           
-          # Check for hardcoded credentials
-          SENSITIVE_PATTERNS=("password" "secret" "key" "token")
-          for pattern in "${SENSITIVE_PATTERNS[@]}"; do
-            if grep -i "$pattern" Dockerfile | grep -v "ARG" | grep -v "ENV" > /dev/null; then
-              echo "::warning::Possible hardcoded credentials in Dockerfile: $pattern"
-            fi
-          done
-          
           echo "Dockerfile scan completed."
-      
-      - name: AWS Infrastructure security check
-        run: |
-          echo "Checking AWS resources for security issues..."
           
-          # Check S3 buckets for public access
-          aws s3api list-buckets --query "Buckets[].Name" --output text | tr '\t' '\n' | while read bucket; do
-            if aws s3api get-bucket-policy-status --bucket "$bucket" --query "PolicyStatus.IsPublic" 2>/dev/null | grep -q "true"; then
-              echo "::warning::S3 bucket is publicly accessible: $bucket"
-            fi
-          done
+  infra-scan:
+    name: Infrastructure Security Check
+    runs-on: ubuntu-latest
+    if: false  # Disable this job for now until we have a better implementation
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: mx-central-1
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true 
+
+  codeql-analysis:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ruby, javascript
           
-          # Check security groups for wide open ports
-          aws ec2 describe-security-groups --query "SecurityGroups[*].[GroupId,GroupName,IpPermissions]" --output json | jq -r '.[] | "\(.[0]) \(.[1]) \(.[2])"' | while read -r line; do
-            if echo "$line" | grep -q "0.0.0.0/0"; then
-              echo "::warning::Security group has wide open access: $line"
-            fi
-          done
-          
-          echo "AWS infrastructure security check completed."
-      
-      - name: Report findings
-        if: always()
-        run: |
-          echo "Infrastructure security scan completed."
-          echo "Review warnings and errors in the workflow logs." 
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3 

@@ -10,7 +10,7 @@ gem "puma", ">= 5.0"
 gem "jbuilder"
 
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
-gem "bcrypt", "~> 3.1.7"
+# gem "bcrypt", "~> 3.1.7"
 
 # Windows does not include zoneinfo files, so bundle the tzinfo-data gem
 gem "tzinfo-data", platforms: %i[ windows jruby ]
@@ -51,7 +51,7 @@ gem "thruster", require: false
 gem "rack-cors"
 
 # authentication and authorization gems
-gem "jwt"
+# gem "jwt"
 gem "devise", "~> 4.9"
 gem "devise_token_auth", "~> 1.2"
 gem "omniauth", "~> 2.1"
@@ -69,7 +69,6 @@ gem "sidekiq"
 # api related
 gem "jsonapi-serializer"
 gem "oj"
-gem "rack-attack"
 
 # active storage
 gem "aws-sdk-s3", require: false
@@ -87,12 +86,20 @@ gem "semantic_logger", "~> 4.15"  # Structured logging with JSON support
 gem "lograge", "~> 0.14.0"       # Request logging in JSON format
 gem "http_logger", "~> 0.7"      # HTTP request logging
 
+# Security-related gems
+# gem "devise", "~> 4.9"           # Authentication
+gem "cancancan", "~> 3.5"        # Authorization
+gem "rack-attack", "~> 6.7"      # Rate limiting
+gem "secure_headers", "~> 6.5"   # Security headers
+# gem "bcrypt", "~> 3.1"           # Password hashing
+gem "jwt", "~> 2.7"              # JSON Web Tokens
+
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri mingw x64_mingw ]
 
   # Static analysis for security vulnerabilities [https://brakemanscanner.org/]
-  gem "brakeman", require: false
+  gem "brakeman", "~> 6.0", require: false
 
   # Omakase Ruby styling [https://github.com/rails/rubocop-rails-omakase/]
   gem "rubocop-rails-omakase", require: false
@@ -125,6 +132,12 @@ group :development, :test do
 
   # OpenAPI parser
   gem "openapi_parser"
+
+  # Existing test gems...
+  gem "mock_redis"
+
+  # Dependency vulnerability scanner
+  gem "bundle-audit", "~> 0.1.0", require: false
 end
 
 # aws services
@@ -135,3 +148,11 @@ gem "aws-sdk-ssm", "~> 1.0"
 # gem "llama_cpp"  # Local LLM integration
 
 gem "makara", "~> 0.5.1"
+
+gem "sqlite3", "~> 2.6"
+
+gem "active_storage_validations"
+
+# Gems in alphabetical order
+gem "active_model_serializers", "~> 0.10.0"
+gem "activestorage-validator"

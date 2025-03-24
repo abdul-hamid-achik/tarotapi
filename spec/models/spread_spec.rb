@@ -13,9 +13,15 @@ RSpec.describe Spread, type: :model do
     it { expect(spread).to validate_uniqueness_of(:name) }
     it { should validate_presence_of(:description) }
     it { should validate_presence_of(:positions) }
-    it { should validate_inclusion_of(:is_public).in_array([ true, false ]) }
     it { should validate_presence_of(:num_cards) }
     it { should validate_numericality_of(:num_cards).is_greater_than(0) }
+    it "allows is_public to be true or false" do
+      spread = build(:spread, is_public: true)
+      expect(spread).to be_valid
+
+      spread = build(:spread, is_public: false)
+      expect(spread).to be_valid
+    end
   end
 
   describe 'scopes' do

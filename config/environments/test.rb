@@ -47,7 +47,7 @@ Rails.application.configure do
   config.action_mailer.delivery_method = :test
 
   # Set host to be used by links generated in mailer templates.
-  config.action_mailer.default_url_options = { host: "example.com" }
+  config.action_mailer.default_url_options = { host: "tarotapi.cards" }
 
   # Print deprecation notices to the stderr.
   config.active_support.deprecation = :stderr
@@ -67,13 +67,17 @@ Rails.application.configure do
   # Tell active support which deprecation messages to disallow
   config.active_support.disallowed_deprecation_warnings = []
 
+  # Disable host authorization in test environment
   config.hosts.clear
-  config.hosts << "example.org"
-  config.hosts << "www.example.com"
+  config.hosts << "tarotapi.cards"
   config.hosts << "localhost"
+  config.hosts << "127.0.0.1"
 
-  # Configure default url options for test environment
-  Rails.application.routes.default_url_options = { host: "example.org" }
+  # Alternatively, allow all hosts in test environment
+  # config.hosts = nil
+
+  # Set default URL options for test environment
+  config.action_controller.default_url_options = { host: "tarotapi.cards" }
 
   # use test adapter for active job
   config.active_job.queue_adapter = :test

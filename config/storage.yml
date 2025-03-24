@@ -12,7 +12,7 @@ minio:
   access_key_id: <%= ENV.fetch("AWS_ACCESS_KEY_ID", "minioadmin") %>
   secret_access_key: <%= ENV.fetch("AWS_SECRET_ACCESS_KEY", "minioadmin") %>
   region: <%= ENV.fetch("AWS_REGION", "mx-central-1") %>
-  bucket: <%= ENV.fetch("AWS_BUCKET", "tarot-api") %>
+  bucket: <%= ENV.fetch("AWS_BUCKET", "tarotapi") %>
   force_path_style: true
 
 # Use bin/rails credentials:edit to set the AWS secrets (as aws:access_key_id|secret_access_key)

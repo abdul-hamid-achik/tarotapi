@@ -1,6 +1,9 @@
 require 'swagger_helper'
 
 RSpec.describe 'api/v1/tarot_cards', type: :request do
+  let(:id) { create(:card).id }
+  let(:card) { { name: 'The Fool', arcana: 'Major', suit: 'none', description: 'New beginnings', rank: '0', symbols: 'White rose' } }
+
   path '/api/v1/tarot_cards' do
     get 'list all tarot cards' do
       tags 'tarot cards'

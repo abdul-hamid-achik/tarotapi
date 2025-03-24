@@ -263,3 +263,6 @@ if ActiveRecord::Base.connection.table_exists?("reading_quotas")
 
   puts "Reading quotas initialized for #{User.where(subscription_status: [ nil, "inactive" ]).count} free users"
 end
+
+# Load user credits system (must come after users and subscription plans)
+load Rails.root.join('db', 'seeds', 'user_credits.rb')

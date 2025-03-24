@@ -1,6 +1,9 @@
 require 'swagger_helper'
 
 RSpec.describe 'api/v1/spreads', type: :request do
+  let(:id) { create(:spread).id }
+  let(:spread) { { name: 'Celtic Cross', description: 'A classic 10-card spread', positions: [ { name: 'present', description: 'Current situation', order: 1 }, { name: 'challenge', description: 'Current challenge', order: 2 } ] } }
+
   path '/api/v1/spreads' do
     get 'list all spreads' do
       tags 'spreads'

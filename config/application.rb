@@ -16,6 +16,7 @@ require "action_cable/engine"
 
 # Require the middleware
 require_relative "../app/middleware/reading_quota_middleware"
+require_relative "../app/middleware/rate_limit_middleware"
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
@@ -61,6 +62,9 @@ module TarotApi
 
     # Load middleware for reading quota enforcement
     config.middleware.use ReadingQuotaMiddleware
+
+    # Add custom middleware
+    config.middleware.use RateLimitMiddleware
 
     # Enable strict loading by default in development to catch N+1 queries early
     if Rails.env.development?

@@ -1,9 +1,21 @@
-class CreateTarotApiCoreTables < ActiveRecord::Migration[7.1]
+class CreateTarotApiCoreTables < ActiveRecord::Migration[7.0]
   def change
+    # Only enable pg_trgm if using PostgreSQL
+    if connection.adapter_name.downcase.include?('postgresql')
+      unless connection.select_value("SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm'")
+        enable_extension 'pg_trgm'
+      end
+    end
+
     create_table :identity_providers do |t|
       t.string :name, null: false
       t.string :provider_type
-      t.jsonb :settings, default: {}
+      # Use text for SQLite, jsonb for PostgreSQL
+      if connection.adapter_name.downcase.include?('postgresql')
+        t.jsonb :settings, default: {}
+      else
+        t.text :settings, default: '{}'
+      end
 
       t.timestamps
       t.index :name, unique: true
@@ -18,8 +30,14 @@ class CreateTarotApiCoreTables < ActiveRecord::Migration[7.1]
       t.integer :monthly_readings, default: 0
       t.integer :duration_days, default: 30
       t.boolean :is_active, default: true
-      t.string :features, array: true, default: []
-      t.jsonb :metadata, default: {}
+      # Handle array type for SQLite
+      if connection.adapter_name.downcase.include?('postgresql')
+        t.string :features, array: true, default: []
+        t.jsonb :metadata, default: {}
+      else
+        t.text :features, default: '[]' # store as JSON string
+        t.text :metadata, default: '{}'
+      end
 
       t.timestamps
       t.index :name, unique: true
@@ -50,8 +68,14 @@ class CreateTarotApiCoreTables < ActiveRecord::Migration[7.1]
       t.string :suit
       t.string :rank
       t.text :description
-      t.string :keywords, array: true, default: []
-      t.string :symbols, array: true, default: []
+      # Handle array type for SQLite
+      if connection.adapter_name.downcase.include?('postgresql')
+        t.string :keywords, array: true, default: []
+        t.string :symbols, array: true, default: []
+      else
+        t.text :keywords, default: '[]' # store as JSON string
+        t.text :symbols, default: '[]'
+      end
       t.string :image_url
 
       t.timestamps
@@ -59,8 +83,11 @@ class CreateTarotApiCoreTables < ActiveRecord::Migration[7.1]
       t.index :arcana
       t.index :suit
       t.index [ :suit, :rank ]
-      t.index :keywords, using: :gin
-      t.index :symbols, using: :gin
+      # Add GIN indexes only for PostgreSQL
+      if connection.adapter_name.downcase.include?('postgresql')
+        t.index :keywords, using: :gin
+        t.index :symbols, using: :gin
+      end
     end
 
     create_table :spreads do |t|
@@ -68,7 +95,7 @@ class CreateTarotApiCoreTables < ActiveRecord::Migration[7.1]
       t.text :description
       t.integer :num_cards, null: false
       t.references :user, foreign_key: true
-      t.jsonb :positions, default: {}
+      t.text :positions, default: "{}"
       t.boolean :is_public, default: false
       t.boolean :is_system, default: false
 
@@ -76,7 +103,10 @@ class CreateTarotApiCoreTables < ActiveRecord::Migration[7.1]
       t.index :name
       t.index :is_public
       t.index :is_system
-      t.index :positions, using: :gin
+      # Add GIN indexes only for PostgreSQL
+      if connection.adapter_name.downcase.include?('postgresql')
+        t.index :positions, using: :gin, opclass: :gin_trgm_ops
+      end
     end
 
     create_table :readings do |t|
@@ -116,7 +146,12 @@ class CreateTarotApiCoreTables < ActiveRecord::Migration[7.1]
       t.string :status, default: 'pending'
       t.datetime :current_period_start
       t.datetime :current_period_end
-      t.jsonb :metadata, default: {}
+      # Handle jsonb for SQLite
+      if connection.adapter_name.downcase.include?('postgresql')
+        t.jsonb :metadata, default: {}
+      else
+        t.text :metadata, default: '{}'
+      end
 
       t.timestamps
       t.index :status
@@ -141,7 +176,12 @@ class CreateTarotApiCoreTables < ActiveRecord::Migration[7.1]
       t.text :upright_meaning
       t.text :reversed_meaning
       t.string :category
-      t.jsonb :metadata, default: {}
+      # Handle jsonb for SQLite
+      if connection.adapter_name.downcase.include?('postgresql')
+        t.jsonb :metadata, default: {}
+      else
+        t.text :metadata, default: '{}'
+      end
 
       t.timestamps
       t.index [ :card_id, :category ], unique: true

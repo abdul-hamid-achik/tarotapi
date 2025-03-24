@@ -13,19 +13,44 @@ namespace :infra do
 
     TaskLogger.with_task_logging("infra:init") do
       Dir.chdir(File.expand_path("../../infrastructure", __dir__)) do
-        passphrase = ENV["PULUMI_CONFIG_PASSPHRASE"]
-        TaskLogger.info "Passphrase present: #{!passphrase.nil?}"
-        TaskLogger.info "Passphrase length: #{passphrase&.length}"
+        # Remove passphrase references since we're using Pulumi service
+        TaskLogger.info "Using Pulumi service for secrets management"
 
-        TaskLogger.info "Creating staging stack..."
-        system("PULUMI_CONFIG_PASSPHRASE='#{passphrase}' pulumi stack init staging --secrets-provider passphrase")
+        # Add check if stacks already exist to avoid errors
+        staging_exists = system("pulumi stack select staging 2>/dev/null")
+        production_exists = system("pulumi stack select production 2>/dev/null")
 
-        TaskLogger.info "Creating production stack..."
-        system("PULUMI_CONFIG_PASSPHRASE='#{passphrase}' pulumi stack init production --secrets-provider passphrase")
+        # Only create staging stack if it doesn't exist
+        unless staging_exists
+          TaskLogger.info "Creating staging stack..."
+          result = system("pulumi stack init staging --non-interactive")
+
+          if result
+            TaskLogger.info "Staging stack created successfully"
+          else
+            TaskLogger.warn "Failed to create staging stack, it may already exist"
+          end
+        else
+          TaskLogger.info "Staging stack already exists, skipping creation"
+        end
+
+        # Only create production stack if it doesn't exist
+        unless production_exists
+          TaskLogger.info "Creating production stack..."
+          result = system("pulumi stack init production --non-interactive")
+
+          if result
+            TaskLogger.info "Production stack created successfully"
+          else
+            TaskLogger.warn "Failed to create production stack, it may already exist"
+          end
+        else
+          TaskLogger.info "Production stack already exists, skipping creation"
+        end
 
         TaskLogger.info "Configuring AWS region..."
-        system("PULUMI_CONFIG_PASSPHRASE='#{passphrase}' pulumi config set aws:region mx-central-1 --stack staging")
-        system("PULUMI_CONFIG_PASSPHRASE='#{passphrase}' pulumi config set aws:region mx-central-1 --stack production")
+        system("pulumi config set aws:region mx-central-1 --stack staging")
+        system("pulumi config set aws:region mx-central-1 --stack production")
       end
     end
   end
@@ -43,7 +68,23 @@ namespace :infra do
     TaskLogger.with_task_logging("infra:create_preview:#{name}") do
       Dir.chdir(File.expand_path("../../infrastructure", __dir__)) do
         TaskLogger.info "Creating preview environment: #{name}..."
-        system("pulumi stack init preview-#{name} --secrets-provider passphrase")
+
+        # Check if preview stack already exists
+        preview_exists = system("pulumi stack select preview-#{name} 2>/dev/null")
+
+        unless preview_exists
+          TaskLogger.info "Creating preview stack..."
+          result = system("pulumi stack init preview-#{name} --non-interactive")
+
+          if result
+            TaskLogger.info "Preview stack created successfully"
+          else
+            TaskLogger.warn "Failed to create preview stack, it may already exist"
+          end
+        else
+          TaskLogger.info "Preview stack already exists, skipping creation"
+        end
+
         system("pulumi config set aws:region mx-central-1 --stack preview-#{name}")
         system("pulumi up --yes --stack preview-#{name}")
       end

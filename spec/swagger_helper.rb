@@ -23,7 +23,7 @@ RSpec.configure do |config|
         description: 'tarot card reading and interpretation api',
         contact: {
           name: 'API Support',
-          url: 'https://github.com/yourusername/tarot_api/issues'
+          url: 'https://github.com/yourusername/tarotapi/issues'
         },
         license: {
           name: 'MIT',
@@ -40,7 +40,8 @@ RSpec.configure do |config|
               enum: [ 'http', 'https' ]
             },
             defaultHost: {
-              default: 'localhost:3000'
+              # Use the Docker service name in test environment
+              default: ENV['RAILS_ENV'] == 'test' ? 'api:3000' : 'localhost:3000'
             }
           }
         }

@@ -9,51 +9,46 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:14
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: tarot_api_test
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis
-        ports: ['6379:6379']
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Ruby
-      uses: ruby/setup-ruby@v1
-      with:
-        bundler-cache: true
-
-    - name: Run CI Checks
+    - name: Set up Docker Compose
       run: |
-        bundle exec rake ci:all
+        docker compose version
+
+    - name: Build and start test services
+      run: |
+        # Set test environment variables
+        echo "RAILS_ENV=test" >> .env
+        echo "RAILS_MASTER_KEY=${{ secrets.RAILS_MASTER_KEY }}" >> .env
+        
+        # Build and start services in detached mode
+        docker compose up -d postgres redis
+        
+        # Build the API service
+        docker compose build api
+
+    - name: Run Tests
+      run: |
+        # Wait for services to be ready (they have health checks)
+        docker compose run --rm api bin/rails db:prepare
+        
+        # Run the actual tests
+        docker compose run --rm api bundle exec rake ci:all
       env:
         RAILS_ENV: test
-        DATABASE_URL: postgres://postgres:postgres@localhost:5432/tarot_api_test
-        REDIS_URL: redis://localhost:6379/1
+        RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
 
     - name: Run Security Checks
       run: |
-        bundle exec rake ci:security
+        docker compose run --rm api bundle exec rake ci:security
       env:
         RAILS_ENV: test
-        DATABASE_URL: postgres://postgres:postgres@localhost:5432/tarot_api_test
-        REDIS_URL: redis://localhost:6379/1
+        RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+
+    - name: Cleanup
+      if: always()
+      run: docker compose down -v
 
   deploy-staging:
     needs: test

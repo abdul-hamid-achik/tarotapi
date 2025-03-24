@@ -1,4 +1,6 @@
 require 'simplecov'
+require 'active_record'
+
 SimpleCov.start 'rails' do
   add_filter '/bin/'
   add_filter '/db/'
@@ -109,4 +111,11 @@ RSpec.configure do |config|
   # as the one that triggered the failure.
   Kernel.srand config.seed
 =end
+
+  # Load schema into in-memory database
+  config.before(:suite) do
+    if defined?(ActiveRecord::Base) && defined?(Rails) && Rails.respond_to?(:root)
+      load "#{Rails.root}/db/schema.rb"
+    end
+  end
 end

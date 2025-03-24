@@ -163,3 +163,65 @@ Guardfile
 
 # Ignore GitHub Actions event files used by act
 .github/workflow-events/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+config/master.key
+config/credentials.yml.enc
+config/openai_api_key.txt
+secrets/
+
+# AWS credentials
+.aws/
+
+# Docker secrets
+*.pem
+*.key
+*.crt
+
+# Logs and temporary files
+log/*
+tmp/*
+!/log/.keep
+!/tmp/.keep
+
+# Database files
+*.sqlite3
+*.sqlite3-journal
+db/*.sqlite3
+db/*.sqlite3-journal
+postgres-data/
+postgres_replica_data/
+redis-data/
+redis_replica_data/
+
+# Storage
+storage/*
+!/storage/.keep
+public/storage
+public/uploads
+minio_data/
+
+# Node modules
+node_modules/
+yarn-error.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Ollama files
+ollama_data/

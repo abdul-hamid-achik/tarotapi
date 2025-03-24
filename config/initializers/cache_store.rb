@@ -10,7 +10,7 @@ end
 
 # Configure cache options based on environment
 cache_options = {
-  namespace: "tarot-api:cache",
+  namespace: "tarotapi:cache",
   expires_in: 1.hour, # Default TTL
   race_condition_ttl: 10.seconds, # Prevent cache stampede
   error_handler: ->(method:, returning:, exception:) {

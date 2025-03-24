@@ -1,44 +1,39 @@
 module Api
   module V1
     class SeanceController < ApplicationController
+      # Skip authentication for seance endpoints
+      skip_before_action :authenticate_request
+
+      # POST /api/v1/seance
       def create
-        token_data = token_service.generate_token(seance_params[:client_id])
-        render json: token_data, status: :created
-      rescue ArgumentError => e
-        render json: { error: e.message }, status: :unprocessable_entity
-      end
+        client_id = params[:client_id]
 
-      def validate
-        token = extract_token_from_header
-        return render_unauthorized("token is required") unless token
+        begin
+          token_service = SeanceTokenService.new
+          token_data = token_service.generate_token(client_id)
 
-        result = token_service.validate_token(token)
-        if result[:valid]
-          render json: result
-        else
-          render_unauthorized(result[:error])
+          render json: { token: token_data[:token], expires_at: token_data[:expires_at] }, status: :created
+        rescue ArgumentError => e
+          render json: { error: e.message }, status: :unprocessable_entity
         end
       end
 
-      private
+      # GET /api/v1/seance/validate
+      def validate
+        token = request.headers["X-Seance-Token"] || params[:token]
 
-      def seance_params
-        params.permit(:client_id)
-      end
+        unless token.present?
+          return render json: { valid: false, error: "missing token" }, status: :unauthorized
+        end
 
-      def token_service
-        @token_service ||= SeanceTokenService.new
-      end
+        token_service = SeanceTokenService.new
+        result = token_service.validate_token(token)
 
-      def extract_token_from_header
-        auth_header = request.headers["authorization"]
-        return nil unless auth_header
-
-        auth_header.split(" ").last
-      end
-
-      def render_unauthorized(message)
-        render json: { error: message }, status: :unauthorized
+        if result[:valid]
+          render json: { valid: true, client_id: result[:client_id] }
+        else
+          render json: { valid: false, error: result[:error] }, status: :unauthorized
+        end
       end
     end
   end

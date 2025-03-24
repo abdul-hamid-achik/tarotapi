@@ -93,7 +93,7 @@ namespace :dev do
     TaskLogger.info("Starting Docker development environment...")
 
     # Set development container registry
-    ENV["CONTAINER_REGISTRY"] = "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarot-api"
+    ENV["CONTAINER_REGISTRY"] = "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarotapi"
 
     system("docker-compose up -d")
     TaskLogger.info("Docker development environment started!")
@@ -111,7 +111,7 @@ namespace :dev do
     TaskLogger.info("Rebuilding Docker development environment...")
 
     # Set development container registry
-    ENV["CONTAINER_REGISTRY"] = "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarot-api"
+    ENV["CONTAINER_REGISTRY"] = "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarotapi"
 
     system("docker-compose build --no-cache")
     TaskLogger.info("Docker development environment rebuilt!")
@@ -275,7 +275,7 @@ namespace :docker do
     TaskLogger.info("Building development Docker image...")
 
     # Set development container registry
-    ENV["CONTAINER_REGISTRY"] = "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarot-api"
+    ENV["CONTAINER_REGISTRY"] = "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarotapi"
 
     system("docker-compose build")
     TaskLogger.info("Development Docker image built!")
@@ -286,10 +286,10 @@ namespace :docker do
     TaskLogger.info("Pushing development Docker image to GitHub Container Registry...")
 
     # Set development container registry
-    registry = ENV["CONTAINER_REGISTRY"] || "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarot-api"
+    registry = ENV["CONTAINER_REGISTRY"] || "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarotapi"
 
     # Tag and push the image
-    system("docker tag tarot_api:latest #{registry}:development")
+    system("docker tag tarotapi:latest #{registry}:development")
     system("docker push #{registry}:development")
 
     TaskLogger.info("Development Docker image pushed to #{registry}:development")

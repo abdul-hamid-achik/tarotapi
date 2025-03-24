@@ -91,13 +91,13 @@ namespace :deploy do
 
     TaskLogger.info("Building container image for #{env} with commit hash #{commit_hash}...")
 
-    system("docker build -t tarot-api:#{commit_hash} \
+    system("docker build -t tarotapi:#{commit_hash} \
       --build-arg RAILS_ENV=#{env} \
       --build-arg RAILS_MASTER_KEY=#{ENV['RAILS_MASTER_KEY']} \
       .")
 
     # Also tag as latest for convenience
-    system("docker tag tarot-api:#{commit_hash} tarot-api:latest")
+    system("docker tag tarotapi:#{commit_hash} tarotapi:latest")
   end
 
   desc "Push container image to registry"
@@ -111,7 +111,7 @@ namespace :deploy do
 
       # For development env, default to GitHub Container Registry if not set
       if env == "development"
-        registry = "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarot-api"
+        registry = "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarotapi"
         TaskLogger.info("Using GitHub Container Registry for development: #{registry}")
       else
         # Change directory to infrastructure folder
@@ -148,20 +148,20 @@ namespace :deploy do
     end
 
     # Tag and push with commit hash
-    system("docker tag tarot-api:#{commit_hash} #{registry}:#{commit_hash}")
+    system("docker tag tarotapi:#{commit_hash} #{registry}:#{commit_hash}")
     system("docker push #{registry}:#{commit_hash}")
 
     # Also tag and push as latest
-    system("docker tag tarot-api:#{commit_hash} #{registry}:latest")
+    system("docker tag tarotapi:#{commit_hash} #{registry}:latest")
     system("docker push #{registry}:latest")
 
     # Tag with environment name for backward compatibility
-    system("docker tag tarot-api:#{commit_hash} #{registry}:#{env}")
+    system("docker tag tarotapi:#{commit_hash} #{registry}:#{env}")
     system("docker push #{registry}:#{env}")
 
     # For production, also tag as stable
     if env == "production"
-      system("docker tag tarot-api:#{commit_hash} #{registry}:stable")
+      system("docker tag tarotapi:#{commit_hash} #{registry}:stable")
       system("docker push #{registry}:stable")
     end
   end
@@ -216,7 +216,7 @@ namespace :deploy do
 
         if service.nil?
           # Use a default service name based on environment if not found
-          service = "tarot-api-ecs-service-#{env}"
+          service = "tarotapi-ecs-service-#{env}"
           TaskLogger.info("Using default service name: #{service}")
         end
       end

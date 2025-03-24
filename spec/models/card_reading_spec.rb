@@ -10,7 +10,13 @@ RSpec.describe CardReading, type: :model do
 
   describe 'validations' do
     it { should validate_presence_of(:position) }
-    it { should validate_inclusion_of(:is_reversed).in_array([ true, false ]) }
+    it "allows is_reversed to be true or false" do
+      reading = build(:card_reading, is_reversed: true)
+      expect(reading).to be_valid
+
+      reading = build(:card_reading, is_reversed: false)
+      expect(reading).to be_valid
+    end
   end
 
   describe 'callbacks' do

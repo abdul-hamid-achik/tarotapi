@@ -1,4 +1,4 @@
-class AddOptimizationIndices < ActiveRecord::Migration[7.1]
+class AddOptimizationIndices < ActiveRecord::Migration[7.0]
   def change
     # Users - Index for auth-related queries and user lookup patterns
     add_index :users, :refresh_token, where: "refresh_token IS NOT NULL"

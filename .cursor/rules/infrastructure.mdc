@@ -5,6 +5,15 @@ alwaysApply: true
 ---
 # Tarot API Infrastructure
 
+## Infrastructure as Code
+
+- Use Pulumi for infrastructure management
+- Use Pulumi Cloud for state management (NOT S3)
+- Default region: mx-central
+- All infrastructure changes must be versioned
+- Include rollback procedures for all infrastructure changes
+- Document all infrastructure components
+
 ## Docker Configuration
 - API container: Rails application
 - Database container: PostgreSQL 

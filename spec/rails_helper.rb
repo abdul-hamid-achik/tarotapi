@@ -11,7 +11,12 @@ require 'rspec/rails'
 require 'factory_bot_rails'
 require 'vcr'
 require 'webmock/rspec'
+# We don't need MockRedis anymore since we have real Redis in Docker
+# require 'mock_redis'
 # Add additional requires below this line. Rails is not loaded until this point!
+
+# Remove SQLite configuration since we're using PostgreSQL from Docker Compose
+# The database configuration comes from config/database.yml and environment variables
 
 # Requires supporting ruby files with custom matchers and macros, etc, in
 # spec/support/ and its subdirectories. Files matching `spec/**/*_spec.rb` are
@@ -31,8 +36,9 @@ require 'webmock/rspec'
 # Checks for pending migrations and applies them before tests are run.
 # If you are not using ActiveRecord, you can remove these lines.
 begin
-  ActiveRecord::Migration.maintain_test_schema!
-rescue ActiveRecord::PendingMigrationError => e
+  # Load the schema into the in-memory database
+  load "#{Rails.root}/db/schema.rb"
+rescue => e
   abort e.to_s.strip
 end
 
@@ -40,12 +46,17 @@ Dir[Rails.root.join('spec/support/**/*.rb')].each { |f| require f }
 
 RSpec.configure do |config|
   # Remove this line if you're not using ActiveRecord or ActiveRecord fixtures
-  config.fixture_path = Rails.root.join('spec/fixtures')
+  config.fixture_paths = [ Rails.root.join('spec/fixtures') ]
 
   # If you're not using ActiveRecord, or you'd prefer not to run each of your
   # examples within a transaction, remove the following line or assign false
   # instead of true.
   config.use_transactional_fixtures = true
+
+  # Add host configuration for request specs
+  config.before(:each, type: :request) do
+    host! ENV['TEST_HOST'] || "tarotapi.cards"
+  end
 
   # You can uncomment this line to turn off ActiveRecord support entirely.
   # config.use_active_record = false
@@ -84,6 +95,11 @@ RSpec.configure do |config|
       example.run
     end
   end
+
+  # Remove MockRedis configuration since we're using real Redis
+  # config.before(:each) do
+  #   stub_const('Redis', MockRedis)
+  # end
 end
 
 Shoulda::Matchers.configure do |config|

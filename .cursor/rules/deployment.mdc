@@ -16,7 +16,7 @@ alwaysApply: true
 ## Infrastructure as Code
 
 - Use Pulumi for infrastructure management
-- Store state in the designated S3 bucket: `tarot-api-pulumi-state`
+- Store state in the designated S3 bucket: `tarotapi-pulumi-state`
 - All infrastructure changes must be versioned
 - Include rollback procedures for all infrastructure changes
 - Document all infrastructure components

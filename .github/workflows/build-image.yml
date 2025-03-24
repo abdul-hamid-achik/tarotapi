@@ -47,7 +47,7 @@ jobs:
       - name: Build and push container image
         run: |
           # Set the GitHub Container Registry URL for development
-          export CONTAINER_REGISTRY="ghcr.io/${{ github.repository_owner }}/tarot-api"
+          export CONTAINER_REGISTRY="ghcr.io/${{ github.repository_owner }}/tarotapi"
           
           # Get short commit hash
           COMMIT_HASH="${{ github.sha }}"

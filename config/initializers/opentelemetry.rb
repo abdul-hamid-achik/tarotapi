@@ -8,7 +8,7 @@ if Rails.env.production?
     # Configure OpenTelemetry SDK
     OpenTelemetry::SDK.configure do |c|
       # Configure the OTLP exporter (Tempo for traces)
-      c.service_name = "tarot-api"
+      c.service_name = "tarotapi"
       c.service_version = ENV["RELEASE_VERSION"] || "0.1.0"
 
       # Use OTLP exporter for traces
@@ -35,7 +35,7 @@ if Rails.env.production?
         def in_span(name, attributes: nil, kind: nil, links: nil, start_timestamp: nil, end_timestamp: nil, with_parent: nil, with_parent_context: nil)
           attributes ||= {}
           attributes["deployment.environment"] = Rails.env
-          attributes["service.name"] = "tarot-api"
+          attributes["service.name"] = "tarotapi"
           attributes["service.version"] = ENV["RELEASE_VERSION"] || "0.1.0"
 
           super(name, attributes: attributes, kind: kind, links: links, start_timestamp: start_timestamp, end_timestamp: end_timestamp, with_parent: with_parent, with_parent_context: with_parent_context)
@@ -55,7 +55,7 @@ if Rails.env.production?
             "error.type" => exception.class.name,
             "error.message" => exception.message,
             "error.stack_trace" => exception.backtrace&.join("\n"),
-            "service.name" => "tarot-api",
+            "service.name" => "tarotapi",
             "deployment.environment" => Rails.env
           }
 

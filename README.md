@@ -1,10 +1,10 @@
 # Tarot API
 
-[![ci](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/ci.yml/badge.svg)](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/ci.yml)
-[![pulumi deployment](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/pulumi-deploy.yml/badge.svg)](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/pulumi-deploy.yml)
-[![preview environments](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/preview-environments.yml/badge.svg)](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/preview-environments.yml)
-[![security scan](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/security-scan.yml/badge.svg)](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/security-scan.yml)
-[![cleanup previews](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/cleanup-previews.yml/badge.svg)](https://github.com/abdul-hamid-achik/tarot-api/actions/workflows/cleanup-previews.yml)
+[![ci](https://github.com/abdul-hamid-achik/tarotapi/actions/workflows/ci.yml/badge.svg)](https://github.com/abdul-hamid-achik/tarotapi/actions/workflows/ci.yml)
+[![pulumi deployment](https://github.com/abdul-hamid-achik/tarotapi/actions/workflows/pulumi-deploy.yml/badge.svg)](https://github.com/abdul-hamid-achik/tarotapi/actions/workflows/pulumi-deploy.yml)
+[![preview environments](https://github.com/abdul-hamid-achik/tarotapi/actions/workflows/preview-environments.yml/badge.svg)](https://github.com/abdul-hamid-achik/tarotapi/actions/workflows/preview-environments.yml)
+[![security scan](https://github.com/abdul-hamid-achik/tarotapi/actions/workflows/security-scan.yml/badge.svg)](https://github.com/abdul-hamid-achik/tarotapi/actions/workflows/security-scan.yml)
+[![cleanup previews](https://github.com/abdul-hamid-achik/tarotapi/actions/workflows/cleanup-previews.yml/badge.svg)](https://github.com/abdul-hamid-achik/tarotapi/actions/workflows/cleanup-previews.yml)
 
 ![ruby](https://img.shields.io/badge/ruby-3.4-ruby.svg)
 ![rails](https://img.shields.io/badge/rails-8.0-rails.svg)
@@ -25,6 +25,8 @@ A Ruby on Rails API for tarot card reading and interpretation, leveraging OpenAI
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
 - [Connection Pooling & Health Checks](#connection-pooling--health-checks)
+- [Secrets Management](#secrets-management)
+- [Security](#security)
 
 ## Quick Start
 
@@ -32,8 +34,8 @@ Get up and running in minutes:
 
 ```bash
 # Clone the repository
-git clone https://github.com/abdul-hamid-achik/tarot-api.git
-cd tarot-api
+git clone https://github.com/abdul-hamid-achik/tarotapi.git
+cd tarotapi
 
 # Install dependencies
 bundle install
@@ -126,8 +128,8 @@ Deployments are handled via GitHub Actions workflows:
 
 1. Clone the repository
 ```bash
-git clone https://github.com/abdul-hamid-achik/tarot-api.git
-cd tarot-api
+git clone https://github.com/abdul-hamid-achik/tarotapi.git
+cd tarotapi
 ```
 
 2. Install dependencies
@@ -155,12 +157,12 @@ bundle exec rake dev
 
 The application follows Rails conventions for database names:
 
-- Database names follow the pattern: `tarot_api_#{Rails.env}`
+- Database names follow the pattern: `tarotapi_#{Rails.env}`
 - Examples:
-  - Development: `tarot_api_development`
-  - Test: `tarot_api_test`
-  - Staging: `tarot_api_staging`
-  - Production: `tarot_api_production`
+  - Development: `tarotapi_development`
+  - Test: `tarotapi_test`
+  - Staging: `tarotapi_staging`
+  - Production: `tarotapi_production`
 
 This convention is enforced throughout configuration files and you should not override it with explicit `DB_NAME` environment variables. When switching environments, the database name will automatically adjust based on the `RAILS_ENV`.
 
@@ -265,7 +267,7 @@ cd infrastructure && pulumi stack output containerRegistry
 The deployment tasks will automatically use this URL for pushing images, but you can also set it manually in your `.env` file:
 
 ```
-CONTAINER_REGISTRY=<your-aws-account-id>.dkr.ecr.<region>.amazonaws.com/tarot-api-<environment>
+CONTAINER_REGISTRY=<your-aws-account-id>.dkr.ecr.<region>.amazonaws.com/tarotapi-<environment>
 ```
 
 ### Dependabot Configuration
@@ -347,6 +349,16 @@ curl -X GET \
 | `GET /api/v1/readings/{id}` | Get a specific reading | Yes |
 
 ## Command Reference
+
+### Security Checks
+
+| Command | Description |
+|---------|-------------|
+| `bin/security_check` | Run comprehensive security checks on the codebase |
+| `bin/security_check --ci` | Run security checks in CI mode (non-interactive) |
+| `bundle exec brakeman` | Run Rails security scanner |
+| `bundle exec bundle-audit check --update` | Check for vulnerable dependencies |
+| `bundle exec ruby-audit check` | Check for Ruby version vulnerabilities |
 
 ### Infrastructure Management
 
@@ -544,4 +556,61 @@ Set the following environment variables in production:
 ```
 HEALTH_CHECK_USERNAME=your_secure_username
 HEALTH_CHECK_PASSWORD=your_secure_password
+```
+
+## Secrets Management
+
+This project uses Docker secrets for managing sensitive information. To set up your development environment properly:
+
+1. Create a `secrets/` directory in the project root (not tracked by Git)
+2. Add the following secret files:
+   - `secrets/db_password.txt`: PostgreSQL database password
+   - `secrets/jwt_secret.txt`: Secret key for JWT token generation
+   - `secrets/health_check_password.txt`: Password for health check endpoints
+   - `config/openai_api_key.txt`: Your OpenAI API key
+
+3. AWS credentials are read from your `~/.aws/credentials` file. Make sure it's properly configured with:
+   ```
+   [default]
+   aws_access_key_id = YOUR_ACCESS_KEY
+   aws_secret_access_key = YOUR_SECRET_KEY
+   ```
+
+4. Never commit secret files to Git. They are excluded in `.gitignore`.
+
+5. For production deployment, use a proper secrets management service like AWS Secrets Manager, HashiCorp Vault, or Docker Swarm secrets.
+
+## Security
+
+This project uses multiple security scanning tools to ensure code quality and security:
+
+### Automated Security Scanning
+
+Our CI/CD pipeline runs these security checks automatically:
+
+1. **Secret Scanning** - Detects hardcoded secrets using:
+   - GitLeaks - Advanced secret detection with pattern matching
+   - TruffleHog - Deep scanning for secrets with verification
+   - GitHub Advanced Security integration
+
+2. **Vulnerability Scanning**:
+   - Brakeman - Rails-specific vulnerability scanner
+   - Bundle Audit - Dependency vulnerability scanner
+   - CodeQL Analysis - GitHub's advanced SAST tool
+
+3. **Docker Security**:
+   - Dockerfile best practices checking
+   - Container security scanning
+
+### Running Security Scans Locally
+
+```bash
+# Check for Rails security vulnerabilities
+bundle exec brakeman -A
+
+# Check for vulnerable dependencies
+bundle audit check --update
+
+# Check for hardcoded secrets
+git grep -i "password\|secret\|token\|key" -- ":(exclude)*.md" ":(exclude).gitignore"
 ```

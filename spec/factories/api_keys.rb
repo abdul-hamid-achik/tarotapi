@@ -1,12 +1,12 @@
 FactoryBot.define do
   factory :api_key do
-    name { "MyString" }
-    token { "MyString" }
-    expires_at { "2025-03-21 01:24:04" }
-    user { nil }
-    rate_limit { 1 }
-    last_used_at { "2025-03-21 01:24:04" }
-    description { "MyString" }
-    active { false }
+    name { "Test API Key" }
+    key { SecureRandom.hex(24) }
+    expires_at { 1.year.from_now }
+    association :user
+    rate_limit { 100 }
+    last_used_at { nil }
+    description { "API key for testing" }
+    active { true }
   end
 end

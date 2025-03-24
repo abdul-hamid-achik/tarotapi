@@ -42,7 +42,7 @@ alwaysApply: false
 ### Pulumi (Infrastructure as Code)
 - Manages cloud infrastructure resources
 - Commands run through rake tasks: `rake infra:apply`
-- State stored in S3 bucket: `tarot-api-pulumi-state`
+- State stored in S3 bucket: `tarotapi-pulumi-state`
 
 ### Kamal (Zero-downtime Deployment)
 - Handles container deployment

@@ -10,9 +10,11 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
+ActiveRecord::Schema[8.0].define(version: 2024_03_24_001001) do
   # These are extensions that must be enabled in order to support this database
+  enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
+  enable_extension "pg_trgm"
 
   create_table "access_tokens", force: :cascade do |t|
     t.bigint "authorization_id", null: false
@@ -28,6 +30,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.index ["last_used_at"], name: "index_access_tokens_on_last_used_at"
     t.index ["refresh_token"], name: "index_access_tokens_on_refresh_token", unique: true
     t.index ["token"], name: "index_access_tokens_on_token", unique: true
+  end
+
+  create_table "action_text_rich_texts", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "body"
+    t.string "record_type", null: false
+    t.bigint "record_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["record_type", "record_id", "name"], name: "index_action_text_rich_texts_uniqueness", unique: true
   end
 
   create_table "active_storage_attachments", force: :cascade do |t|
@@ -59,7 +71,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
   end
 
   create_table "api_keys", force: :cascade do |t|
-    t.string "name"
+    t.string "name", null: false
     t.string "key", null: false
     t.datetime "expires_at"
     t.bigint "user_id"
@@ -70,11 +82,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "organization_id"
-    t.jsonb "scopes", default: [], null: false
+    t.text "scopes", default: "[]", null: false
     t.index ["key"], name: "index_api_keys_on_key", unique: true
+    t.index ["organization_id", "active"], name: "index_api_keys_on_organization_id_and_active"
     t.index ["organization_id", "name"], name: "index_api_keys_on_organization_id_and_name"
     t.index ["organization_id"], name: "index_api_keys_on_organization_id"
-    t.index ["scopes"], name: "index_api_keys_on_scopes", using: :gin
+    t.index ["user_id", "active"], name: "index_api_keys_on_user_id_and_active"
     t.index ["user_id"], name: "index_api_keys_on_user_id"
   end
 
@@ -97,7 +110,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.text "upright_meaning"
     t.text "reversed_meaning"
     t.string "category"
-    t.jsonb "metadata", default: {}
+    t.text "metadata", default: "{}"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["card_id", "category"], name: "index_card_interpretations_on_card_id_and_category", unique: true
@@ -122,12 +135,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.index ["card_id", "created_at"], name: "index_card_readings_on_card_id_and_created_at"
     t.index ["card_id", "reading_id"], name: "index_card_readings_on_card_id_and_reading_id"
     t.index ["card_id"], name: "index_card_readings_on_card_id"
+    t.index ["reading_date"], name: "index_card_readings_on_reading_date"
     t.index ["reading_id", "card_id"], name: "index_card_readings_on_reading_id_and_card_id"
     t.index ["reading_id", "position"], name: "index_card_readings_on_reading_id_and_position", unique: true
     t.index ["reading_id"], name: "index_card_readings_on_reading_id"
     t.index ["reading_session_id"], name: "index_card_readings_on_reading_session_id"
+    t.index ["spread_id", "position"], name: "index_card_readings_on_spread_id_and_position"
     t.index ["spread_id"], name: "index_card_readings_on_spread_id"
     t.index ["user_id", "created_at"], name: "index_card_readings_on_user_id_and_created_at"
+    t.index ["user_id", "reading_date"], name: "index_card_readings_on_user_id_and_reading_date"
     t.index ["user_id"], name: "index_card_readings_on_user_id"
   end
 
@@ -137,23 +153,33 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.string "suit"
     t.string "rank"
     t.text "description"
-    t.string "keywords", default: [], array: true
-    t.string "symbols", default: [], array: true
+    t.text "keywords", default: "[]"
+    t.text "symbols", default: "[]"
     t.string "image_url"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index "to_tsvector('english'::regconfig, description)", name: "index_cards_on_description_gist", using: :gist
     t.index ["arcana"], name: "index_cards_on_arcana"
-    t.index ["keywords"], name: "index_cards_on_keywords", using: :gin
     t.index ["name"], name: "index_cards_on_name", unique: true
     t.index ["suit", "rank"], name: "index_cards_on_suit_and_rank"
     t.index ["suit"], name: "index_cards_on_suit"
-    t.index ["symbols"], name: "index_cards_on_symbols", using: :gin
+  end
+
+  create_table "friendly_id_slugs", force: :cascade do |t|
+    t.string "slug", null: false
+    t.integer "sluggable_id", null: false
+    t.string "sluggable_type", limit: 50
+    t.string "scope"
+    t.datetime "created_at"
+    t.index ["slug", "sluggable_type", "scope"], name: "index_friendly_id_slugs_on_slug_and_sluggable_type_and_scope", unique: true
+    t.index ["slug", "sluggable_type"], name: "index_friendly_id_slugs_on_slug_and_sluggable_type"
+    t.index ["sluggable_type", "sluggable_id"], name: "index_friendly_id_slugs_on_sluggable_type_and_sluggable_id"
   end
 
   create_table "identity_providers", force: :cascade do |t|
     t.string "name", null: false
     t.string "provider_type"
-    t.jsonb "settings", default: {}
+    t.text "settings", default: "{}"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_identity_providers_on_name", unique: true
@@ -171,6 +197,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.index ["organization_id", "user_id"], name: "index_memberships_on_organization_id_and_user_id", unique: true
     t.index ["organization_id"], name: "index_memberships_on_organization_id"
     t.index ["status"], name: "index_memberships_on_status"
+    t.index ["user_id", "role", "status"], name: "index_memberships_on_user_id_role_status"
     t.index ["user_id"], name: "index_memberships_on_user_id"
   end
 
@@ -179,12 +206,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.string "plan", null: false
     t.string "billing_email", null: false
     t.string "status", default: "active", null: false
-    t.jsonb "features", default: {}, null: false
-    t.jsonb "quotas", default: {}, null: false
+    t.text "features", default: "{}"
+    t.text "quotas", default: "{}"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["billing_email"], name: "index_organizations_on_billing_email"
     t.index ["plan"], name: "index_organizations_on_plan"
+    t.index ["status", "plan"], name: "index_organizations_on_status_and_plan"
     t.index ["status"], name: "index_organizations_on_status"
   end
 
@@ -196,8 +224,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.string "currency"
     t.integer "application_fee_amount"
     t.integer "amount_refunded"
-    t.jsonb "metadata"
-    t.jsonb "data"
+    t.text "metadata"
+    t.text "data"
     t.string "stripe_account"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -212,7 +240,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.string "processor", null: false
     t.string "processor_id"
     t.boolean "default"
-    t.jsonb "data"
+    t.text "data"
     t.string "stripe_account"
     t.datetime "deleted_at", precision: nil
     t.datetime "created_at", null: false
@@ -228,7 +256,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.string "processor", null: false
     t.string "processor_id"
     t.boolean "default"
-    t.jsonb "data"
+    t.text "data"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "type"
@@ -240,7 +268,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.string "processor_id", null: false
     t.boolean "default"
     t.string "payment_method_type"
-    t.jsonb "data"
+    t.text "data"
     t.string "stripe_account"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -264,8 +292,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.datetime "pause_starts_at", precision: nil
     t.datetime "pause_resumes_at", precision: nil
     t.decimal "application_fee_percent", precision: 8, scale: 2
-    t.jsonb "metadata"
-    t.jsonb "data"
+    t.text "metadata"
+    t.text "data"
     t.string "stripe_account"
     t.string "payment_method_id"
     t.datetime "created_at", null: false
@@ -279,7 +307,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
   create_table "pay_webhooks", force: :cascade do |t|
     t.string "processor"
     t.string "event_type"
-    t.jsonb "event"
+    t.text "event"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
@@ -320,10 +348,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["completed_at", "status"], name: "index_readings_on_completed_at_and_status"
+    t.index ["created_at", "status"], name: "index_readings_on_created_at_and_status"
     t.index ["created_at"], name: "index_readings_on_created_at"
     t.index ["spread_id"], name: "index_readings_on_spread_id"
     t.index ["status"], name: "index_readings_on_status"
     t.index ["user_id", "created_at"], name: "index_readings_on_user_id_and_created_at"
+    t.index ["user_id", "spread_id", "created_at"], name: "index_readings_on_user_id_spread_id_created_at"
+    t.index ["user_id", "spread_id", "status"], name: "index_readings_on_user_id_spread_id_status"
     t.index ["user_id", "status"], name: "index_readings_on_user_id_and_status"
     t.index ["user_id"], name: "index_readings_on_user_id"
   end
@@ -333,7 +364,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.text "description"
     t.integer "num_cards", null: false
     t.bigint "user_id"
-    t.jsonb "positions", default: {}
+    t.jsonb "positions", default: "{}"
     t.boolean "is_public", default: false
     t.boolean "is_system", default: false
     t.datetime "created_at", null: false
@@ -341,7 +372,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.index ["is_public"], name: "index_spreads_on_is_public"
     t.index ["is_system"], name: "index_spreads_on_is_system"
     t.index ["name"], name: "index_spreads_on_name"
-    t.index ["positions"], name: "index_spreads_on_positions", using: :gin
+    t.index ["positions"], name: "index_spreads_on_positions", opclass: :jsonb_path_ops, using: :gin
     t.index ["user_id"], name: "index_spreads_on_user_id"
   end
 
@@ -354,10 +385,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.integer "monthly_readings", default: 0
     t.integer "duration_days", default: 30
     t.boolean "is_active", default: true
-    t.string "features", default: [], array: true
-    t.jsonb "metadata", default: {}
+    t.text "features", default: ""
+    t.text "metadata", default: "{}"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["is_active", "price"], name: "index_subscription_plans_on_is_active_and_price"
     t.index ["is_active"], name: "index_subscription_plans_on_is_active"
     t.index ["name"], name: "index_subscription_plans_on_name", unique: true
   end
@@ -369,12 +401,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.string "status", default: "pending"
     t.datetime "current_period_start"
     t.datetime "current_period_end"
-    t.jsonb "metadata", default: {}
+    t.text "metadata", default: "{}"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["current_period_start", "current_period_end"], name: "idx_on_current_period_start_current_period_end_ef96a9f506"
     t.index ["status"], name: "index_subscriptions_on_status"
     t.index ["subscription_plan_id"], name: "index_subscriptions_on_subscription_plan_id"
+    t.index ["user_id", "current_period_end"], name: "index_subscriptions_on_user_id_and_current_period_end"
     t.index ["user_id", "plan_name", "status"], name: "index_subscriptions_on_user_id_and_plan_name_and_status"
     t.index ["user_id", "status"], name: "index_subscriptions_on_user_id_and_status"
     t.index ["user_id"], name: "index_subscriptions_on_user_id"
@@ -384,7 +417,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.bigint "organization_id", null: false
     t.bigint "user_id"
     t.string "metric_type", null: false
-    t.jsonb "metadata", default: {}, null: false
+    t.text "metadata", default: "{}", null: false
     t.datetime "recorded_at", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -419,7 +452,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.datetime "confirmed_at"
     t.datetime "confirmation_sent_at"
     t.string "unconfirmed_email"
-    t.json "tokens"
+    t.text "tokens"
     t.index ["confirmation_token"], name: "index_users_on_confirmation_token", unique: true
     t.index ["created_by_user_id"], name: "index_users_on_created_by_user_id"
     t.index ["email"], name: "index_users_on_email", unique: true, where: "(email IS NOT NULL)"
@@ -428,6 +461,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_03_22_073822) do
     t.index ["name"], name: "index_users_on_name"
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
     t.index ["uid", "provider"], name: "index_users_on_uid_and_provider", unique: true
+  end
+
+  create_table "versions", force: :cascade do |t|
+    t.string "item_type", null: false
+    t.bigint "item_id", null: false
+    t.string "event", null: false
+    t.string "whodunnit"
+    t.text "object"
+    t.text "object_changes"
+    t.datetime "created_at"
+    t.index ["item_type", "item_id"], name: "index_versions_on_item_type_and_item_id"
   end
 
   add_foreign_key "access_tokens", "authorizations"

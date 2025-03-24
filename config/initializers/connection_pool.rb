@@ -62,7 +62,7 @@ ActiveSupport.on_load(:active_record) do
           end
 
           # Store stats in request env for debugging if needed
-          env["tarot_api.db_pool_stats"] = pool_stats
+          env["tarotapi.db_pool_stats"] = pool_stats
         rescue => e
           Rails.logger.error "Error checking connection pool: #{e.message}"
         end

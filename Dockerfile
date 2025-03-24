@@ -2,8 +2,8 @@
 # check=error=true
 
 # This Dockerfile is designed for ARM architecture (M1/M2/M3/M4) only
-# Build with: docker build -t tarot_api .
-# Run with: docker run -d -p 3000:3000 -e RAILS_MASTER_KEY=<value from config/master.key> --name tarot_api tarot_api
+# Build with: docker build -t tarotapi .
+# Run with: docker run -d -p 3000:3000 -e RAILS_MASTER_KEY=<value from config/master.key> --name tarotapi tarotapi
 
 # For a containerized dev environment, see Dev Containers: https://guides.rubyonrails.org/getting_started_with_devcontainer.html
 
@@ -13,8 +13,8 @@ FROM ruby:3.4-slim-bookworm AS base
 # Verify ARM architecture
 RUN arch=$(uname -m) && \
     if [[ "$arch" != arm* ]] && [[ "$arch" != aarch64 ]]; then \
-      echo "This Dockerfile only supports ARM architecture (got $arch)" && \
-      exit 1; \
+    echo "This Dockerfile only supports ARM architecture (got $arch)" && \
+    exit 1; \
     fi
 
 # install essential packages
@@ -56,8 +56,7 @@ ENV RAILS_ENV=development \
     REDIS_POOL_SIZE=15 \
     REDIS_TIMEOUT=2 \
     # Health check credentials
-    HEALTH_CHECK_USERNAME=admin \
-    HEALTH_CHECK_PASSWORD=tarot_health_check
+    HEALTH_CHECK_USERNAME=admin
 
 # health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
@@ -89,8 +88,8 @@ FROM ruby:3.4-slim-bookworm AS production
 # Verify ARM architecture
 RUN arch=$(uname -m) && \
     if [[ "$arch" != arm* ]] && [[ "$arch" != aarch64 ]]; then \
-      echo "This Dockerfile only supports ARM architecture (got $arch)" && \
-      exit 1; \
+    echo "This Dockerfile only supports ARM architecture (got $arch)" && \
+    exit 1; \
     fi
 
 # install runtime dependencies

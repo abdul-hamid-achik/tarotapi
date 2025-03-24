@@ -1,119 +1,150 @@
 # Tarot API Infrastructure
 
-This directory contains the Pulumi Infrastructure as Code (IaC) configuration for the Tarot API project.
+This directory contains the infrastructure as code (IaC) implementation for the Tarot API project using Pulumi. The infrastructure is designed to run on AWS and supports multiple environments.
 
-## Overview
+## State Management
 
-The infrastructure is managed using Pulumi with a YAML configuration approach. Key components include:
+We use **Pulumi Cloud** for state storage, providing:
+- Centralized access
+- Robust security features
+- Automatic state locking
+- Version history
 
-- AWS EC2 Virtual Private Cloud (VPC)
-- Amazon RDS PostgreSQL database
-- Amazon ElastiCache Redis
-- AWS S3 storage buckets
-- Amazon ECR container repositories
-- Amazon ECS for container orchestration
-- DNS and certificate management
+## Infrastructure Components
 
-## Architecture
+### Network Layer
+- VPC with CIDR block 10.0.0.0/16
+- Public subnets in mx-central-1a and mx-central-1b
+- Security groups for service isolation
 
-The Tarot API uses a hybrid infrastructure approach that leverages:
+### Database Layer
+- RDS PostgreSQL 14.13
+- Instance class: db.t3.micro
+- 20GB allocated storage
+- Automated backups enabled
 
-1. **Pulumi** - For cloud infrastructure provisioning
-2. **Rake Tasks** - For application deployment
+### Cache Layer
+- Redis ElastiCache cluster
+- Node type: cache.t3.micro
+- Single node configuration
 
-## Getting Started
+### Storage Layer
+- S3 bucket for general storage
+- Private ACL configuration
+- Appropriate bucket policies
 
-### Prerequisites
+### Compute Layer
+- ECS Fargate for container orchestration
+- Task definitions for:
+  - API service
+  - Ollama LLM service
+  - OpenAI proxy service
+  - (Future) Anthropic service
 
-- AWS CLI configured with appropriate credentials
-- Pulumi CLI installed
-- Ruby environment set up
+### LLM Services Configuration
+- Ollama:
+  - CPU: 2048
+  - Memory: 4096
+  - Model: llama3:8b
+- OpenAI Proxy:
+  - CPU: 256
+  - Memory: 512
+  - Nginx-based proxy
 
-### Setup
+## Environment Variables
 
-1. Install Pulumi:
-   ```bash
-   gem install pulumi
-   ```
+Required environment variables for infrastructure deployment:
 
-2. Login to Pulumi:
-   ```bash
-   pulumi login
-   ```
+```bash
+# AWS Configuration
+AWS_DEFAULT_REGION=mx-central-1
+AWS_ACCOUNT_ID=<your-account-id>
+CONTAINER_REGISTRY=<your-registry>
 
-3. Initialize the stack:
-   ```bash
-   bundle exec rake infra:init
-   ```
+# Database Configuration
+DB_INSTANCE_CLASS=db.t3.micro
+DB_USERNAME=tarotapi
+DB_PASSWORD=<your-password>
+DB_PORT=5432
+
+# LLM Configuration
+OPENAI_API_KEY=<your-key>
+OLLAMA_API_KEY=<your-key>
+```
 
 ## Deployment
 
-To deploy the infrastructure:
+1. Initialize Pulumi:
+   ```bash
+   pulumi login
+   pulumi stack init dev
+   ```
 
-```bash
-# For staging environment
-bundle exec rake infra:deploy[staging]
+2. Configure secrets:
+   ```bash
+   pulumi config set --secret tarotapi:ollamaApiKey <your-ollama-api-key>
+   pulumi config set --secret tarotapi:openaiApiKey <your-openai-api-key>
+   ```
 
-# For production environment
-bundle exec rake infra:deploy[production]
+3. Deploy:
+   ```bash
+   pulumi up
+   ```
 
-# For preview environments
-bundle exec rake infra:create_preview[name]
-```
+## Stack Outputs
 
-## Container Registry
-
-Each environment has its own Amazon ECR repository created by Pulumi. The repository URL follows this format:
-
-```
-<aws-account-id>.dkr.ecr.<region>.amazonaws.com/tarot-api-<environment>
-```
-
-To access the container registry URL programmatically:
-
-```bash
-cd infrastructure && pulumi stack output containerRegistry
-```
-
-This URL is used by the deployment tasks to push and deploy container images.
-
-## Outputs
-
-Pulumi exports several important outputs that can be used by other scripts and processes:
-
-- `containerRegistry`: URL of the ECR repository for container images
+The infrastructure provides the following outputs:
 - `dbEndpoint`: PostgreSQL database endpoint
-- `redisEndpoint`: Redis cache endpoint 
-- `ecsClusterId`: ECS cluster ARN
-- `s3BucketName`: S3 bucket name for file storage
-
-To view all outputs:
-
-```bash
-pulumi stack output
-```
-
-## Managing Environments
-
-To destroy an environment:
-
-```bash
-bundle exec rake infra:destroy[environment]
-```
-
-To manage Pulumi state:
-
-```bash
-# Backup state
-bundle exec rake infra:manage_state[backup]
-
-# Restore state
-bundle exec rake infra:manage_state[restore,backup_file]
-```
+- `redisEndpoint`: Redis cache endpoint
+- `ecsClusterId`: ECS cluster identifier
+- `containerRegistry`: ECR repository URL
+- `s3BucketName`: Storage bucket name
 
 ## Security Considerations
 
-- Sensitive configuration is encrypted using Pulumi secrets
-- AWS resources use appropriate IAM roles with least privilege
-- All communication uses TLS/SSL encryption
-- Database and cache instances are placed in private subnets 
+- All secrets managed through AWS Secrets Manager
+- IAM roles follow least privilege principle
+- Security groups restrict access appropriately
+- SSL/TLS certificates managed for domains
+
+## Monitoring
+
+- CloudWatch log groups for all services
+- CloudWatch alarms for high CPU usage
+- Container insights enabled on ECS cluster
+
+## Cost Optimization
+
+- Cost-saving features enabled by default
+- t3.micro instances used where appropriate
+- Auto-scaling configured for optimal resource usage
+
+## Contributing
+
+When making infrastructure changes:
+1. Document changes in this README
+2. Test in a development stack first
+3. Use `pulumi preview` to review changes
+4. Get approval before applying to production
+
+## Troubleshooting
+
+Common issues and solutions:
+
+1. **State Lock Issues**
+   ```bash
+   pulumi stack export > backup.json
+   pulumi stack import --file backup.json
+   ```
+
+2. **Resource Creation Failures**
+   ```bash
+   pulumi refresh
+   pulumi up
+   ```
+
+3. **Secret Management**
+   ```bash
+   pulumi config refresh
+   pulumi config set-all
+   ``` 

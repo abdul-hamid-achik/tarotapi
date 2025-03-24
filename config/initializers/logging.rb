@@ -29,7 +29,7 @@ Rails.application.configure do
 
   # Add Loki appender in non-development environments
   if Rails.env.production? || Rails.env.staging?
-    loki_url = ENV.fetch("LOKI_URL", "http://loki.tarot-api.internal:3100")
+    loki_url = ENV.fetch("LOKI_URL", "http://loki.tarotapi.internal:3100")
 
     SemanticLogger.add_appender(
       appender: :http_json,

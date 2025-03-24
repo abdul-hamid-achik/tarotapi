@@ -21,6 +21,6 @@ end
 
 # Add a special task to set the development container registry
 task :set_dev_registry do
-  ENV["CONTAINER_REGISTRY"] ||= "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarot-api"
+  ENV["CONTAINER_REGISTRY"] ||= "ghcr.io/#{ENV['GITHUB_REPOSITORY_OWNER'] || 'abdul-hamid-achik'}/tarotapi"
   puts "Using container registry: #{ENV['CONTAINER_REGISTRY']}"
 end
