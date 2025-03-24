@@ -80,6 +80,50 @@ module ActiveSupport
 
     # Add more helper methods to be used by all tests here...
 
+    # Mock Pundit for controller tests
+    def self.mock_pundit
+      setup do
+        # Store original methods
+        @original_authorize = ApplicationController.instance_method(:authorize) if ApplicationController.method_defined?(:authorize)
+        @original_policy_scope = ApplicationController.instance_method(:policy_scope) if ApplicationController.method_defined?(:policy_scope)
+
+        # Stub methods
+        ApplicationController.class_eval do
+          skip_before_action :verify_authorized, raise: false if respond_to?(:verify_authorized)
+          skip_after_action :verify_policy_scoped, raise: false if respond_to?(:verify_policy_scoped)
+
+          def pundit_user
+            current_user
+          end
+
+          # Override Pundit's authorize method
+          def authorize(record, query = nil)
+            true
+          end
+
+          # Override Pundit's policy_scope method
+          def policy_scope(scope)
+            scope
+          end
+        end
+      end
+
+      teardown do
+        # Restore original methods if they existed
+        if @original_authorize
+          ApplicationController.class_eval do
+            define_method(:authorize, @original_authorize)
+          end
+        end
+
+        if @original_policy_scope
+          ApplicationController.class_eval do
+            define_method(:policy_scope, @original_policy_scope)
+          end
+        end
+      end
+    end
+
     # Alias cards fixtures as tarot_cards for test compatibility
     def tarot_cards(name)
       cards(name)

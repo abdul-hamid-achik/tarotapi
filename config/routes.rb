@@ -99,6 +99,12 @@ Rails.application.routes.draw do
       end
 
       resources :spreads, only: [ :index ]
+
+      resources :usage, only: [ :index ] do
+        collection do
+          get :daily
+        end
+      end
     end
   end
 end

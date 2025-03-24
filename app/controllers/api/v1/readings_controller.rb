@@ -37,7 +37,7 @@ class Api::V1::ReadingsController < Api::V1::BaseController
   end
 
   def create_with_spread
-    spread = Spread.accessible_by(current_user).find_by(id: params[:spread_id])
+    spread = Spread.accessible_for_user(current_user).find_by(id: params[:spread_id])
     unless spread
       return render json: { error: "spread not found" }, status: :not_found
     end

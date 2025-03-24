@@ -4,9 +4,9 @@ class SpreadTest < ActiveSupport::TestCase
   test "validates required fields" do
     spread = Spread.new
     assert_not spread.valid?
-    assert_includes spread.errors[:name], "can't be blank"
-    assert_includes spread.errors[:description], "can't be blank"
-    assert_includes spread.errors[:positions], "can't be blank"
+    assert_includes spread.errors.full_messages, "Name can't be blank"
+    assert_includes spread.errors.full_messages, "Description can't be blank"
+    assert_includes spread.errors.full_messages, "Num cards can't be blank"
   end
 
   test "validates name uniqueness" do

@@ -1,8 +1,8 @@
 module Api
   module V1
     class SeanceController < ApplicationController
-      # Skip authentication for seance endpoints
-      skip_before_action :authenticate_request
+      # Removed skip_before_action since authenticate_request doesn't exist
+      # skip_before_action :authenticate_request
 
       # POST /api/v1/seance
       def create

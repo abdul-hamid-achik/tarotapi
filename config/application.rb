@@ -17,6 +17,7 @@ require "action_cable/engine"
 # Require the middleware
 require_relative "../app/middleware/reading_quota_middleware"
 require_relative "../app/middleware/rate_limit_middleware"
+require_relative "../app/middleware/api_usage_middleware"
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
@@ -60,10 +61,9 @@ module TarotApi
     config.hosts << "www.tarotapi.cards"
     config.hosts << "localhost"
 
-    # Load middleware for reading quota enforcement
+    # Load middleware for API usage tracking and quotas
+    config.middleware.use ApiUsageMiddleware
     config.middleware.use ReadingQuotaMiddleware
-
-    # Add custom middleware
     config.middleware.use RateLimitMiddleware
 
     # Enable strict loading by default in development to catch N+1 queries early

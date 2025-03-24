@@ -10,12 +10,12 @@ class Membership < ApplicationRecord
   validates :status, presence: true, inclusion: { in: %w[invited active suspended] }
 
   # Enums
-  enum role: {
+  enum :role, {
     admin: "admin",
     member: "member"
   }
 
-  enum status: {
+  enum :status, {
     active: "active",
     invited: "invited",
     suspended: "suspended"

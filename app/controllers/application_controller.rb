@@ -3,6 +3,7 @@ class ApplicationController < ActionController::API
   include ActionController::MimeResponds
   include Pundit::Authorization
   include ErrorHandler
+  include TestAuthentication if Rails.env.test?
 
   before_action :set_default_format
 

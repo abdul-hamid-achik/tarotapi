@@ -26,6 +26,7 @@ test:
   # Test-specific settings
   database: <%= ENV.fetch("DB_NAME") { "tarotapi_test" } %>
   min_messages: warning
+  sslmode: disable
 
 # For staging and production with replica support
 # This configuration uses the makara adapter when DB_REPLICA_ENABLED=true

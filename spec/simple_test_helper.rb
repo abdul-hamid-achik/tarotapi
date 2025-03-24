@@ -1,5 +1,5 @@
 require 'simplecov'
-require 'rspec'
+require 'rspec/core'
 require 'webmock/rspec'
 
 SimpleCov.start do

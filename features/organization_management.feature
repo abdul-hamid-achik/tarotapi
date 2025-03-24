@@ -62,3 +62,92 @@ Feature: organization management
     Then the feature limits should be updated
     And the quota limits should be increased
     And existing members should get access to new features
+
+  Scenario: list my organizations
+    Given i am authenticated
+    When i request my organizations
+    Then i should receive a success response
+    And the response should contain a list of organizations
+
+  Scenario: view organization details
+    Given i am authenticated
+    And i am a member of an organization
+    When i request organization details
+    Then i should receive a success response
+    And the response should contain organization information
+
+  Scenario: create a new organization
+    Given i am authenticated
+    When i create an organization with valid data
+      | name     | billing_email       |
+      | Test Org | billing@example.com |
+    Then i should receive a success response with status 201
+    And the response should contain the organization details
+    And i should be an admin member of the organization
+
+  Scenario: create organization with invalid data
+    Given i am authenticated
+    When i create an organization with invalid data
+      | name | billing_email |
+      |      | invalid-email |
+    Then i should receive an error response with status 422
+    And the response should contain validation errors
+
+  Scenario: update organization
+    Given i am authenticated
+    And i am an admin of an organization
+    When i update the organization with new data
+      | name        | billing_email           |
+      | Updated Org | new-billing@example.com |
+    Then i should receive a success response
+    And the response should contain the updated information
+
+  Scenario: non-admin attempting to update organization
+    Given i am authenticated
+    And i am a regular member of an organization
+    When i try to update the organization
+    Then i should receive an error response with status 403
+
+  Scenario: delete organization
+    Given i am authenticated
+    And i am an admin of an organization
+    When i delete the organization
+    Then i should receive a success response with status 204
+
+  Scenario: add member to organization
+    Given i am authenticated
+    And i am an admin of an organization
+    When i add a new member to the organization
+      | email              | role   | name       |
+      | member@example.com | member | New Member |
+    Then i should receive a success response with status 201
+    And the response should contain the membership details
+
+  Scenario: remove member from organization
+    Given i am authenticated
+    And i am an admin of an organization with members
+    When i remove a member from the organization
+    Then i should receive a success response with status 204
+
+  Scenario: view organization usage
+    Given i am authenticated
+    And i am a member of an organization
+    When i request usage data for the organization
+    Then i should receive a success response
+    And the response should contain usage metrics
+
+  Scenario: filter usage by date range
+    Given i am authenticated
+    And i am a member of an organization
+    When i request usage data with date filters
+      | start_date | end_date   | granularity |
+      | 2023-01-01 | 2023-01-31 | daily       |
+    Then i should receive a success response
+    And the response should contain filtered usage data
+
+  Scenario: view organization analytics
+    Given i am authenticated
+    And i am an admin of an organization
+    When i request analytics data for the organization
+    Then i should receive a success response
+    And the response should contain analytics metrics

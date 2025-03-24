@@ -14,6 +14,7 @@ require 'webmock/rspec'
 # We don't need MockRedis anymore since we have real Redis in Docker
 # require 'mock_redis'
 # Add additional requires below this line. Rails is not loaded until this point!
+require 'support/test_authentication'
 
 # Remove SQLite configuration since we're using PostgreSQL from Docker Compose
 # The database configuration comes from config/database.yml and environment variables
@@ -36,9 +37,8 @@ require 'webmock/rspec'
 # Checks for pending migrations and applies them before tests are run.
 # If you are not using ActiveRecord, you can remove these lines.
 begin
-  # Load the schema into the in-memory database
-  load "#{Rails.root}/db/schema.rb"
-rescue => e
+  ActiveRecord::Migration.maintain_test_schema!
+rescue ActiveRecord::PendingMigrationError => e
   abort e.to_s.strip
 end
 

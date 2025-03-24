@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Api::V1::SpreadsControllerTest < ActionDispatch::IntegrationTest
+  mock_pundit
+
   test "should get create" do
     # Convert positions to JSON string to match what the model expects
     positions = [

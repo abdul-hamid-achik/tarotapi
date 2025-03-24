@@ -78,3 +78,50 @@ Feature: health monitoring
     Then recovery procedures should be triggered
     And service status should be monitored
     And administrators should be notified of the recovery attempt
+
+  Scenario: check detailed health status as admin
+    Given i am authenticated as an admin
+    When i request the detailed health status
+    Then i should receive a success response
+    And the response should contain overall system status
+    And the response should contain component statuses
+    And the response should include database pool statistics
+    And the response should include redis pool statistics
+
+  Scenario: check database health status as admin
+    Given i am authenticated as an admin
+    When i request the database health status
+    Then i should receive a success response
+    And the response should contain database status
+    And the response should include database version information
+    And the response should include database pool statistics
+
+  Scenario: non-admin user attempts to access detailed health
+    Given i am authenticated as a regular user
+    When i try to access the detailed health status
+    Then i should receive an error response with status 403
+
+  Scenario: non-admin user attempts to access database health
+    Given i am authenticated as a regular user
+    When i try to access the database health status
+    Then i should receive an error response with status 403
+
+  Scenario: unauthenticated user attempts to access health status
+    When i try to access the detailed health status without authentication
+    Then i should receive an error response with status 401
+
+  Scenario: system status is degraded
+    Given i am authenticated as an admin
+    And the system is experiencing database connection issues
+    When i request the detailed health status
+    Then i should receive a response with status 503
+    And the response should indicate degraded system status
+    And the response should identify the problematic component
+
+  Scenario: database pool is near capacity
+    Given i am authenticated as an admin
+    And the database connection pool is heavily utilized
+    When i request the database health status
+    Then i should receive a success response
+    And the response should indicate a warning for the database pool
+    And the response should show high usage percentage

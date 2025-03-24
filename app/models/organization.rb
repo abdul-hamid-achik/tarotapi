@@ -15,9 +15,67 @@ class Organization < ApplicationRecord
   scope :active, -> { where(status: "active") }
   scope :by_plan, ->(plan) { where(plan: plan) }
 
-  # Features and quotas are stored as jsonb
-  store_accessor :features, :max_members, :api_rate_limit, :custom_spreads, :white_label, :priority_support
-  store_accessor :quotas, :daily_readings, :monthly_api_calls, :concurrent_sessions
+  # Features and quotas accessors
+  def features
+    return {} if super.nil?
+    @parsed_features ||= begin
+      if super.is_a?(String)
+        JSON.parse(super) rescue {}
+      else
+        super
+      end
+    end
+  end
+
+  def quotas
+    return {} if super.nil?
+    @parsed_quotas ||= begin
+      if super.is_a?(String)
+        JSON.parse(super) rescue {}
+      else
+        super
+      end
+    end
+  end
+
+  def features=(value)
+    @parsed_features = nil
+    if value.is_a?(Hash)
+      super(value.to_json)
+    else
+      super
+    end
+  end
+
+  def quotas=(value)
+    @parsed_quotas = nil
+    if value.is_a?(Hash)
+      super(value.to_json)
+    else
+      super
+    end
+  end
+
+  # Accessor methods for individual attributes
+  %i[max_members api_rate_limit custom_spreads white_label priority_support].each do |attr|
+    define_method(attr) do
+      features[attr.to_s]
+    end
+
+    define_method("#{attr}=") do |value|
+      self.features = features.merge(attr.to_s => value)
+    end
+  end
+
+  %i[daily_readings monthly_api_calls concurrent_sessions].each do |attr|
+    define_method(attr) do
+      quotas[attr.to_s]
+    end
+
+    define_method("#{attr}=") do |value|
+      self.quotas = quotas.merge(attr.to_s => value)
+    end
+  end
 
   # Callbacks
   before_create :set_default_features_and_quotas
@@ -93,9 +151,6 @@ class Organization < ApplicationRecord
   private
 
   def set_default_features_and_quotas
-    self.features ||= {}
-    self.quotas ||= {}
-
     case plan
     when "free"
       set_free_limits
@@ -109,63 +164,63 @@ class Organization < ApplicationRecord
   end
 
   def set_free_limits
-    self.features.merge!(
-      max_members: 5,
-      api_rate_limit: 100,
-      custom_spreads: false,
-      white_label: false,
-      priority_support: false
-    )
-    self.quotas.merge!(
-      daily_readings: 100,
-      monthly_api_calls: 10_000,
-      concurrent_sessions: 10
-    )
+    self.features = {
+      "max_members" => 5,
+      "api_rate_limit" => 100,
+      "custom_spreads" => false,
+      "white_label" => false,
+      "priority_support" => false
+    }
+    self.quotas = {
+      "daily_readings" => 100,
+      "monthly_api_calls" => 10_000,
+      "concurrent_sessions" => 10
+    }
   end
 
   def set_basic_limits
-    self.features.merge!(
-      max_members: 20,
-      api_rate_limit: 1000,
-      custom_spreads: true,
-      white_label: true,
-      priority_support: false
-    )
-    self.quotas.merge!(
-      daily_readings: 1000,
-      monthly_api_calls: 100_000,
-      concurrent_sessions: 50
-    )
+    self.features = {
+      "max_members" => 20,
+      "api_rate_limit" => 1000,
+      "custom_spreads" => true,
+      "white_label" => true,
+      "priority_support" => false
+    }
+    self.quotas = {
+      "daily_readings" => 1000,
+      "monthly_api_calls" => 100_000,
+      "concurrent_sessions" => 50
+    }
   end
 
   def set_pro_limits
-    self.features.merge!(
-      max_members: 100,
-      api_rate_limit: 10000,
-      custom_spreads: true,
-      white_label: true,
-      priority_support: true
-    )
-    self.quotas.merge!(
-      daily_readings: 10000,
-      monthly_api_calls: 1_000_000,
-      concurrent_sessions: 250
-    )
+    self.features = {
+      "max_members" => 100,
+      "api_rate_limit" => 10000,
+      "custom_spreads" => true,
+      "white_label" => true,
+      "priority_support" => true
+    }
+    self.quotas = {
+      "daily_readings" => 10000,
+      "monthly_api_calls" => 1_000_000,
+      "concurrent_sessions" => 250
+    }
   end
 
   def set_enterprise_limits
-    self.features.merge!(
-      max_members: 100,
-      api_rate_limit: 10000,
-      custom_spreads: true,
-      white_label: true,
-      priority_support: true
-    )
-    self.quotas.merge!(
-      daily_readings: 10000,
-      monthly_api_calls: 1_000_000,
-      concurrent_sessions: 250
-    )
+    self.features = {
+      "max_members" => 100,
+      "api_rate_limit" => 10000,
+      "custom_spreads" => true,
+      "white_label" => true,
+      "priority_support" => true
+    }
+    self.quotas = {
+      "daily_readings" => 10000,
+      "monthly_api_calls" => 1_000_000,
+      "concurrent_sessions" => 250
+    }
   end
 
   def api_call_analytics(start_date, end_date)

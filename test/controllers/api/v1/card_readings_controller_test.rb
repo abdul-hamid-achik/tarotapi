@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Api::V1::CardReadingsControllerTest < ActionDispatch::IntegrationTest
+  mock_pundit
+
   test "should create card reading with registered user" do
     post api_v1_card_readings_url, params: {
       email: users(:one).email,

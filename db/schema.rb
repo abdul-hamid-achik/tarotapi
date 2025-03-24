@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2024_03_24_001001) do
+ActiveRecord::Schema[8.0].define(version: 2025_03_24_064112) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -68,6 +68,18 @@ ActiveRecord::Schema[8.0].define(version: 2024_03_24_001001) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "api_clients", force: :cascade do |t|
+    t.string "name"
+    t.string "client_id"
+    t.string "client_secret"
+    t.text "redirect_uri"
+    t.bigint "organization_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["client_id"], name: "index_api_clients_on_client_id"
+    t.index ["organization_id"], name: "index_api_clients_on_organization_id"
   end
 
   create_table "api_keys", force: :cascade do |t|
@@ -206,10 +218,10 @@ ActiveRecord::Schema[8.0].define(version: 2024_03_24_001001) do
     t.string "plan", null: false
     t.string "billing_email", null: false
     t.string "status", default: "active", null: false
-    t.text "features", default: "{}"
-    t.text "quotas", default: "{}"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "features", default: {}
+    t.jsonb "quotas", default: {}
     t.index ["billing_email"], name: "index_organizations_on_billing_email"
     t.index ["plan"], name: "index_organizations_on_plan"
     t.index ["status", "plan"], name: "index_organizations_on_status_and_plan"
@@ -477,6 +489,7 @@ ActiveRecord::Schema[8.0].define(version: 2024_03_24_001001) do
   add_foreign_key "access_tokens", "authorizations"
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "api_clients", "organizations"
   add_foreign_key "api_keys", "organizations"
   add_foreign_key "api_keys", "users"
   add_foreign_key "authorizations", "users"

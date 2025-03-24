@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Api::V1::TarotCardsControllerTest < ActionDispatch::IntegrationTest
+  mock_pundit
+
   test "should get index" do
     get api_v1_cards_url
     assert_response :success
