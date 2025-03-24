@@ -90,7 +90,7 @@ services:
           path: Gemfile
         - action: rebuild
           path: Gemfile.lock
-    command: sh -c "bundle check || bundle install && bundle exec rake db:exists && bundle exec rake db:migrate || bundle exec rake db:setup && bundle exec rails server -b 0.0.0.0"
+    command: bundle exec rails server -b 0.0.0.0
     healthcheck:
       test: [ "CMD-SHELL", "curl -f http://localhost:3000/health || exit 1" ]
       interval: 30s

@@ -142,7 +142,14 @@ RUN apt-get update -qq && \
     libssl-dev \
     libxml2-dev \
     libxslt1-dev && \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    echo 'source $HOME/.cargo/env' >> $HOME/.bashrc && \
+    /root/.cargo/bin/rustup default stable && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+
+# Add cargo to PATH
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # set workdir
 WORKDIR /app

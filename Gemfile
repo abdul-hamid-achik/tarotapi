@@ -108,8 +108,8 @@ group :development, :test do
   gem "rspec-rails"
 
   # load environment variables from .env file
-  # Using standard dotenv for Rails 8 compatibility
-  gem "dotenv-rails", "~> 3.1.7"
+  # Using plain dotenv for Rails 8 compatibility, not dotenv-rails
+  gem "dotenv", "~> 2.8.1"
 
   # test coverage reporting
   gem "simplecov", require: false
