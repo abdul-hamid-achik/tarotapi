@@ -2,6 +2,18 @@ name: tarotapi
 runtime: yaml
 description: Infrastructure for the Tarot API project
 
+# Import the ESC environment
+environment:
+  - abdul-hamid-achik/default/tarotapi-esc
+
+# Configure environment variables from ESC
+environmentVariables:
+  AWS_ACCESS_KEY_ID:
+    fn::env::get: AWS_ACCESS_KEY_ID
+  AWS_SECRET_ACCESS_KEY:
+    fn::env::get: AWS_SECRET_ACCESS_KEY
+  AWS_REGION: mx-central-1
+
 config:
   aws:region: mx-central-1
   tarotapi:environment: development

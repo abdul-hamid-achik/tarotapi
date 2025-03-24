@@ -33,6 +33,14 @@ RUN apt-get update -qq && \
     clang \
     llvm \
     llvm-dev \
+    # Add additional dependencies for native gems
+    libsqlite3-dev \
+    libffi-dev \
+    libreadline-dev \
+    zlib1g-dev \
+    libssl-dev \
+    libxml2-dev \
+    libxslt1-dev \
     # Install Rust for tokenizers gem
     && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
     && echo 'source $HOME/.cargo/env' >> $HOME/.bashrc \
@@ -54,7 +62,8 @@ RUN bundle config set --local force_ruby_platform true
 
 # Install development gems with improved error output
 COPY Gemfile Gemfile.lock ./
-RUN bundle install --jobs 4 --retry 3 --full-index || \
+RUN bundle config set --local without '' && \
+    bundle install --jobs 4 --retry 3 --full-index || \
     (echo "Bundle install failed, retrying with more verbosity" && \
     bundle install --jobs 4 --retry 3 --verbose)
 
@@ -91,6 +100,7 @@ COPY Gemfile Gemfile.lock ./
 RUN bundle config set --local frozen false && \
     bundle config set --local deployment true && \
     bundle config set --local without 'development test' && \
+    bundle config set --local force_ruby_platform true && \
     bundle install --jobs 4 --retry 3 && \
     rm -rf ~/.bundle/ /usr/local/bundle/cache
 
@@ -113,10 +123,25 @@ RUN arch=$(uname -m) && \
 # install runtime dependencies
 RUN apt-get update -qq && \
     apt-get install -y \
+    build-essential \
     libpq-dev \
     libyaml-dev \
     curl \
-    wget && \
+    wget \
+    gcc \
+    g++ \
+    make \
+    pkg-config \
+    clang \
+    libclang-dev \
+    llvm \
+    libsqlite3-dev \
+    libffi-dev \
+    libreadline-dev \
+    zlib1g-dev \
+    libssl-dev \
+    libxml2-dev \
+    libxslt1-dev && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 # set workdir

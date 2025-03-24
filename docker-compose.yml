@@ -3,8 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: development
-    image: ${CONTAINER_REGISTRY:-ghcr.io/abdul-hamid-achik/tarotapi}:development
+      target: production
+    image: ${CONTAINER_REGISTRY:-ghcr.io/abdul-hamid-achik/tarotapi}:latest
     depends_on:
       postgres:
         condition: service_healthy
@@ -18,6 +18,8 @@ services:
       - .env
     environment:
       - RAILS_ENV=development
+      - RAILS_LOG_TO_STDOUT=true
+      - RAILS_SERVE_STATIC_FILES=true
       - S3_ENDPOINT=http://minio:9000
       - AWS_DEFAULT_REGION=mx-central-1
       # AWS credentials from .env
@@ -58,6 +60,7 @@ services:
       - BUNDLE_APP_CONFIG=/app/.bundle
       - BUNDLE_JOBS=4
       - BUNDLE_RETRY=3
+      - BUNDLE_WITHOUT=
     volumes:
       - gem_cache:/bundle
       - .:/app:cached
@@ -87,7 +90,7 @@ services:
           path: Gemfile
         - action: rebuild
           path: Gemfile.lock
-    command: sh -c "bundle check || bundle install && bundle exec rails server -b 0.0.0.0"
+    command: sh -c "bundle check || bundle install && bundle exec rake db:exists && bundle exec rake db:migrate || bundle exec rake db:setup && bundle exec rails server -b 0.0.0.0"
     healthcheck:
       test: [ "CMD-SHELL", "curl -f http://localhost:3000/health || exit 1" ]
       interval: 30s
@@ -98,10 +101,10 @@ services:
       resources:
         limits:
           cpus: '0.5'
-          memory: 512M
+          memory: 1024M
         reservations:
           cpus: '0.25'
-          memory: 256M
+          memory: 512M
     extra_hosts:
       - "host.docker.internal:host-gateway"
       - "localhost:host-gateway"

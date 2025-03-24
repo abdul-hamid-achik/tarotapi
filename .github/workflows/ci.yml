@@ -8,47 +8,59 @@ on:
 
 jobs:
   test:
+    name: Run tests
     runs-on: ubuntu-latest
+    
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      
+      # Create secret directories and files
+      - name: Setup secret files for Docker
+        run: |
+          mkdir -p secrets config
+          echo "test_password" > secrets/db_password.txt
+          echo "test_secret" > secrets/jwt_secret.txt
+          echo "health_check_password" > secrets/health_check_password.txt
+          echo "${{ secrets.RAILS_MASTER_KEY || 'dummy_master_key' }}" > config/master.key
+          echo "${{ secrets.OPENAI_API_KEY || 'dummy_openai_key' }}" > config/openai_api_key.txt
+      
+      - name: Set up Docker Compose
+        run: |
+          docker compose version
 
-    - name: Set up Docker Compose
-      run: |
-        docker compose version
+      - name: Build and start test services
+        run: |
+          # Set test environment variables
+          echo "RAILS_ENV=test" >> .env
+          echo "RAILS_MASTER_KEY=${{ secrets.RAILS_MASTER_KEY }}" >> .env
+          
+          # Build and start services in detached mode
+          docker compose up -d postgres redis
+          
+          # Build the API service
+          docker compose build api
 
-    - name: Build and start test services
-      run: |
-        # Set test environment variables
-        echo "RAILS_ENV=test" >> .env
-        echo "RAILS_MASTER_KEY=${{ secrets.RAILS_MASTER_KEY }}" >> .env
-        
-        # Build and start services in detached mode
-        docker compose up -d postgres redis
-        
-        # Build the API service
-        docker compose build api
+      - name: Run Tests
+        run: |
+          # Wait for services to be ready (they have health checks)
+          docker compose run --rm api bin/rails db:prepare
+          
+          # Run the actual tests
+          docker compose run --rm api bundle exec rake ci:all
+        env:
+          RAILS_ENV: test
+          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
 
-    - name: Run Tests
-      run: |
-        # Wait for services to be ready (they have health checks)
-        docker compose run --rm api bin/rails db:prepare
-        
-        # Run the actual tests
-        docker compose run --rm api bundle exec rake ci:all
-      env:
-        RAILS_ENV: test
-        RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+      - name: Run Security Checks
+        run: |
+          docker compose run --rm api bundle exec rake ci:security
+        env:
+          RAILS_ENV: test
+          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
 
-    - name: Run Security Checks
-      run: |
-        docker compose run --rm api bundle exec rake ci:security
-      env:
-        RAILS_ENV: test
-        RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-
-    - name: Cleanup
-      if: always()
-      run: docker compose down -v
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v
 
   deploy-staging:
     needs: test
