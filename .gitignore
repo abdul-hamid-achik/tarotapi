@@ -225,3 +225,5 @@ Thumbs.db
 
 # Ollama files
 ollama_data/
+
+spec/examples.txt
