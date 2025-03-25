@@ -11,8 +11,8 @@ module TestAuthentication
   end
 
   def current_user
-    # Ensure a user is available for tests
-    @current_user ||= defined?(FactoryBot) ? FactoryBot.create(:user) : nil
+    # Return nil by default for tests to avoid Devise issues
+    @current_user
   end
 
   # DeviseTokenAuth method stub for tests

@@ -162,7 +162,7 @@ end
 # Mock BaseController
 module Api
   module V1
-    class BaseController < MockApplicationController
+    class StandaloneBaseController < MockApplicationController
       def self.skip_auth_for_test
         skip_before_action :authenticate_request, raise: false if respond_to?(:skip_before_action)
         skip_before_action :authenticate_api_v1_user!, raise: false if respond_to?(:skip_before_action)
@@ -178,7 +178,7 @@ end
 # Mock TarotCardsController
 module Api
   module V1
-    class TarotCardsController < Api::V1::BaseController
+    class TarotCardsController < Api::V1::StandaloneBaseController
       def index
         # Mock implementation
         true

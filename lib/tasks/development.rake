@@ -311,13 +311,22 @@ namespace :ci do
     TaskLogger.with_task_logging("ci:test") do
       # Configure test environment
       ENV["RAILS_ENV"] = "test"
+      ENV["DISABLE_RAILS_SEMANTIC_LOGGER"] = "true"
 
       # Ensure database is ready
-      Rake::Task["db:disconnect"].invoke
+      Rake::Task["db:test:force_disconnect"].invoke
       Rake::Task["db:test:prepare"].invoke
 
       # Run the tests
-      system("bundle exec rspec")
+      test_success = system("bundle exec rspec")
+
+      # Clean up database connections
+      Rake::Task["db:test:force_disconnect"].invoke
+
+      ENV["DISABLE_RAILS_SEMANTIC_LOGGER"] = nil
+
+      # Exit with the same status as the tests
+      exit(1) unless test_success
     end
   end
 

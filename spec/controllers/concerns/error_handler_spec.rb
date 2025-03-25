@@ -167,3 +167,99 @@ RSpec.describe "ErrorHandler" do
     end
   end
 end
+
+# Create a test controller to test the concern
+class TestErrorController < ApplicationController
+  include ErrorHandler
+
+  def trigger_standard_error
+    raise StandardError, "Standard error"
+  end
+
+  def trigger_not_found
+    raise ActiveRecord::RecordNotFound.new("Not found", "User", "id", 1)
+  end
+
+  def trigger_parameter_missing
+    raise ActionController::ParameterMissing.new(:required_param)
+  end
+
+  def trigger_argument_error
+    raise ArgumentError, "Invalid argument"
+  end
+
+  def trigger_validation_error
+    user = User.new
+    user.errors.add(:email, "can't be blank")
+    raise ActiveRecord::RecordInvalid.new(user)
+  end
+end
+
+# Configure routes for testing
+Rails.application.routes.draw do
+  get 'test_error/standard_error', to: 'test_error#trigger_standard_error'
+  get 'test_error/not_found', to: 'test_error#trigger_not_found'
+  get 'test_error/parameter_missing', to: 'test_error#trigger_parameter_missing'
+  get 'test_error/argument_error', to: 'test_error#trigger_argument_error'
+  get 'test_error/validation_error', to: 'test_error#trigger_validation_error'
+end
+
+RSpec.describe ErrorHandler, type: :controller do
+  controller(TestErrorController) do
+  end
+
+  describe "error handling" do
+    before do
+      # Stub logger to prevent actual logging during tests
+      allow(Rails.logger).to receive(:error).and_return(nil)
+      allow(TarotLogger).to receive(:error).and_return(nil)
+    end
+
+    it "handles standard errors with 500 response" do
+      routes.draw { get 'trigger_standard_error' => 'test_error#trigger_standard_error' }
+      get :trigger_standard_error
+      expect(response).to have_http_status(500)
+      expect(JSON.parse(response.body)).to include('error')
+    end
+
+    it "handles not found errors with 404 response" do
+      routes.draw { get 'trigger_not_found' => 'test_error#trigger_not_found' }
+      get :trigger_not_found
+      expect(response).to have_http_status(404)
+      expect(JSON.parse(response.body)).to include('error')
+      expect(JSON.parse(response.body)['error']).to include('could not be found')
+    end
+
+    it "handles parameter missing errors with 400 response" do
+      routes.draw { get 'trigger_parameter_missing' => 'test_error#trigger_parameter_missing' }
+      get :trigger_parameter_missing
+      expect(response).to have_http_status(400)
+      expect(JSON.parse(response.body)).to include('error')
+      expect(JSON.parse(response.body)['error']).to include('Required parameter missing')
+    end
+
+    it "handles argument errors with 400 response" do
+      routes.draw { get 'trigger_argument_error' => 'test_error#trigger_argument_error' }
+      get :trigger_argument_error
+      expect(response).to have_http_status(400)
+      expect(JSON.parse(response.body)).to include('error')
+      expect(JSON.parse(response.body)['error']).to include('Invalid argument')
+    end
+
+    it "handles validation errors with 422 response" do
+      routes.draw { get 'trigger_validation_error' => 'test_error#trigger_validation_error' }
+      get :trigger_validation_error
+      expect(response).to have_http_status(422)
+      expect(JSON.parse(response.body)).to include('error')
+    end
+
+    it "logs errors with context" do
+      routes.draw { get 'trigger_standard_error' => 'test_error#trigger_standard_error' }
+
+      # Expect the log_error method to be called
+      expect_any_instance_of(TestErrorController).to receive(:log_error)
+
+      get :trigger_standard_error
+    end
+  end
+end

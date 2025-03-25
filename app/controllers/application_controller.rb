@@ -34,14 +34,20 @@ class ApplicationController < ActionController::API
 
   def log_request
     # Log basic request information
-    log_info("Request completed", {
+    params = {
       path: request.path,
       method: request.method,
       format: request.format.to_sym,
       status: response.status,
-      duration: (Time.current - request.start_time.to_time).round(2),
       user_id: current_user&.id,
       ip: request.remote_ip
-    })
+    }
+
+    # Add duration only if start_time is available (not available in test requests)
+    if request.respond_to?(:start_time) && request.start_time
+      params[:duration] = (Time.current - request.start_time.to_time).round(2)
+    end
+
+    log_info("Request completed", params)
   end
 end

@@ -1,122 +1,144 @@
 require 'rails_helper'
 
-# Create a test controller that includes the concern
+# Test controller for testing the concern
 class TestSeanceController < ApplicationController
   include SeanceAuthenticatable
 
-  def index
-    render json: { client_id: current_client_id, authenticated: true }
+  def protected_action
+    render json: { client_id: current_client_id, status: "success" }
   end
 end
 
+# Configure routes for testing
+Rails.application.routes.draw do
+  get 'test_seance/protected', to: 'test_seance#protected_action'
+end
+
 RSpec.describe SeanceAuthenticatable, type: :controller do
-  # Use the test controller for our tests
   controller(TestSeanceController) do
   end
 
-  let(:client_id) { "11111111-1111-4111-a111-111111111111" }
-  let(:token_service) { instance_double("SeanceTokenService") }
-  let(:valid_token) { "valid-seance-token" }
+  let(:valid_token) { "valid.token.123" }
+  let(:invalid_token) { "invalid.token.123" }
+  let(:client_id) { "client-123" }
+  let(:token_service) { instance_double(SeanceTokenService) }
 
   before do
-    allow(controller).to receive(:token_service).and_return(token_service)
+    routes.draw { get 'protected_action' => 'test_seance#protected_action' }
+
+    # Stub the token service
+    allow(SeanceTokenService).to receive(:new).and_return(token_service)
+
+    # Define the behavior for valid token
+    allow(token_service).to receive(:validate_token).with(valid_token).and_return({
+      valid: true,
+      client_id: client_id
+    })
+
+    # Define the behavior for invalid token
+    allow(token_service).to receive(:validate_token).with(invalid_token).and_return({
+      valid: false,
+      error: "Invalid token"
+    })
   end
 
-  describe '#authenticate_seance!' do
-    context 'with valid token' do
-      before do
+  describe "#authenticate_seance!" do
+    context "with a valid token" do
+      it "allows access to the protected action" do
         request.headers["Authorization"] = "Bearer #{valid_token}"
-        allow(token_service).to receive(:validate_token).with(valid_token).and_return({
-          valid: true,
-          client_id: client_id
-        })
-      end
 
-      it 'sets current_client_id and allows access' do
-        get :index
+        get :protected_action
 
-        expect(response).to have_http_status(:ok)
-        expect(controller.instance_variable_get(:@current_client_id)).to eq(client_id)
+        expect(response).to have_http_status(:success)
         expect(JSON.parse(response.body)['client_id']).to eq(client_id)
+        expect(JSON.parse(response.body)['status']).to eq("success")
+      end
+
+      it "sets the current_client_id" do
+        request.headers["Authorization"] = "Bearer #{valid_token}"
+
+        get :protected_action
+
+        expect(controller.instance_variable_get(:@current_client_id)).to eq(client_id)
       end
     end
 
-    context 'with missing token' do
-      it 'returns 401 Unauthorized with appropriate message' do
-        get :index
+    context "with an invalid token" do
+      it "returns unauthorized with error message" do
+        request.headers["Authorization"] = "Bearer #{invalid_token}"
+
+        get :protected_action
 
         expect(response).to have_http_status(:unauthorized)
-        expect(JSON.parse(response.body)['error']).to eq('token is required')
+        expect(JSON.parse(response.body)['error']).to eq("Invalid token")
       end
     end
 
-    context 'with invalid token' do
-      before do
-        request.headers["Authorization"] = "Bearer invalid-token"
-        allow(token_service).to receive(:validate_token).with('invalid-token').and_return({
-          valid: false,
-          error: "token expired"
-        })
-      end
-
-      it 'returns 401 Unauthorized with error message from token service' do
-        get :index
+    context "without a token" do
+      it "returns unauthorized when no token is provided" do
+        get :protected_action
 
         expect(response).to have_http_status(:unauthorized)
-        expect(JSON.parse(response.body)['error']).to eq('token expired')
+        expect(JSON.parse(response.body)['error']).to eq("token is required")
+      end
+
+      it "returns unauthorized when authorization header is empty" do
+        request.headers["Authorization"] = ""
+
+        get :protected_action
+
+        expect(response).to have_http_status(:unauthorized)
+        expect(JSON.parse(response.body)['error']).to eq("token is required")
       end
     end
   end
 
-  describe '#extract_token_from_header' do
-    it 'extracts token from Authorization header' do
-      request.headers["Authorization"] = "Bearer #{valid_token}"
+  describe "#extract_token_from_header" do
+    it "extracts token from bearer authorization header" do
+      request.headers["Authorization"] = "Bearer token123"
 
-      expect(controller.send(:extract_token_from_header)).to eq(valid_token)
+      token = controller.send(:extract_token_from_header)
+
+      expect(token).to eq("token123")
     end
 
-    it 'returns nil if Authorization header is missing' do
-      request.headers["Authorization"] = nil
+    it "extracts token from alternative format header" do
+      request.headers["Authorization"] = "Token token456"
 
-      expect(controller.send(:extract_token_from_header)).to be_nil
+      token = controller.send(:extract_token_from_header)
+
+      expect(token).to eq("token456")
     end
 
-    it 'extracts token from malformed Authorization header' do
-      request.headers["Authorization"] = valid_token
+    it "returns nil when authorization header is missing" do
+      token = controller.send(:extract_token_from_header)
 
-      expect(controller.send(:extract_token_from_header)).to eq(valid_token)
+      expect(token).to be_nil
     end
   end
 
-  describe '#token_service' do
-    it 'returns an instance of SeanceTokenService' do
-      # Reset the stub to test the real method
-      allow(controller).to receive(:token_service).and_call_original
-      allow(SeanceTokenService).to receive(:new).and_return(token_service)
+  describe "#token_service" do
+    it "initializes a new SeanceTokenService" do
+      expect(SeanceTokenService).to receive(:new).once
 
-      expect(controller.send(:token_service)).to eq(token_service)
-      # Test memoization
-      expect(controller.send(:token_service)).to eq(token_service)
+      controller.send(:token_service)
+    end
+
+    it "memoizes the token service" do
+      # Call twice to check memoization
+      first_call = controller.send(:token_service)
+      second_call = controller.send(:token_service)
+
+      expect(first_call).to eq(second_call)
       expect(SeanceTokenService).to have_received(:new).once
     end
   end
 
-  describe '#current_client_id' do
-    it 'returns the current client ID' do
+  describe "#current_client_id" do
+    it "returns the value of @current_client_id" do
       controller.instance_variable_set(:@current_client_id, client_id)
 
       expect(controller.send(:current_client_id)).to eq(client_id)
-    end
-  end
-
-  describe '#unauthorized_error' do
-    it 'renders JSON error with unauthorized status' do
-      expect(controller).to receive(:render).with(
-        json: { error: 'test error' },
-        status: :unauthorized
-      )
-
-      controller.send(:unauthorized_error, 'test error')
     end
   end
 end

@@ -106,5 +106,23 @@ namespace :db do
       # Add your sample data loading logic here
       TaskLogger.info("Sample data loaded successfully")
     end
+
+    desc "Force terminate all connections to the test database"
+    task force_disconnect: :environment do
+      require "active_record"
+      db_config = ActiveRecord::Base.configurations.configs_for(env_name: "test")
+      db_name = db_config.database
+
+      ActiveRecord::Base.connection.execute(<<~SQL)
+        SELECT pg_terminate_backend(pg_stat_activity.pid)
+        FROM pg_stat_activity
+        WHERE pg_stat_activity.datname = '#{db_name}'
+        AND pid <> pg_backend_pid();
+      SQL
+
+      # Allow time for connections to close
+      sleep 2
+      puts "All connections to #{db_name} forcefully terminated."
+    end
   end
 end

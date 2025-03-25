@@ -30,20 +30,17 @@ config:
 
 variables:
   # Get values from config
-  projectName:
-    fn::fromConfig: tarotapi:projectName
-  domainName:
-    fn::fromConfig: tarotapi:domainName
-  altDomainName:
-    fn::fromConfig: tarotapi:altDomainName
-  environment:
-    fn::fromConfig: tarotapi:environment
+  projectName: ${tarotapi:projectName}
+  domainName: ${tarotapi:domainName}
+  altDomainName: ${tarotapi:altDomainName}
+  environment: ${tarotapi:environment}
   stackName: ${pulumi.stack}
   
   # Network Configuration
   vpcCidr: "10.0.0.0/16"
   publicSubnetEastCidr: "10.0.3.0/24"
   publicSubnetWestCidr: "10.0.4.0/24"
+  publicSubnetCentralCidr: "10.0.5.0/24"
   
   # Instance Types - Cost-effective but scalable options
   dbInstanceClass: "db.t4g.micro"  # ARM-based for better price/performance
@@ -98,6 +95,19 @@ resources:
         Environment: ${stackName}
         ManagedBy: "pulumi"
 
+  publicSubnetCentral:
+    type: "aws:ec2:Subnet"
+    properties:
+      vpcId: ${vpc.id}
+      cidrBlock: ${publicSubnetCentralCidr}
+      availabilityZone: "mx-central-1c"
+      mapPublicIpOnLaunch: true
+      tags:
+        Name: "${projectName}-public-subnet-central-${stackName}"
+        Project: ${projectName}
+        Environment: ${stackName}
+        ManagedBy: "pulumi"
+
   dbSubnetGroup:
     type: "aws:rds:SubnetGroup"
     properties:
@@ -105,6 +115,7 @@ resources:
       subnetIds:
         - ${publicSubnetEast.id}
         - ${publicSubnetWest.id}
+        - ${publicSubnetCentral.id}
       description: "Subnet group for RDS instances"
       tags:
         Name: "${projectName}-db-subnet-group-${stackName}"
@@ -149,6 +160,7 @@ resources:
       subnetIds:
         - ${publicSubnetEast.id}
         - ${publicSubnetWest.id}
+        - ${publicSubnetCentral.id}
       tags:
         Name: "${projectName}-cache-subnet-group-${stackName}"
         Project: ${projectName}
