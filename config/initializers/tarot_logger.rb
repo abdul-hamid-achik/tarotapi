@@ -67,7 +67,7 @@ Rails.application.configure do
 
       def with_task_logging(task_name)
         TarotLogger.with_task(task_name) do
-          yield if block_given?
+          yield(TarotLogger.logger) if block_given?
         end
       end
     end

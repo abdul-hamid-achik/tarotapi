@@ -23,11 +23,15 @@ module TaskLogger
       logger.debug(message, payload)
     end
 
+    def divine(message, payload = {})
+      logger.info("★ #{message} ★", payload)
+    end
+
     def with_task_logging(task_name)
       start_time = Time.now
       info("Starting task", task: task_name)
       begin
-        yield if block_given?
+        yield(logger) if block_given?
         duration = Time.now - start_time
         info("Task completed", task: task_name, duration: duration.round(2))
       rescue => e

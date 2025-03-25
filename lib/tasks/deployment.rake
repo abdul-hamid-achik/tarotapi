@@ -464,8 +464,8 @@ namespace :deploy do
       logger.info("Destroying infrastructure (USE WITH CAUTION)...")
 
       # Ask for confirmation
-      TarotLogger.warn("DESTRUCTIVE ACTION", { action: "This will destroy all infrastructure resources." })
-      TarotLogger.warn("Type 'destroy' to confirm:")
+      TaskLogger.warn("DESTRUCTIVE ACTION", { action: "This will destroy all infrastructure resources." })
+      TaskLogger.warn("Type 'destroy' to confirm:")
       confirmation = STDIN.gets.chomp
 
       if confirmation == "destroy"
@@ -583,7 +583,7 @@ namespace :deploy do
       # Check if the file already exists
       if File.exist?(config_file)
         logger.warn("Config file already exists", { file: config_file.to_s })
-        TarotLogger.warn("Do you want to overwrite it? (y/n)")
+        TaskLogger.warn("Do you want to overwrite it? (y/n)")
         should_continue = STDIN.gets.chomp.downcase == "y"
 
         unless should_continue
@@ -849,8 +849,8 @@ namespace :release do
 
       # Step 7: Prompt for production deployment unless auto-confirmed
       unless confirm_prod
-        TarotLogger.divine("Staging deployment complete and verified healthy")
-        TarotLogger.warn("Do you want to proceed with production deployment? (y/n)")
+        TaskLogger.divine("Staging deployment complete and verified healthy")
+        TaskLogger.warn("Do you want to proceed with production deployment? (y/n)")
 
         response = STDIN.gets.chomp.downcase
         confirm_prod = response == "y"
@@ -910,8 +910,8 @@ namespace :release do
       TaskLogger.info("⚠️ Starting HOTFIX release process for version: #{version}")
       TaskLogger.info("⚠️ HOTFIX will deploy directly to production - USE WITH CAUTION")
 
-      TarotLogger.warn("WARNING: You are about to deploy a HOTFIX directly to PRODUCTION")
-      TarotLogger.warn("Are you sure you want to proceed? This skips staging verification. (y/n)")
+      TaskLogger.warn("WARNING: You are about to deploy a HOTFIX directly to PRODUCTION")
+      TaskLogger.warn("Are you sure you want to proceed? This skips staging verification. (y/n)")
 
       response = STDIN.gets.chomp.downcase
       if response != "y"
@@ -965,8 +965,8 @@ namespace :release do
     begin
       TaskLogger.info("⚠️ Rolling back #{env} to version: #{version}")
 
-      TarotLogger.warn("WARNING: Rolling back #{env} to version #{version}")
-      TarotLogger.warn("Are you sure you want to proceed? (y/n)")
+      TaskLogger.warn("WARNING: Rolling back #{env} to version #{version}")
+      TaskLogger.warn("Are you sure you want to proceed? (y/n)")
 
       response = STDIN.gets.chomp.downcase
       if response != "y"
