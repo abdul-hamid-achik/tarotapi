@@ -113,16 +113,94 @@ namespace :db do
       db_config = ActiveRecord::Base.configurations.configs_for(env_name: "test")
       db_name = db_config.database
 
-      ActiveRecord::Base.connection.execute(<<~SQL)
-        SELECT pg_terminate_backend(pg_stat_activity.pid)
-        FROM pg_stat_activity
-        WHERE pg_stat_activity.datname = '#{db_name}'
-        AND pid <> pg_backend_pid();
-      SQL
+      puts "Forcefully terminating all connections to #{db_name}..."
 
-      # Allow time for connections to close
+      # First try: Standard PostgreSQL approach
+      begin
+        # Close our own connection first
+        ActiveRecord::Base.connection_pool.disconnect!
+
+        # Use raw SQL to terminate other connections
+        # Connect with a fresh connection to postgres database
+        ActiveRecord::Base.establish_connection(
+          db_config.configuration_hash.merge(database: "postgres")
+        )
+
+        ActiveRecord::Base.connection.execute(<<~SQL)
+          SELECT pg_terminate_backend(pg_stat_activity.pid)
+          FROM pg_stat_activity
+          WHERE pg_stat_activity.datname = '#{db_name}'
+          AND pid <> pg_backend_pid();
+        SQL
+
+        # Reconnect to our original database
+        ActiveRecord::Base.establish_connection(db_config.configuration_hash)
+      rescue => e
+        puts "Standard approach failed: #{e.message}"
+
+        # Second try: Alternative approach with system commands
+        begin
+          require "open3"
+          cmd = %{psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='#{db_name}' AND pid <> pg_backend_pid();" postgres}
+          stdout, stderr, status = Open3.capture3(cmd)
+          puts "Alternative approach output: #{stdout}" if stdout.present?
+          puts "Alternative approach error: #{stderr}" if stderr.present?
+        rescue => e2
+          puts "Alternative approach failed: #{e2.message}"
+        end
+      end
+
+      # Allow time for connections to close (important!)
       sleep 2
-      puts "All connections to #{db_name} forcefully terminated."
+      puts "All connections to #{db_name} should now be terminated."
+    end
+
+    desc "Fully reset test database (force drop, create, migrate)"
+    task hard_reset: :environment do
+      ENV["RAILS_ENV"] = "test"
+      ENV["DISABLE_RAILS_SEMANTIC_LOGGER"] = "true"
+
+      puts "Performing hard reset of test database..."
+
+      # Force disconnect from all databases
+      Rake::Task["db:test:force_disconnect"].invoke
+
+      # Get database configuration
+      db_config = ActiveRecord::Base.configurations.configs_for(env_name: "test")
+      db_name = db_config.database
+
+      # Drop and recreate database using psql commands directly
+      begin
+        require "open3"
+
+        # Drop database with force
+        puts "Dropping database #{db_name}..."
+        drop_cmd = %(dropdb --if-exists "#{db_name}")
+        Open3.capture3(drop_cmd)
+
+        # Create database
+        puts "Creating database #{db_name}..."
+        create_cmd = %(createdb "#{db_name}")
+        Open3.capture3(create_cmd)
+
+        # Run migrations
+        puts "Running migrations..."
+        ActiveRecord::Base.establish_connection(db_config.configuration_hash)
+        Rake::Task["db:migrate"].invoke
+
+        puts "Test database reset complete."
+      rescue => e
+        puts "Error during hard reset: #{e.message}"
+        puts "Falling back to standard Rails tasks..."
+
+        # Try standard Rails tasks as fallback
+        Rake::Task["db:test:force_disconnect"].invoke
+        Rake::Task["db:drop"].invoke
+        Rake::Task["db:create"].invoke
+        Rake::Task["db:migrate"].invoke
+      end
+
+      ENV["DISABLE_RAILS_SEMANTIC_LOGGER"] = nil
     end
   end
 end

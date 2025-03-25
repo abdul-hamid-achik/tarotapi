@@ -313,9 +313,8 @@ namespace :ci do
       ENV["RAILS_ENV"] = "test"
       ENV["DISABLE_RAILS_SEMANTIC_LOGGER"] = "true"
 
-      # Ensure database is ready
-      Rake::Task["db:test:force_disconnect"].invoke
-      Rake::Task["db:test:prepare"].invoke
+      # Ensure database is ready with hard reset to completely clear connections
+      Rake::Task["db:test:hard_reset"].invoke
 
       # Run the tests
       test_success = system("bundle exec rspec")

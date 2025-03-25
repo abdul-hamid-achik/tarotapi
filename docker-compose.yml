@@ -56,7 +56,7 @@ services:
       - OLLAMA_API_HOST=${ENABLE_OLLAMA:-false}
       # Bundle configuration
       - BUNDLE_PATH=/bundle
-      - BUNDLE_FORCE_RUBY_PLATFORM=1
+      - BUNDLE_FORCE_RUBY_PLATFORM=${BUNDLE_FORCE_RUBY_PLATFORM:-true}
       - BUNDLE_APP_CONFIG=/app/.bundle
       - BUNDLE_JOBS=4
       - BUNDLE_RETRY=3

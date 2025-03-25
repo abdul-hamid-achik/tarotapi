@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # check=error=true
 
-# This Dockerfile is designed for ARM architecture (M1/M2/M3/M4) only
+# This Dockerfile supports both ARM (M1/M2/M3/M4) and x86_64 architectures
 # Build with: docker build -t tarotapi .
 # Run with: docker run -d -p 3000:3000 -e RAILS_MASTER_KEY=<value from config/master.key> --name tarotapi tarotapi
 
@@ -10,12 +10,9 @@
 # Make sure RUBY_VERSION matches the Ruby version in .ruby-version
 FROM ruby:3.4-slim-bookworm AS base
 
-# Verify ARM architecture
+# Architecture detection - informational only, not for validation
 RUN arch=$(uname -m) && \
-    if [[ "$arch" != arm* ]] && [[ "$arch" != aarch64 ]]; then \
-    echo "This Dockerfile only supports ARM architecture (got $arch)" && \
-    exit 1; \
-    fi
+    echo "Building on architecture: $arch"
 
 # install essential packages
 RUN apt-get update -qq && \
@@ -113,12 +110,9 @@ RUN bundle exec bootsnap precompile app/ lib/
 # production stage
 FROM ruby:3.4-slim-bookworm AS production
 
-# Verify ARM architecture
+# Architecture detection - informational only, not for validation
 RUN arch=$(uname -m) && \
-    if [[ "$arch" != arm* ]] && [[ "$arch" != aarch64 ]]; then \
-    echo "This Dockerfile only supports ARM architecture (got $arch)" && \
-    exit 1; \
-    fi
+    echo "Building on architecture: $arch"
 
 # install runtime dependencies
 RUN apt-get update -qq && \
