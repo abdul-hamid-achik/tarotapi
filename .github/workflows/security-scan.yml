@@ -133,7 +133,7 @@ jobs:
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: true
       
       - name: Run Trufflehog scan
-        uses: trufflesecurity/trufflehog@v3.63.7
+        uses: trufflesecurity/trufflehog@v3.88.20
         continue-on-error: true
         with:
           base: ""
