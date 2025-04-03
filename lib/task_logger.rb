@@ -1,47 +1,65 @@
-require "semantic_logger"
+# frozen_string_literal: true
 
-# Define a helper for rake task logging
+require "logger"
+
+# Simple logger for rake tasks with standard output formatting
 module TaskLogger
   class << self
-    def logger
-      @logger ||= SemanticLogger["TaskRunner"]
+    def info(message, metadata = {})
+      log(:info, message, metadata)
     end
 
-    def info(message, payload = {})
-      logger.info(message, payload)
+    def warn(message, metadata = {})
+      log(:warn, message, metadata)
     end
 
-    def error(message, payload = {})
-      logger.error(message, payload)
+    def error(message, metadata = {})
+      log(:error, message, metadata)
     end
 
-    def warn(message, payload = {})
-      logger.warn(message, payload)
+    def debug(message, metadata = {})
+      if ENV["DEBUG"] == "1"
+        log(:debug, message, metadata)
+      end
     end
 
-    def debug(message, payload = {})
-      logger.debug(message, payload)
+    def divine(message, metadata = {})
+      horizontal_rule
+      info(message, metadata)
+      horizontal_rule
     end
 
-    def divine(message, payload = {})
-      logger.info("★ #{message} ★", payload)
+    def horizontal_rule
+      puts "====================================================================="
     end
 
     def with_task_logging(task_name)
+      divine("Starting task: #{task_name}")
       start_time = Time.now
-      info("Starting task", task: task_name)
-      begin
-        yield(logger) if block_given?
-        duration = Time.now - start_time
-        info("Task completed", task: task_name, duration: duration.round(2))
-      rescue => e
-        duration = Time.now - start_time
-        error("Task failed",
-              task: task_name,
-              duration: duration.round(2),
-              error: e.message,
-              backtrace: e.backtrace.first(5))
-        raise e
+
+      yield self if block_given?
+
+      end_time = Time.now
+      duration = end_time - start_time
+      divine("Completed task: #{task_name} in #{duration.round(2)} seconds")
+    rescue StandardError => e
+      error("Task #{task_name} failed: #{e.message}")
+      puts e.backtrace.join("\n")
+      raise
+    end
+
+    private
+
+    def log(level, message, metadata = {})
+      level_str = level.to_s.upcase.ljust(5)
+      timestamp = Time.now.strftime("%Y-%m-%d %H:%M:%S")
+
+      # Print full message details when DEBUG is enabled
+      if ENV["DEBUG"] == "1" && !metadata.empty?
+        puts "[#{timestamp}] [#{level_str}] #{message}"
+        puts "Metadata: #{metadata.inspect}"
+      else
+        puts "[#{timestamp}] [#{level_str}] #{message}"
       end
     end
   end

@@ -315,28 +315,28 @@ The API supports three authentication methods:
 ```bash
 # Register a new user
 curl -X POST \
-  "https://api.tarotapi.cards/api/v1/auth/register" \
+  "https://tarotapi.cards/api/v1/auth/register" \
   -H "Content-Type: application/json" \
-  -d '{"email": "abdulachik@icloud.com", "password": "securepassword"}'
+  -d '{"email": "random@example.com", "password": "securepassword"}'
 
 # Login to get JWT token
 curl -X POST \
-  "https://api.tarotapi.cards/api/v1/auth/login" \
+  "https://tarotapi.cards/api/v1/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"email": "abdulachik@icloud.com", "password": "securepassword"}'
+  -d '{"email": "random@example.com", "password": "securepassword"}'
 ```
 
 2. **HTTP Basic Authentication**
 ```bash
 curl -X GET \
-  "https://api.tarotapi.cards/api/v1/cards" \
-  -H "Authorization: Basic $(echo -n 'abdulachik@icloud.com:password' | base64)"
+  "https://tarotapi.cards/api/v1/cards" \
+  -H "Authorization: Basic $(echo -n 'random@example.com:password' | base64)"
 ```
 
 3. **API Key Authentication**
 ```bash
 curl -X GET \
-  "https://api.tarotapi.cards/api/v1/cards" \
+  "https://tarotapi.cards/api/v1/cards" \
   -H "X-API-Key: your-api-key"
 ```
 

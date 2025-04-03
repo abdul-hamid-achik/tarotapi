@@ -54,13 +54,12 @@ WORKDIR /app
 # development stage
 FROM base AS development
 
-# Set bundle config for platform-specific gems
-RUN bundle config set --local force_ruby_platform true
+# Remove force_ruby_platform setting to allow native gem compilation
+RUN bundle config set --local without ''
 
 # Install development gems with improved error output
 COPY Gemfile Gemfile.lock ./
-RUN bundle config set --local without '' && \
-    bundle install --jobs 4 --retry 3 --full-index || \
+RUN bundle install --jobs 4 --retry 3 --full-index || \
     (echo "Bundle install failed, retrying with more verbosity" && \
     bundle install --jobs 4 --retry 3 --verbose)
 
@@ -97,7 +96,6 @@ COPY Gemfile Gemfile.lock ./
 RUN bundle config set --local frozen false && \
     bundle config set --local deployment true && \
     bundle config set --local without 'development test' && \
-    bundle config set --local force_ruby_platform true && \
     bundle install --jobs 4 --retry 3 && \
     rm -rf ~/.bundle/ /usr/local/bundle/cache
 

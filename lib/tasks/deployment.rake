@@ -1,5 +1,7 @@
 require "dotenv"
 require "semantic_logger"
+require "json"
+require "net/http"
 require_relative "../task_logger"
 require_relative "../tarot_logger"
 
@@ -188,35 +190,43 @@ namespace :deploy do
 
       Dir.chdir(File.expand_path("../../infrastructure", __dir__)) do
         if cluster.nil?
-          # Try to get the cluster name from Pulumi output
-          output = `pulumi stack output ecsClusterId --stack #{env} 2>/dev/null`.strip
+          raw_output = `pulumi stack output --json --stack #{env} 2>/dev/null`.strip
+          TaskLogger.info("Raw Pulumi output: #{raw_output}")
 
-          # Parse the output - match the exact format we're seeing
-          if output =~ /^\{"value":"([^"]+)"\}$/
-            cluster_arn = $1
-            # Extract cluster name from ARN
-            if cluster_arn =~ /cluster\/([\w-]+)$/
-              cluster = $1
-              TaskLogger.info("Using cluster name from Pulumi outputs: #{cluster}")
+          begin
+            outputs = JSON.parse(raw_output)
+            TaskLogger.info("Parsed Pulumi outputs structure: #{JSON.pretty_generate(outputs)}")
+
+            # Get cluster from ecsClusterId which contains the cluster ARN
+            if outputs["ecsClusterId"] && outputs["ecsClusterId"]["value"]
+              full_cluster = outputs["ecsClusterId"]["value"].to_s
+              TaskLogger.info("Found full cluster ARN: #{full_cluster}")
+
+              # Extract cluster name from ARN format: arn:aws:ecs:region:account:cluster/name
+              if full_cluster.include?("arn:aws:ecs")
+                cluster = full_cluster.split("cluster/").last
+                TaskLogger.info("Extracted cluster name from ARN: #{cluster}")
+              else
+                # Fallback for non-ARN format
+                cluster = full_cluster
+                TaskLogger.info("Using cluster ID as is: #{cluster}")
+              end
             end
-          elsif output =~ /^"(.+)"$/
-            cluster_arn = $1
-            # Extract cluster name from ARN
-            if cluster_arn =~ /cluster\/([\w-]+)$/
-              cluster = $1
-              TaskLogger.info("Using cluster name from Pulumi outputs: #{cluster}")
+
+            if cluster
+              cluster = cluster.gsub('"', "").gsub(/\s+/, "") # Remove quotes and whitespace
+              TaskLogger.info("Final cluster name to use: #{cluster}")
+            else
+              TaskLogger.info("Available Pulumi output keys: #{outputs.keys.join(', ')}")
+              raise "Could not find cluster name in Pulumi outputs"
             end
-          else
-            # Try to extract cluster ARN directly
-            if output =~ /cluster\/([\w-]+)$/
-              cluster = $1
-              TaskLogger.info("Using cluster name from direct output: #{cluster}")
-            end
+          rescue JSON::ParserError => e
+            TaskLogger.warn("Failed to parse Pulumi output as JSON: #{e.message}")
+            TaskLogger.warn("Raw output was: #{raw_output}")
           end
         end
 
         if service.nil?
-          # Use a default service name based on environment if not found
           service = "tarotapi-ecs-service-#{env}"
           TaskLogger.info("Using default service name: #{service}")
         end
@@ -240,9 +250,36 @@ namespace :deploy do
 
     raise "#{service_var_name} not set" if service.nil?
 
+    # Debug: Let's list all ECS clusters to see what's available
+    region = ENV["AWS_DEFAULT_REGION"] || ENV["AWS_REGION"] || "mx-central-1"
+    TaskLogger.info("Using AWS region: #{region}")
+
+    TaskLogger.info("Listing all available ECS clusters...")
+    clusters_output = `aws ecs list-clusters --region #{region}`
+    TaskLogger.info("Available clusters: #{clusters_output}")
+
+    # Try to describe the specific cluster we're looking for
+    TaskLogger.info("Attempting to describe the cluster we're trying to use...")
+    describe_output = `aws ecs describe-clusters --region #{region} --clusters #{cluster} 2>&1`
+    TaskLogger.info("Describe cluster output: #{describe_output}")
+
+    # Debug: Check AWS caller identity
+    identity_output = `aws sts get-caller-identity --region #{region}`
+    TaskLogger.info("AWS Identity: #{identity_output}")
+
     TaskLogger.info("Updating container registry in #{env}...")
-    # Use --no-cli-pager to avoid opening vim and pipe through a JSON formatter
-    json_output = `aws ecs update-service --no-cli-pager --cluster #{cluster} --service #{service} --force-new-deployment`
+    # Build the update command with full command-line flags
+    update_command = "aws ecs update-service --region #{region} --no-cli-pager --cluster #{cluster} --service #{service} --force-new-deployment"
+
+    # Log the exact command we're going to run
+    TaskLogger.info("Running command: #{update_command}")
+
+    # Execute the command
+    json_output = `#{update_command}`
+
+    # Log the output and error code
+    exit_code = $?.exitstatus
+    TaskLogger.info("Command exit code: #{exit_code}")
 
     begin
       # Try to parse and prettify the JSON
@@ -256,7 +293,8 @@ namespace :deploy do
       TaskLogger.info "--------------------------------"
     rescue => e
       # If JSON parsing fails, just output the raw result
-      TaskLogger.info json_output
+      TaskLogger.info "Raw output: #{json_output}"
+      TaskLogger.info "Parse error: #{e.message}"
     end
   end
 
