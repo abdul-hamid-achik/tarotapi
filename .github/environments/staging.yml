@@ -1,9 +1,0 @@
-name: staging
-description: staging environment for pre-production testing
-protection_rules:
-  required_reviewers:
-    enabled: false
-  wait_timer:
-    enabled: false
-  environment_urls:
-    staging: https://staging.tarotapi.cards 
