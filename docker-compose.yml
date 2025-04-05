@@ -119,34 +119,6 @@ services:
       - jwt_secret
       - health_check_password
 
-  # Ollama is expensive - only enable when needed
-  ollama:
-    profiles: [ "ai" ] # Only starts when explicitly included
-    image: ollama/ollama:latest
-    volumes:
-      - ollama_data:/root/.ollama
-      - ~/.ollama:/etc/ollama:ro
-    ports:
-      - "11434:11434"
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:11434/api/version" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
-    networks:
-      default:
-        aliases:
-          - ollama
-
   postgres:
     # Use alpine for smaller footprint
     image: postgres:16-alpine
